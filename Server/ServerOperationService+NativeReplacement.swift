@@ -13,7 +13,7 @@ extension ServerOperationService {
               let destination = intent.destination else { throw OperationContractError.invalidReceipt }
         do {
             let expected = intent.sourceObservations[0]
-            let observed = expected.kind == .file ? try await proveSource(intent, ownership: ownership) : expected
+            let observed = expected.kind == .file || expected.sha256 != nil ? try await proveSource(intent, ownership: ownership) : expected
             let commit = try await journal.acquireCommit()
             defer { withExtendedLifetime(commit) {} }
             guard try !journal.cancellationRequested(identity.id) else { throw OperationContractError.cancelled }

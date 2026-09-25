@@ -113,10 +113,10 @@ extension ServerOperationService {
         let directory = try OperationDirectory(path: parent)
         let lookup = try directory.lookup(name)
         if let expected, expected.sha256 != nil, case .found(let observation) = lookup,
-           observation.identity == expected.identity, observation.kind == .file {
+           observation.identity == expected.identity, observation.kind == expected.kind {
             let clock = ContinuousClock()
             let deadline = clock.now.advanced(by: .seconds(10))
-            return .found(try directory.proveFile(name) { _ in
+            return .found(try directory.proveObject(name) { _ in
                 guard clock.now < deadline else { throw OperationJournalError.busy }
             })
         }

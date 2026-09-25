@@ -201,7 +201,7 @@ final class ServerOperationBackupTests: XCTestCase {
                 try Data("nested contents".utf8).write(to: source.appendingPathComponent("child"))
             }
             let parent = try OperationDirectory(path: Data(fixture.root.path.utf8))
-            let observed = try parent.observe(Data("incoming".utf8))
+            let observed = try parent.proveObject(Data("incoming".utf8), progress: { _ in })
             let approved = try parent.observe(Data("source".utf8))
             let service = try await fixture.service()
             let intent = OperationIntent(id: .init(operation: UUID(), item: UUID()), action: .move,
@@ -213,6 +213,7 @@ final class ServerOperationBackupTests: XCTestCase {
             let result = try await service.execute(request)
             XCTAssertEqual(result.outcome, .committed)
             XCTAssertEqual(result.sourceDisposition, .confirmed)
+            XCTAssertTrue(result.contentVerified)
             XCTAssertEqual(result.effects.first?.observation.identity, observed.identity)
             XCTAssertEqual(result.effects.first?.observation.kind, kind)
             XCTAssertEqual(try parent.lookup(Data("incoming".utf8)), .missing)
@@ -256,6 +257,73 @@ final class ServerOperationBackupTests: XCTestCase {
             XCTAssertEqual(repeated, result.receipt)
             XCTAssertTrue(repeated.recovery.isEmpty)
         }
+    }
+
+    func testNativeReplacementRejectsChangedNestedContentWithUnchangedRootVersion() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
+        let source = fixture.root.appendingPathComponent("incoming")
+        let destination = try fixture.url(fixture.original)
+        try FileManager.default.createDirectory(at: source, withIntermediateDirectories: false)
+        try Data("original child".utf8).write(to: source.appendingPathComponent("child"))
+        try Data("old destination".utf8).write(to: destination)
+        let parent = try OperationDirectory(path: Data(fixture.root.path.utf8))
+        let expected = try parent.proveObject(Data("incoming".utf8), progress: { _ in })
+        let approved = try parent.observe(Data("source".utf8))
+        let service = try await fixture.service()
+        let intent = OperationIntent(id: .init(operation: UUID(), item: UUID()), action: .move,
+                                     sources: [.init(account: fixture.account, path: .unix(Data(source.path.utf8)))],
+                                     destination: fixture.original, sourceObservations: [expected], conflict: .replace(approved))
+        let request = OperationRequestIdentity(id: intent.id, account: fixture.account, epoch: service.journal.epoch,
+                                               intentDigest: try OperationContentProof.data(intent.canonicalData()).sha256)
+        _ = try await service.accept(request, intent: intent)
+        try Data("changed child".utf8).write(to: source.appendingPathComponent("child"))
+        XCTAssertEqual(try parent.observe(Data("incoming".utf8)).version, expected.version)
+        do {
+            _ = try await service.execute(request)
+            XCTFail("Nested content changed without being refused")
+        } catch { XCTAssertEqual(error as? OperationFilesystemError, .identityChanged) }
+        XCTAssertEqual(try service.status(request).receipt?.outcome, .failedUnchanged)
+        XCTAssertEqual(try Data(contentsOf: destination), Data("old destination".utf8))
+        XCTAssertEqual(try Data(contentsOf: source.appendingPathComponent("child")), Data("changed child".utf8))
+    }
+
+    func testLostDirectoryMoveReceiptUsesManifestEvidenceWithoutReplay() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
+        let source = fixture.root.appendingPathComponent("incoming")
+        try FileManager.default.createDirectory(at: source, withIntermediateDirectories: false)
+        try Data("nested".utf8).write(to: source.appendingPathComponent("child"))
+        let parent = try OperationDirectory(path: Data(fixture.root.path.utf8))
+        let expected = try parent.proveObject(Data("incoming".utf8), progress: { _ in })
+        let location = OperationLocation(account: fixture.account, path: .unix(Data(source.path.utf8)))
+        let service = try await fixture.service()
+        let intent = OperationIntent(id: .init(operation: UUID(), item: UUID()), action: .move, sources: [location],
+                                     destination: fixture.original, sourceObservations: [expected], conflict: .createNew)
+        let request = OperationRequestIdentity(id: intent.id, account: fixture.account, epoch: service.journal.epoch,
+                                               intentDigest: try OperationContentProof.data(intent.canonicalData()).sha256)
+        _ = try await service.accept(request, intent: intent)
+        do {
+            let ownership = try await service.journal.acquireItem(intent.id)
+            defer { withExtendedLifetime(ownership) {} }
+            try service.journal.record(OperationReceipt(
+                id: intent.id, account: fixture.account, epoch: request.epoch, intentDigest: request.intentDigest,
+                revision: 1, phase: .committing, outcome: .running, sourceDisposition: .unknown,
+                preparedPayload: OperationEffect(location: location, observation: expected), recovery: [
+                    .init(identity: expected.identity, purpose: .source, original: location, knownLocation: nil,
+                          possibleLocations: [location, fixture.original]),
+                ]
+            ), ownership: ownership)
+            _ = try parent.moveExclusive(Data("incoming".utf8), to: parent, named: Data("source".utf8), expected: expected)
+        }
+        let result = try XCTUnwrap(service.status(request).receipt)
+        XCTAssertEqual(result.outcome, .committed)
+        XCTAssertEqual(result.sourceDisposition, .confirmed)
+        XCTAssertTrue(result.contentVerified)
+        XCTAssertEqual(result.effects.first?.observation.sha256, expected.sha256)
+        let duplicate = try await service.execute(request)
+        XCTAssertEqual(duplicate, result)
+        XCTAssertEqual(try Data(contentsOf: fixture.url(fixture.original).appendingPathComponent("child")), Data("nested".utf8))
     }
 
     private struct Fixture {

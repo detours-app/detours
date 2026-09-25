@@ -122,7 +122,9 @@ extension ServerOperationService {
                     let source = try self.resolve(intent.sources[0])
                     let clock = ContinuousClock()
                     var reported = clock.now
-                    let proved = try source.directory.proveFile(source.name) { measured in
+                    var measuredBytes: UInt64 = 0
+                    let proved = try source.directory.proveObject(source.name) { measured in
+                        measuredBytes = measured
                         guard try !self.journal.cancellationRequested(intent.id) else { throw OperationContractError.cancelled }
                         if clock.now - reported >= .seconds(5) {
                             let current = try self.journal.read(intent.id)
@@ -136,6 +138,8 @@ extension ServerOperationService {
                     }
                     guard proved.identity == intent.sourceObservations[0].identity,
                           proved.version == intent.sourceObservations[0].version,
+                          proved.kind == intent.sourceObservations[0].kind,
+                          proved.linkTarget == intent.sourceObservations[0].linkTarget,
                           intent.sourceObservations[0].sha256 == nil || proved.sha256 == intent.sourceObservations[0].sha256 else {
                         throw OperationFilesystemError.identityChanged
                     }
@@ -143,7 +147,7 @@ extension ServerOperationService {
                     try self.journal.record(OperationReceipt(
                         id: intent.id, account: self.journal.account, epoch: self.journal.epoch,
                         intentDigest: current.intentDigest, revision: (current.receipt?.revision ?? 0) + 1,
-                        phase: .preparing, outcome: .running, measuredBytes: proved.byteCount
+                        phase: .preparing, outcome: .running, measuredBytes: measuredBytes
                     ), ownership: ownership)
                     continuation.resume(returning: proved)
                 } catch { continuation.resume(throwing: error) }

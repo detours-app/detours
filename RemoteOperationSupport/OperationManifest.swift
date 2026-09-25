@@ -39,6 +39,17 @@ public struct OperationManifest: Codable, Equatable, Sendable {
 }
 
 extension OperationDirectory {
+    public func proveObject(_ name: Data, progress: (UInt64) throws -> Void) throws -> OperationObservation {
+        let observed = try observe(name)
+        if observed.kind == .file { return try proveFile(name, progress: progress) }
+        let manifest = try manifest(name, progress: progress)
+        guard manifest.entries.first?.relativePath.isEmpty == true,
+              manifest.entries.first?.observation == observed else { throw OperationFilesystemError.identityChanged }
+        return OperationObservation(identity: observed.identity, kind: observed.kind, version: observed.version,
+                                    byteCount: observed.byteCount, sha256: manifest.proof.sha256,
+                                    linkTarget: observed.linkTarget, contentVersion: observed.contentVersion)
+    }
+
     public func manifest(_ name: Data, progress: (UInt64) throws -> Void) throws -> OperationManifest {
         var entries: [OperationManifest.Entry] = []
         var measured: UInt64 = 0
