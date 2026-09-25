@@ -31,12 +31,20 @@ extension WindowsOperationScripts {
         [pscustomobject]@{ name = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($Name))
             identity = $Observation.identity; kind = $Observation.kind }
     }
-    function Assert-WindowsNewDestination($Context) {
-        if (@($Context.record.intent.conflict.PSObject.Properties.Name) -notcontains 'createNew') {
-            throw 'This Windows conflict action is not implemented.'
-        }
+    function Assert-WindowsDestination($Context) {
         $destination = Get-OperationPath $Context.record.intent.destination $Context.account
         $lookup = Get-WindowsOperationLookup $destination
+        $conflict = $Context.record.intent.conflict
+        if (@($conflict.PSObject.Properties.Name) -contains 'replace') {
+            if (-not $lookup.ContainsKey('found')) { throw 'Replacement destination is not confirmed present.' }
+            $actual = $lookup.found._0; $expected = $conflict.replace._0
+            if ($actual.identity.volume -cne $expected.identity.volume -or $actual.identity.object -cne $expected.identity.object -or
+                $actual.version -cne $expected.version -or $actual.kind -cne $expected.kind -or $actual.linkTarget -cne $expected.linkTarget) {
+                throw 'Approved replacement destination changed.'
+            }
+            return $destination
+        }
+        if (@($conflict.PSObject.Properties.Name) -notcontains 'createNew') { throw 'This Windows conflict action is not implemented.' }
         if (-not $lookup.ContainsKey('missing')) { throw 'Operation destination is not confirmed missing.' }
         $destination
     }
@@ -120,7 +128,9 @@ extension WindowsOperationScripts {
                     $receipt.outcome = 'committed'; $receipt.failure = $null
                     $receipt.effects = @(@{ location = $resultLocation; observation = $actual })
                     $receipt.contentVerified = $null -ne $expected.sha256
-                    if ($Context.record.intent.action -in @('move', 'rename', 'restore')) { $receipt.sourceDisposition = 'confirmed'; $receipt.recovery = @() }
+                    if ($Context.record.intent.action -in @('move', 'rename', 'restore')) {
+                        $receipt.sourceDisposition = 'confirmed'; $receipt.recovery = @($receipt.recovery | Where-Object { $_.purpose -ne 'source' })
+                    }
                     if ($Context.record.intent.action -eq 'trash') {
                         $receipt.sourceDisposition = 'confirmed'; $receipt.recovery = @(Get-WindowsTrashReference $Context $resultLocation)
                     }
@@ -131,7 +141,7 @@ extension WindowsOperationScripts {
         Save-WindowsReceipt $Context $receipt | Out-Null
     }
     function Prepare-WindowsPayload($Context, [string]$Kind, $Parameters) {
-        $destination = Assert-WindowsNewDestination $Context
+        $destination = Assert-WindowsDestination $Context
         $intent = $Context.record.intent
         $source = $null; $before = $null; $sourceStream = $null
         if ($Kind -eq 'prepareUpload') {
@@ -175,12 +185,15 @@ extension WindowsOperationScripts {
         $receipt.contentVerified = $true
         Save-WindowsReceipt $Context $receipt
     }
-    function Commit-WindowsMutation($Context, [string]$Kind) {
+    function Commit-WindowsMutation($Context, [string]$Kind, [bool]$Replacing = $false) {
         $intent = $Context.record.intent
-        $destination = Assert-WindowsNewDestination $Context
+        if (-not $Replacing -and @($intent.conflict.PSObject.Properties.Name) -contains 'replace') {
+            return Invoke-WindowsReplacement $Context $Kind
+        }
+        $destination = if ($Replacing) { Get-OperationPath $intent.destination $Context.account } else { Assert-WindowsDestination $Context }
         $payload = $null
         if ($Kind -eq 'commit') {
-            if ($Context.record.receipt.phase -ne 'readyToCommit') { throw 'Operation payload is not ready to commit.' }
+            if ($Context.record.receipt.phase -ne 'readyToCommit' -and -not $Replacing) { throw 'Operation payload is not ready to commit.' }
             $payload = $Context.record.receipt.preparedPayload
             $source = Get-OperationPath $payload.location $Context.account
             Assert-WindowsObservation ((Get-WindowsContentProof $source)) $payload.observation
@@ -195,13 +208,14 @@ extension WindowsOperationScripts {
         $commit = Lock-OperationFile (Join-Path $Context.root 'commit.lock') (Join-Path $Context.root ((Get-OperationKey $Context.identity.id) + '.cancel'))
         try {
             Assert-WindowsOperationActive $Context
-            $destination = Assert-WindowsNewDestination $Context
+            if (-not $Replacing) { $destination = Assert-WindowsDestination $Context }
+            elseif (-not (Get-WindowsOperationLookup $destination).ContainsKey('missing')) { throw 'Replacement destination was occupied.' }
             $receipt = New-WindowsReceipt $Context 'committing' 'running'
             $receipt.preparedPayload = $payload
             $receipt.plannedPaths = @($intent.destination)
             if ($intent.action -in @('rename', 'move', 'restore')) {
                 $receipt.sourceDisposition = 'unknown'
-                $receipt.recovery = @(@{ identity = $payload.observation.identity; purpose = 'source'; original = $payload.location
+                $receipt.recovery = @($receipt.recovery) + @(@{ identity = $payload.observation.identity; purpose = 'source'; original = $payload.location
                     knownLocation = $null; possibleLocations = @($payload.location, $intent.destination) })
             }
             Save-WindowsReceipt $Context $receipt | Out-Null
@@ -225,8 +239,11 @@ extension WindowsOperationScripts {
         $receipt = New-WindowsReceipt $Context 'terminal' 'committed'
         $receipt.effects = @(@{ location = $intent.destination; observation = $observed })
         $receipt.contentVerified = $null -ne $observed.sha256
-        if ($intent.action -in @('rename', 'move', 'restore')) { $receipt.sourceDisposition = 'confirmed'; $receipt.recovery = @() }
+        if ($intent.action -in @('rename', 'move', 'restore')) {
+            $receipt.sourceDisposition = 'confirmed'; $receipt.recovery = @($receipt.recovery | Where-Object { $_.purpose -ne 'source' })
+        }
         Save-WindowsReceipt $Context $receipt | Out-Null
+        if ($Replacing) { return $receipt }
         if ($null -ne $Context.record.workspace) {
             try {
                 Remove-WindowsWorkspace $Context

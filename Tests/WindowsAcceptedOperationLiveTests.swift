@@ -4,7 +4,7 @@ import XCTest
 @testable import Detours
 
 final class WindowsAcceptedOperationLiveTests: XCTestCase {
-    private struct Arguments: Encodable {
+    struct Arguments: Encodable {
         let root: String
         let account: OperationAccount
         let operation: WindowsOperationArguments
@@ -25,6 +25,7 @@ final class WindowsAcceptedOperationLiveTests: XCTestCase {
         let root = try JSONDecoder().decode(String.self, from: rootData)
         do {
             try await exercise(channel: channel, root: root)
+            try await exerciseReplacement(channel: channel, root: root)
             try await exerciseIngress(channel: channel, root: root, control: control)
             try await cleanup(channel: channel, root: root)
             await channel.disconnect()
@@ -299,7 +300,7 @@ final class WindowsAcceptedOperationLiveTests: XCTestCase {
         _ = try await channel.run(script, operation: "AcceptedFixtureCleanup")
     }
 
-    private static let requestScript = #"""
+    static let requestScript = #"""
     param($Arguments)
     \#(WindowsOperationScripts.filesystemHelpers)
     \#(WindowsOperationScripts.journalHelpers)
@@ -308,10 +309,19 @@ final class WindowsAcceptedOperationLiveTests: XCTestCase {
     \#(WindowsOperationScripts.ingressHelpers)
     \#(WindowsOperationScripts.trashHelpers)
     \#(WindowsOperationScripts.restoreHelpers)
+    \#(WindowsOperationScripts.replacementHelpers)
+    \#(WindowsOperationScripts.backupHandoffHelpers)
     $nativeProof = ${function:Get-WindowsContentProof}
     function Get-WindowsContentProof([string]$Path) {
         $probe = [System.IO.FileStream]::new((Join-Path (Join-Path $Arguments.root 'journal') 'commit.lock'), 'OpenOrCreate', 'ReadWrite', 'None')
         $probe.Dispose()
+        if ($Path.EndsWith('\displaced')) {
+            if ($Arguments.trashFailure -eq 'replacementChanged') { [System.IO.File]::WriteAllText($Path, 'changed original') }
+            elseif ($Arguments.trashFailure -eq 'replacementOccupied') {
+                [System.IO.File]::WriteAllText((Join-Path $Arguments.root 'copy'), 'competing replacement writer')
+                throw 'Injected displaced-original verification failure.'
+            }
+        }
         if ($Path.Contains('\.detours-trash\') -and $Arguments.trashFailure) {
             if ($Arguments.trashFailure -eq 'changed') { [System.IO.File]::WriteAllText($Path, 'changed after move') }
             elseif ($Arguments.trashFailure -eq 'occupied') {

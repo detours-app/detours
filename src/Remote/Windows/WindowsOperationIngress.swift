@@ -13,7 +13,7 @@ extension WindowsOperationScripts {
         }
         try {
             Assert-WindowsOperationActive $Context
-            $destination = Assert-WindowsNewDestination $Context
+            $destination = Assert-WindowsDestination $Context
             if ($Kind -eq 'prepareIngress') {
                 if ($null -ne $Context.record.receipt) { throw 'Operation preparation already started.' }
                 $workspace = New-WindowsWorkspace $Context $destination
