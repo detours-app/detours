@@ -1,5 +1,14 @@
 # Test Log
 
+## 2026-09-25 (Foundry and devtest, accepted archive preparation)
+
+| Check | Commit | Result |
+| --- | --- | --- |
+| Linux accepted archive compilation and process regressions | `9a58d56` | PASS: native adapter and accepted archive preparation compiled; 18 process tests passed with zero failures in 11.886 seconds. |
+| Linux accepted archive lifecycle | `9a58d56` | PASS: 103 archive/operation tests, zero failures, 11.583 seconds. Encrypted/plain multi-source archives prepare privately, preserve metadata and links, retain replacement originals, refuse changed sources/payloads and competing names, honor cancellation and keep passwords out of snapshots. Deferred inputs close and propagate opening errors. Static Swift Linux helper built. |
+| Signed Foundry accepted archive lifecycle | `9a58d56` | PASS: both helper builds, signed no-install app build and 140 focused tests, zero failures, 8.425 seconds. Accepted 7z preparation and explicit publication preserve metadata, encrypted contents, source evidence and replacement recovery; duplicate requests and refused commits preserve later occupants. Protocol codecs and live Windows journal checks passed. |
+| Foundry bundled archive licenses | `9a58d56` | PASS: all four 7-Zip provenance/license files in the signed app bundle are nonempty and match the repository copies byte for byte. |
+
 ## 2026-09-25 (Foundry and devtest, owned archive streams)
 
 | Check | Commit | Result |
