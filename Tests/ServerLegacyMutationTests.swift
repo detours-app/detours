@@ -24,11 +24,14 @@ final class ServerLegacyMutationTests: XCTestCase {
         let handler = RPCHandler(operationService: fixture.service)
         let names = try FileManager.default.contentsOfDirectory(atPath: fixture.root.path).sorted()
         for message in messages {
-            try XCTAssertThrowsError(try handler.handleChunks(message: message)) { error in
+            do {
+                _ = try handler.handleChunks(message: message)
+                XCTFail("Legacy mutation was accepted")
+            } catch {
                 XCTAssertEqual(error as? ServerRPCError, .acceptedOperationRequired)
                 var reader = ServerRPCBinaryReader(data: RPCHandler.encodeError(error))
                 XCTAssertEqual(try reader.readString(), "Remote helper compatibility error: changes require an accepted operation using protocol version 2.")
-                XCTAssertNoThrow(try reader.requireComplete())
+                try reader.requireComplete()
             }
             XCTAssertEqual(try Data(contentsOf: fixture.destination), Data("original".utf8))
             XCTAssertEqual(try Data(contentsOf: partial), Data("another operation".utf8))

@@ -3,6 +3,9 @@
 | Check | Commit | Result |
 | --- | --- | --- |
 | Linux legacy mutation refusal compilation | `dd590cd` | FAIL: the new RPC refusal test omitted try on a throwing assertion; compilation stopped before tests. Correcting the assertion before rerunning verification. |
+| Linux legacy refusal compilation correction | `44cb0fe` | PASS: compilation and 18 process tests, zero failures, 11.888 seconds. |
+| Linux legacy mutation refusal and regressions | `44cb0fe` | PASS: 118 archive/operation tests, zero failures, 17.923 seconds. Legacy RPC mutations and stream uploads refuse before changing files or consuming an upload body; read-only downloads remain available. Static Linux helper built. |
+| Foundry legacy refusal test compilation | `44cb0fe` | FAIL: both helpers and the signed no-install app built, but macOS XCTest rejects the throwing error callback accepted by Linux XCTest. No focused Foundry tests ran. Replace that callback with explicit do/catch and rerun the same checks. |
 
 ## 2026-09-25 (Foundry and devtest, owned compressed TAR preparation)
 
