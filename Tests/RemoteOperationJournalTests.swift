@@ -139,6 +139,52 @@ final class RemoteOperationJournalTests: XCTestCase {
         XCTAssertEqual(try journal.read(intent.id).revision, 3)
     }
 
+    func testManifestsRemainImmutableAcrossReceiptWorkspaceAndReopen() async throws {
+        let root = try temporaryRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let journal = try await OperationJournal(root: root.appendingPathComponent("journal"), account: account)
+        let directory = try OperationDirectory(path: Data(root.path.utf8))
+        try Data("source".utf8).write(to: root.appendingPathComponent("source"))
+        try Data("source".utf8).write(to: root.appendingPathComponent("payload"))
+        let source = try directory.manifest(Data("source".utf8), progress: { _ in })
+        let payload = try directory.manifest(Data("payload".utf8), progress: { _ in })
+        let intent = makeIntent()
+        let ownership = try await journal.acquireItem(intent.id)
+        _ = try journal.accept(intent, digest: "digest", ownership: ownership)
+        try journal.recordManifests(intent.id, source: source, payload: nil, ownership: ownership)
+        XCTAssertEqual(try journal.read(intent.id).sourceManifest, source)
+        XCTAssertNil(try journal.read(intent.id).payloadManifest)
+        let workspace = try OperationWorkspace(parent: directory, id: intent.id)
+        try journal.recordWorkspace(workspace.record, ownership: ownership)
+        try journal.recordManifests(intent.id, source: source, payload: payload, ownership: ownership)
+        let receipt = OperationReceipt(id: intent.id, account: account, epoch: journal.epoch, intentDigest: "digest",
+                                       revision: 1, phase: .preparing, outcome: .running)
+        try journal.record(receipt, ownership: ownership)
+        let reopened = try await OperationJournal(root: root.appendingPathComponent("journal"), account: account)
+        let retained = try reopened.read(intent.id)
+        XCTAssertEqual(retained.sourceManifest, source)
+        XCTAssertEqual(retained.payloadManifest, payload)
+        XCTAssertEqual(retained.workspace, workspace.record)
+        XCTAssertEqual(retained.receipt, receipt)
+        try journal.recordManifests(intent.id, source: source, payload: payload, ownership: ownership)
+        XCTAssertEqual(try journal.read(intent.id), retained)
+        XCTAssertThrowsError(try journal.recordManifests(intent.id, source: payload, payload: payload, ownership: ownership))
+        XCTAssertThrowsError(try journal.recordManifests(intent.id, source: source, payload: source, ownership: ownership))
+        XCTAssertThrowsError(try journal.recordManifests(intent.id, source: source, payload: nil, ownership: ownership))
+        XCTAssertEqual(try journal.read(intent.id), retained)
+        try workspace.removeScratch()
+        let terminal = OperationReceipt(id: intent.id, account: account, epoch: journal.epoch, intentDigest: "digest",
+                                        revision: 2, phase: .terminal, outcome: .failedUnchanged)
+        try journal.record(terminal, ownership: ownership)
+        XCTAssertThrowsError(try journal.recordManifests(intent.id, source: source, payload: payload, ownership: ownership))
+        try journal.acknowledge(intent.id, retainingUndo: false, ownership: ownership)
+        let compacted = try journal.read(intent.id)
+        XCTAssertNil(compacted.sourceManifest)
+        XCTAssertNil(compacted.payloadManifest)
+        XCTAssertEqual(compacted.receipt, terminal)
+        XCTAssertThrowsError(try journal.recordManifests(intent.id, source: source, payload: payload, ownership: ownership))
+    }
+
     private func temporaryRoot() throws -> URL {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])

@@ -25,6 +25,8 @@ public final class OperationJournal: Sendable {
         public let receipt: OperationReceipt?
         public let acknowledged: Bool
         public let workspace: OperationWorkspace.Record?
+        public let sourceManifest: OperationManifest?
+        public let payloadManifest: OperationManifest?
     }
 
     public final class Ownership: Sendable {
@@ -169,7 +171,7 @@ public final class OperationJournal: Sendable {
         guard try !cancellationRequested(intent.id) else { throw OperationContractError.cancelled }
         let snapshot = Snapshot(
             schemaVersion: 1, epoch: epoch, account: account, id: intent.id,
-            intentDigest: digest, revision: 1, intent: intent, receipt: nil, acknowledged: false, workspace: nil
+            intentDigest: digest, revision: 1, intent: intent, receipt: nil, acknowledged: false, workspace: nil, sourceManifest: nil, payloadManifest: nil
         )
         try write(snapshot, name: name(intent.id) + ".json")
         return snapshot
@@ -188,7 +190,8 @@ public final class OperationJournal: Sendable {
         let snapshot = Snapshot(
             schemaVersion: 1, epoch: epoch, account: account, id: receipt.id,
             intentDigest: previous.intentDigest, revision: previous.revision + 1,
-            intent: intent, receipt: receipt, acknowledged: false, workspace: previous.workspace
+            intent: intent, receipt: receipt, acknowledged: false, workspace: previous.workspace,
+            sourceManifest: previous.sourceManifest, payloadManifest: previous.payloadManifest
         )
         try write(snapshot, name: name(receipt.id) + ".json")
     }
@@ -203,7 +206,7 @@ public final class OperationJournal: Sendable {
         let tombstone = Snapshot(
             schemaVersion: 1, epoch: epoch, account: account, id: id,
             intentDigest: previous.intentDigest, revision: previous.revision + 1,
-            intent: nil, receipt: receipt, acknowledged: true, workspace: nil
+            intent: nil, receipt: receipt, acknowledged: true, workspace: nil, sourceManifest: nil, payloadManifest: nil
         )
         try write(tombstone, name: name(id) + ".json")
     }
@@ -224,8 +227,26 @@ public final class OperationJournal: Sendable {
         try write(Snapshot(
             schemaVersion: 1, epoch: epoch, account: account, id: workspace.id, intentDigest: previous.intentDigest,
             revision: previous.revision + 1, intent: previous.intent, receipt: previous.receipt,
-            acknowledged: false, workspace: workspace
+            acknowledged: false, workspace: workspace,
+            sourceManifest: previous.sourceManifest, payloadManifest: previous.payloadManifest
         ), name: name(workspace.id) + ".json")
+    }
+
+    public func recordManifests(_ id: OperationItemID, source: OperationManifest,
+                                payload: OperationManifest?, ownership: Ownership) throws {
+        try requireOwnership(ownership, id: id)
+        let previous = try read(id)
+        guard !previous.acknowledged, previous.receipt == nil || previous.receipt?.phase == .preparing,
+              previous.sourceManifest == nil || previous.sourceManifest == source,
+              previous.payloadManifest == nil || previous.payloadManifest == payload else {
+            throw OperationContractError.identityMismatch
+        }
+        if previous.sourceManifest == source, previous.payloadManifest == payload { return }
+        try write(Snapshot(
+            schemaVersion: 1, epoch: epoch, account: account, id: id, intentDigest: previous.intentDigest,
+            revision: previous.revision + 1, intent: previous.intent, receipt: previous.receipt,
+            acknowledged: false, workspace: previous.workspace, sourceManifest: source, payloadManifest: payload
+        ), name: name(id) + ".json")
     }
 
     public func cancellationRequested(_ id: OperationItemID) throws -> Bool {
