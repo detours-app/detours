@@ -6,6 +6,7 @@
 | --- | --- | --- |
 | Linux helper container checks on devtest, orchestrated by Foundry | `0b13078` | PASS: 18 process tests in 11.891 seconds and 14 archive tests in 1.747 seconds, zero failures or skips. Swift 6.2.4 container compiled the static Linux helper on devtest. |
 | Required no-install build on Foundry | `0b13078` | PASS: Linux helper built on devtest, universal macOS helper built on Foundry, app bundle signed; explicit build result zero. No production host contacted. |
+| Build cache, macOS helper smoke and real Linux listing/Quick Look | `d91edbf` | PASS: 11 tests, zero failures or skips, 4.374 seconds. The newly built Linux helper served the app's persistent SSH client on devtest. |
 
 ## 2026-09-25 (Foundry, remote reliability review)
 
