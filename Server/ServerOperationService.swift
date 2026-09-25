@@ -52,16 +52,24 @@ struct ServerOperationService: Sendable {
     }
 
     private func prepare(_ identity: OperationRequestIdentity, input: ServerOperationInput) async throws -> OperationReceipt {
-        let accepted = try status(identity)
-        guard let proof = accepted.intent?.payloadProof else { throw OperationContractError.invalidReceipt }
+        _ = try status(identity)
         let ownership = try await journal.acquireItem(identity.id)
         defer { withExtendedLifetime(ownership) {} }
+        let accepted = try journal.read(identity.id)
+        if let receipt = accepted.receipt, [.readyToCommit, .committed, .terminal].contains(receipt.phase) { return receipt }
+        guard let proof = accepted.intent?.payloadProof else { throw OperationContractError.invalidReceipt }
         return try await prepareOwned(accepted, ownership: ownership, input: input, proof: proof)
     }
 
     func prepareOwned(_ accepted: OperationJournal.Snapshot, ownership: OperationJournal.Ownership,
                       input: ServerOperationInput, proof: OperationContentProof) async throws -> OperationReceipt {
-        let preparation = try await allocateUpload(accepted, ownership: ownership, proof: proof)
+        let preparation: UploadPreparation
+        do {
+            preparation = try await allocateUpload(accepted, ownership: ownership, proof: proof)
+        } catch {
+            try recordUnallocatedFailure(accepted.id, ownership: ownership, failure: error)
+            throw error
+        }
         do {
             return try await withCheckedThrowingContinuation { continuation in
                 DispatchQueue.global(qos: .userInitiated).async {
@@ -142,6 +150,7 @@ struct ServerOperationService: Sendable {
               intent.payloadProof == nil || intent.payloadProof == proof,
               [.copy, .move, .editorUpload].contains(intent.action) else { throw OperationContractError.invalidReceipt }
         guard try !journal.cancellationRequested(intent.id) else { throw OperationContractError.cancelled }
+        try requirePreparationDestination(intent)
         let parent = try OperationDirectory(path: Self.parentPath(destination))
         let name = OperationWorkspace.plannedName(for: intent.id)
         let planned = OperationLocation(account: journal.account, path: .unix(try parent.childPath(name)))

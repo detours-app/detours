@@ -21,6 +21,7 @@ extension ServerOperationService {
         }
         var preparation: ServerTreePreparation?
         do {
+            try requirePreparationDestination(intent)
             let source = intent.sources[0]
             let manifest = try await treeCopyManifest(source, identity: identity, ownership: ownership, measuredBefore: 0)
             guard let root = manifest.entries.first?.observation else { throw OperationContractError.invalidReceipt }
@@ -99,6 +100,8 @@ extension ServerOperationService {
         let commit = try await journal.acquireCommit()
         defer { withExtendedLifetime(commit) {} }
         guard try !journal.cancellationRequested(identity.id) else { throw OperationContractError.cancelled }
+        guard let intent = try journal.read(identity.id).intent else { throw OperationContractError.invalidReceipt }
+        try requirePreparationDestination(intent)
         let name = OperationWorkspace.plannedName(for: identity.id)
         let location = OperationLocation(account: journal.account, path: .unix(try target.childPath(name)))
         let current = try journal.read(identity.id)

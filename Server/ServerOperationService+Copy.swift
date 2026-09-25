@@ -10,10 +10,12 @@ extension ServerOperationService {
         let ownership = try await journal.acquireItem(identity.id)
         defer { withExtendedLifetime(ownership) {} }
         let accepted = try journal.read(identity.id)
+        if let receipt = accepted.receipt, [.readyToCommit, .committed, .terminal].contains(receipt.phase) { return receipt }
         guard accepted.receipt == nil, let intent = accepted.intent, [.copy, .move].contains(intent.action),
               intent.sources.count == 1, intent.sourceObservations.count == 1,
               intent.sourceObservations[0].kind == .file else { throw OperationFilesystemError.unsupported }
         do {
+            try requirePreparationDestination(intent)
             let observed = try await proveSource(intent, ownership: ownership)
             guard let hash = observed.sha256 else { throw OperationContractError.invalidReceipt }
             let source = try resolve(intent.sources[0])
@@ -25,14 +27,7 @@ extension ServerOperationService {
                 proof: OperationContentProof(byteCount: observed.byteCount, sha256: hash)
             )
         } catch {
-            let current = try journal.read(identity.id)
-            if current.workspace == nil {
-                try journal.record(OperationReceipt(
-                    id: identity.id, account: journal.account, epoch: journal.epoch, intentDigest: identity.intentDigest,
-                    revision: (current.receipt?.revision ?? 0) + 1, phase: .terminal, outcome: .failedUnchanged,
-                    failure: String(describing: error)
-                ), ownership: ownership)
-            }
+            try recordUnallocatedFailure(identity.id, ownership: ownership, failure: error)
             throw error
         }
     }
