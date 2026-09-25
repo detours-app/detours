@@ -5,6 +5,8 @@
 | Check | Commit | Result |
 | --- | --- | --- |
 | Linux native archive adapter build | `a4359f7` | FAIL: the adapter called the handler's private SetProperties override rather than its public ISetProperties interface. Compilation stopped before tests; the call now uses the public interface. |
+| Linux native archive process regressions | `e07c50d` | PASS: native adapter compiled and 18 process tests passed with zero failures in 11.888 seconds. |
+| Linux owned archive stream checks | `e07c50d` | FAIL: 92 of 93 checks passed in 7.647 seconds. The new round-trip test expected extraction of a link outside the archive tree, which the existing extractor rejects as dangerous. Correcting the fixture to use an internal link and checking unsafe-link refusal separately; helper/app builds stopped at this failure. |
 
 ## 2026-09-25 (Foundry and devtest, complete folder preparation)
 

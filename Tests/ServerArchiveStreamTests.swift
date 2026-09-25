@@ -19,7 +19,7 @@ final class ServerArchiveStreamTests: XCTestCase {
                 fixture.entry("folder", directory: true),
                 fixture.entry("folder/empty", directory: true),
                 fixture.entry("folder/émoji 📁.txt", input: source, size: UInt64(fixture.bytes.count)),
-                fixture.entry("folder/link", target: Data("../outside".utf8)),
+                fixture.entry("folder/link", target: Data("émoji 📁.txt".utf8)),
             ]
             try SevenZipArchiveWriter.create(entries: entries, output: output, password: password, progress: { _ in })
             XCTAssertEqual(try parent.observe(Data("owned.7z".utf8)).identity, before.identity)
@@ -28,14 +28,32 @@ final class ServerArchiveStreamTests: XCTestCase {
             let folder = URL(fileURLWithPath: extracted)
             XCTAssertEqual(try Data(contentsOf: folder.appendingPathComponent("émoji 📁.txt")), fixture.bytes)
             XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: folder.appendingPathComponent("empty").path), [])
-            XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: folder.appendingPathComponent("link").path), "../outside")
-            XCTAssertEqual(try Data(contentsOf: folder.appendingPathComponent("link")), Data("outside survives".utf8))
+            XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: folder.appendingPathComponent("link").path), "émoji 📁.txt")
+            XCTAssertEqual(try Data(contentsOf: folder.appendingPathComponent("link")), fixture.bytes)
             if password != nil {
                 XCTAssertThrowsError(try ArchiveOperations().extractArchive(archive: fixture.archive.path, password: "wrong fixture password")) {
                     XCTAssertEqual($0 as? ArchiveOperationsError, .wrongPassword)
                 }
             }
         }
+    }
+
+    func testExternalLinkArchiveRetainsExistingExtractionRefusal() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
+        let output = try SafeFileWriter.createHandle(at: fixture.archive)
+        defer { try? output.close() }
+        try SevenZipArchiveWriter.create(
+            entries: [fixture.entry("folder", directory: true), fixture.entry("folder/link", target: Data("../outside".utf8))],
+            output: output, password: nil, progress: { _ in }
+        )
+        XCTAssertThrowsError(try ArchiveOperations().extractArchive(archive: fixture.archive.path, password: nil)) {
+            guard case .processFailed(let detail) = $0 as? ArchiveOperationsError else {
+                return XCTFail("Expected existing unsafe-link extraction refusal, got \($0)")
+            }
+            XCTAssertTrue(detail.contains("Dangerous symbolic link"))
+        }
+        XCTAssertEqual(try Data(contentsOf: fixture.root.appendingPathComponent("outside")), Data("outside survives".utf8))
     }
 
     func testCancellationStopsNativeCompressionWithoutReplacingOutputOrSource() throws {
