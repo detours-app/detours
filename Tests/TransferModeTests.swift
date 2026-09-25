@@ -31,104 +31,61 @@ final class TransferModeTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: partial.path))
     }
 
-    func testCompleteUploadWritesDestinationAndLeavesNoPartial() throws {
-        let home = try createTempDirectory()
-        defer { cleanupTempDirectory(home) }
-        let folder = home.appendingPathComponent("2026-09-01T1028/report", isDirectory: true)
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let destination = folder.appendingPathComponent("Exam Report Best Practice.pdf")
-        let partial = folder.appendingPathComponent("Exam Report Best Practice.pdf.detours-partial")
-        let body = Data(repeating: 0x42, count: 200_000)
-        let inputPipe = Pipe()
-        let outputPipe = Pipe()
-        var writer = ServerRPCBinaryWriter()
-        writer.writeUInt8(1)
-        writer.writeData(Data("/unused-source".utf8))
-        writer.writeData(Data(destination.path.utf8))
-        writer.writeInt64(Int64(body.count))
-        let header = writer.data
-        var frameLength = UInt32(header.count).bigEndian
-        let framePrefix = Data(bytes: &frameLength, count: MemoryLayout<UInt32>.size)
-        let feeder = Thread {
-            inputPipe.fileHandleForWriting.write(framePrefix + header)
-            inputPipe.fileHandleForWriting.write(body)
-            try? inputPipe.fileHandleForWriting.close()
-        }
-        feeder.start()
-
-        try TransferMode(
-            input: inputPipe.fileHandleForReading,
-            output: outputPipe.fileHandleForWriting,
-            trashOperations: TrashOperations(homeDirectory: home)
-        ).run()
-
-        XCTAssertEqual(try Data(contentsOf: destination), body)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: partial.path))
-    }
-
-    func testUploadIntoMissingFolderReportsTheSystemError() throws {
-        let home = try createTempDirectory()
-        defer { cleanupTempDirectory(home) }
-        let destination = home.appendingPathComponent("missing/report.pdf")
-        let inputPipe = Pipe()
-        let outputPipe = Pipe()
-        var writer = ServerRPCBinaryWriter()
-        writer.writeUInt8(1)
-        writer.writeData(Data("/unused-source".utf8))
-        writer.writeData(Data(destination.path.utf8))
-        writer.writeInt64(3)
-        var frameLength = UInt32(writer.data.count).bigEndian
-        let framePrefix = Data(bytes: &frameLength, count: MemoryLayout<UInt32>.size)
-        inputPipe.fileHandleForWriting.write(framePrefix + writer.data)
-        inputPipe.fileHandleForWriting.write(Data("abc".utf8))
-        try inputPipe.fileHandleForWriting.close()
-
-        XCTAssertThrowsError(
-            try TransferMode(
-                input: inputPipe.fileHandleForReading,
-                output: outputPipe.fileHandleForWriting,
-                trashOperations: TrashOperations(homeDirectory: home)
-            ).run()
-        ) { error in
-            XCTAssertEqual((error as? POSIXError)?.code, .ENOENT, "The real system error must reach the caller: \(error)")
+    func testLegacyUploadRefusesBeforeTouchingDestinationOrPartialSentinel() throws {
+        for count in [Int64(0), 3, 200_000] {
+            let home = try createTempDirectory()
+            defer { cleanupTempDirectory(home) }
+            let destination = try createTestFile(in: home, name: "destination.bin", content: "original")
+            let partial = try createTestFile(in: home, name: "destination.bin.detours-partial", content: "another operation")
+            let input = Pipe()
+            let output = Pipe()
+            input.fileHandleForWriting.write(legacyFrame(direction: 1, source: "/unused", destination: destination.path, count: count))
+            try input.fileHandleForWriting.close()
+            XCTAssertThrowsError(try TransferMode(input: input.fileHandleForReading, output: output.fileHandleForWriting).run()) {
+                XCTAssertEqual($0 as? ServerRPCError, .acceptedOperationRequired)
+            }
+            XCTAssertEqual(try String(contentsOf: destination, encoding: .utf8), "original")
+            XCTAssertEqual(try String(contentsOf: partial, encoding: .utf8), "another operation")
+            XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: home.path).sorted(),
+                           ["destination.bin", "destination.bin.detours-partial"])
         }
     }
 
-    func testShortUploadRestoresDisplacedDestinationAndRemovesPartial() throws {
+    func testLegacyUploadRefusesBeforeCreatingMissingDestinationParents() throws {
         let home = try createTempDirectory()
         defer { cleanupTempDirectory(home) }
-        let destination = try createTestFile(in: home, name: "destination.bin", content: "original")
-        let partial = home.appendingPathComponent("destination.bin.detours-partial")
-        let inputPipe = Pipe()
-        let outputPipe = Pipe()
-        var writer = ServerRPCBinaryWriter()
-        writer.writeUInt8(1)
-        writer.writeData(Data("/unused-source".utf8))
-        writer.writeData(Data(destination.path.utf8))
-        writer.writeInt64(8)
-        var frameLength = UInt32(writer.data.count).bigEndian
-        let framePrefix = Data(bytes: &frameLength, count: MemoryLayout<UInt32>.size)
-        inputPipe.fileHandleForWriting.write(framePrefix + writer.data)
-        inputPipe.fileHandleForWriting.write(Data("abc".utf8))
-        try inputPipe.fileHandleForWriting.close()
-
-        XCTAssertThrowsError(
-            try TransferMode(
-                input: inputPipe.fileHandleForReading,
-                output: outputPipe.fileHandleForWriting,
-                trashOperations: TrashOperations(homeDirectory: home)
-            ).run()
-        ) { error in
-            XCTAssertEqual(
-                error as? TransferModeError,
-                .byteCountMismatch(expected: 8, actual: 3)
-            )
+        let input = Pipe()
+        let output = Pipe()
+        input.fileHandleForWriting.write(legacyFrame(direction: 1, source: "/unused", destination: home.appendingPathComponent("missing/file").path, count: 3))
+        try input.fileHandleForWriting.close()
+        XCTAssertThrowsError(try TransferMode(input: input.fileHandleForReading, output: output.fileHandleForWriting).run()) {
+            XCTAssertEqual($0 as? ServerRPCError, .acceptedOperationRequired)
         }
-        XCTAssertEqual(try String(contentsOf: destination, encoding: .utf8), "original")
-        XCTAssertFalse(FileManager.default.fileExists(atPath: partial.path))
-        let trashFiles = home.appendingPathComponent(".local/share/Trash/files")
-        let trashInfo = home.appendingPathComponent(".local/share/Trash/info")
-        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: trashFiles.path), [])
-        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: trashInfo.path), [])
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: home.path), [])
+    }
+
+    func testReadOnlyLegacyDownloadStillReturnsExactContents() throws {
+        let home = try createTempDirectory()
+        defer { cleanupTempDirectory(home) }
+        let source = try createTestFile(in: home, name: "source", content: "download contents")
+        let input = Pipe()
+        let output = Pipe()
+        let contents = try Data(contentsOf: source)
+        input.fileHandleForWriting.write(legacyFrame(direction: 2, source: source.path, destination: "/unused", count: Int64(contents.count)))
+        try input.fileHandleForWriting.close()
+        try TransferMode(input: input.fileHandleForReading, output: output.fileHandleForWriting).run()
+        try output.fileHandleForWriting.close()
+        XCTAssertEqual(output.fileHandleForReading.readDataToEndOfFile(), contents)
+        XCTAssertEqual(try Data(contentsOf: source), contents)
+    }
+
+    private func legacyFrame(direction: UInt8, source: String, destination: String, count: Int64) -> Data {
+        var writer = ServerRPCBinaryWriter()
+        writer.writeUInt8(direction)
+        writer.writeData(Data(source.utf8))
+        writer.writeData(Data(destination.utf8))
+        writer.writeInt64(count)
+        var length = UInt32(writer.data.count).bigEndian
+        return Data(bytes: &length, count: 4) + writer.data
     }
 }
