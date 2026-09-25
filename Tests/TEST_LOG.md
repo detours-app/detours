@@ -6,6 +6,8 @@
 | --- | --- | --- |
 | Linux complete-folder preparation | `4c416ef` | PASS: 18 process tests in 11.986 seconds and 83 operation/archive tests in 5.961 seconds, zero failures or skips. Folder and selected-link copies publish only after complete preparation; changed source/payload trees, cancellation, competing names and source-descendant destinations preserve original data. Static Linux helper built. |
 | Signed Foundry complete-folder preparation | `4c416ef` | PASS: both helper builds, signed no-install app build and 105 tests, zero failures or skips, 3.462 seconds. Complete directory and selected-link publication, metadata, duplicate commit, changed payload ownership and live Windows journal regressions passed. |
+| Linux preparation preflight and duplicate requests | `4984915` | PASS: 18 process tests in 11.888 seconds and 86 operation/archive tests in 6.770 seconds, zero failures or skips. Upload/file/tree preparation refuses an occupied destination before allocation; duplicate requests preserve ready and terminal receipts even after paths change, and early cancellation records unchanged failure. Static Linux helper built. |
+| Signed Foundry preparation preflight and duplicate requests | `4984915` | PASS: both helper builds, signed no-install app build and 108 tests, zero failures or skips, 3.466 seconds. Preflight refusal, stable repeated preparation, early cancellation and existing Unix/live Windows journal checks passed. |
 
 ## 2026-09-25 (Foundry and devtest, accepted Unix uploads)
 
