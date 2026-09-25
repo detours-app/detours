@@ -73,6 +73,18 @@ final class RemoteOperationProtocolTests: XCTestCase {
         for reply in replies { XCTAssertEqual(try OperationReply.decode(reply.encoded()), reply) }
     }
 
+    func testStreamHandshakeRetainsAcceptedIdentityAndRejectsLegacyVersion() throws {
+        let identity = OperationRequestIdentity(id: .init(operation: UUID(), item: UUID()), account: account,
+                                                epoch: UUID(), intentDigest: "digest")
+        let handshake = OperationStreamHandshake(identity: identity)
+        XCTAssertEqual(try OperationStreamHandshake.decode(handshake.encoded()), handshake)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: handshake.encoded()) as? [String: Any])
+        object["version"] = 1
+        XCTAssertThrowsError(try OperationStreamHandshake.decode(JSONSerialization.data(withJSONObject: object))) {
+            XCTAssertEqual($0 as? OperationCompatibilityError, .protocolVersion(expected: 2, actual: 1))
+        }
+    }
+
     func testHelperNegotiatesTheJournaledOperationService() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

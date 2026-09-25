@@ -92,3 +92,23 @@ public enum OperationReply: Codable, Equatable, Sendable {
     public func encoded() throws -> Data { try JSONEncoder().encode(self) }
     public static func decode(_ data: Data) throws -> Self { try JSONDecoder().decode(Self.self, from: data) }
 }
+
+public struct OperationStreamHandshake: Codable, Equatable, Sendable {
+    public let version: Int
+    public let identity: OperationRequestIdentity
+
+    public init(identity: OperationRequestIdentity) {
+        self.version = OperationHandshake.protocolVersion
+        self.identity = identity
+    }
+
+    public func encoded() throws -> Data { try JSONEncoder().encode(self) }
+
+    public static func decode(_ data: Data) throws -> Self {
+        let handshake = try JSONDecoder().decode(Self.self, from: data)
+        guard handshake.version == OperationHandshake.protocolVersion else {
+            throw OperationCompatibilityError.protocolVersion(expected: OperationHandshake.protocolVersion, actual: handshake.version)
+        }
+        return handshake
+    }
+}

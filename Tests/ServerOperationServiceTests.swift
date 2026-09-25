@@ -81,6 +81,37 @@ final class ServerOperationServiceTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: fixture.destination), fixture.bytes)
     }
 
+    func testTransferModeReturnsPreparedReceiptWithoutPublishing() async throws {
+        let fixture = try await Fixture(size: 1_048_577)
+        defer { fixture.cleanup() }
+        _ = try await fixture.service.accept(fixture.identity, intent: fixture.intent)
+        let handshake = try OperationStreamHandshake(identity: fixture.identity).encoded()
+        let header = Data([3]) + handshake
+        var length = UInt32(header.count).bigEndian
+        let inputURL = fixture.root.appendingPathComponent("input")
+        let outputURL = fixture.root.appendingPathComponent("output")
+        try (Data(bytes: &length, count: 4) + header + fixture.bytes).write(to: inputURL)
+        let input = try FileHandle(forReadingFrom: inputURL)
+        let output = try SafeFileWriter.createHandle(at: outputURL)
+        defer {
+            try? input.close()
+            try? output.close()
+        }
+        try TransferMode(input: input, output: output, operationService: fixture.service).run()
+        let response = try Data(contentsOf: outputURL)
+        let responseLength = response.prefix(4).reduce(UInt32(0)) { ($0 << 8) | UInt32($1) }
+        XCTAssertEqual(response.count, Int(responseLength) + 4)
+        guard case .receipt(let ready) = try OperationReply.decode(Data(response.dropFirst(4))) else {
+            return XCTFail("Stream did not return preparation receipt")
+        }
+        XCTAssertEqual(ready.phase, .readyToCommit)
+        XCTAssertTrue(ready.contentVerified)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.destination.path))
+        let committed = try await fixture.service.commit(fixture.identity)
+        XCTAssertEqual(committed.outcome, .committed)
+        XCTAssertEqual(try Data(contentsOf: fixture.destination), fixture.bytes)
+    }
+
     func testStalledStreamReleasesAccountLockAndHonoursIndependentCancellation() async throws {
         let fixture = try await Fixture(size: 32)
         defer { fixture.cleanup() }

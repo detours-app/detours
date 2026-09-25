@@ -13,6 +13,7 @@
 | Signed Foundry recovery and outcome regressions | `31ff863` | PASS: signed no-install app build and 26 tests, zero failures or skips, 0.926 seconds. Read-only reconciliation, stable committed effects, journal ownership and the live Windows journal passed. |
 | Linux streamed preparation and cancellation checks | `bed92c3` | PASS: 18 process tests in 11.787 seconds and 34 service/content/filesystem/publication/archive tests in 3.500 seconds, zero failures or skips. The stalled-stream cancellation case passed in 0.250 seconds; both helpers built. |
 | Signed Foundry streamed preparation and cancellation checks | `bed92c3` | PASS: signed no-install app build and 29 tests, zero failures or skips, 1.203 seconds. Large uploads require separate publication; truncated and stalled streams preserve the destination, cancellation cleans owned scratch, and another item can acquire the account lock during a stalled read. |
+| Linux operation RPC checks | `110c012` | PASS: 18 process tests in 11.786 seconds and 35 service/content/filesystem/publication/archive tests in 3.603 seconds, zero failures or skips. RPC acceptance, preparation, separate commit and duplicate-result retention passed; both helpers built. |
 
 ## 2026-09-25 (Foundry and devtest, measured content proofs)
 

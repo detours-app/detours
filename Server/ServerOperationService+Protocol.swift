@@ -79,13 +79,28 @@ final class ServerOperationReplyBridge: @unchecked Sendable {
     private var result: Result<OperationReply, Error>?
 
     static func reply(to request: OperationRequest, service: ServerOperationService?) throws -> OperationReply {
+        try perform {
+            let active: ServerOperationService
+            if let service { active = service } else { active = try await ServerOperationService.live() }
+            return try await active.reply(to: request)
+        }
+    }
+
+    static func stream(_ identity: OperationRequestIdentity, input: FileHandle,
+                       service: ServerOperationService?) throws -> OperationReply {
+        try perform {
+            let active: ServerOperationService
+            if let service { active = service } else { active = try await ServerOperationService.live() }
+            return .receipt(try await active.prepareStream(identity, input: input))
+        }
+    }
+
+    private static func perform(_ work: @escaping @Sendable () async throws -> OperationReply) throws -> OperationReply {
         let bridge = ServerOperationReplyBridge()
         let completed = DispatchSemaphore(value: 0)
         Task.detached {
             do {
-                let active: ServerOperationService
-                if let service { active = service } else { active = try await ServerOperationService.live() }
-                bridge.store(.success(try await active.reply(to: request)))
+                bridge.store(.success(try await work()))
             } catch { bridge.store(.failure(error)) }
             completed.signal()
         }

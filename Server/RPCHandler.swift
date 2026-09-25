@@ -50,7 +50,9 @@ struct RPCHandler: @unchecked Sendable {
         // barrier so it still observes, and is observed by, the requests around
         // it in the order the client sent them.
         let workQueue = DispatchQueue(label: "com.detours.server.rpc", attributes: .concurrent)
+        let operationQueue = DispatchQueue(label: "com.detours.server.operations", attributes: .concurrent)
         defer { workQueue.sync(flags: .barrier) {} }
+        defer { operationQueue.sync(flags: .barrier) {} }
 
         while true {
             guard let frame = try Self.readFrame(from: .standardInput) else { return }
@@ -68,7 +70,9 @@ struct RPCHandler: @unchecked Sendable {
             let work: @Sendable () -> Void = {
                 self.serve(message: message, request: request, outputLock: outputLock)
             }
-            if Self.mutatesRemoteState(message) {
+            if case .operation = message {
+                operationQueue.async(execute: work)
+            } else if Self.mutatesRemoteState(message) {
                 workQueue.async(flags: .barrier, execute: work)
             } else {
                 workQueue.async(execute: work)

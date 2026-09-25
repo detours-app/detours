@@ -1,5 +1,6 @@
 import DetoursProcess
 import Foundation
+import RemoteOperationSupport
 
 enum TransferModeError: Error, Equatable {
     case byteCountMismatch(expected: Int64, actual: Int64)
@@ -40,21 +41,32 @@ struct TransferMode {
     private let output: FileHandle
     private let fileManager: FileManager
     private let trashOperations: TrashOperations
+    private let operationService: ServerOperationService?
 
     init(
         input: FileHandle = .standardInput,
         output: FileHandle = .standardOutput,
         fileManager: FileManager = .default,
-        trashOperations: TrashOperations = TrashOperations()
+        trashOperations: TrashOperations = TrashOperations(),
+        operationService: ServerOperationService? = nil
     ) {
         self.input = input
         self.output = output
         self.fileManager = fileManager
         self.trashOperations = trashOperations
+        self.operationService = operationService
     }
 
     func run() throws {
-        let handshake = try TransferHandshake(binaryEncoded: readFrame())
+        let frame = try readFrame()
+        if frame.first == 3 {
+            let handshake = try OperationStreamHandshake.decode(Data(frame.dropFirst()))
+            let reply = try ServerOperationReplyBridge.stream(handshake.identity, input: input, service: operationService).encoded()
+            var length = UInt32(reply.count).bigEndian
+            try output.write(contentsOf: Data(bytes: &length, count: MemoryLayout<UInt32>.size) + reply)
+            return
+        }
+        let handshake = try TransferHandshake(binaryEncoded: frame)
         switch handshake.direction {
         case .download:
             try streamDownload(handshake)
