@@ -4,7 +4,9 @@ import RemoteOperationSupport
 
 extension ServerOperationService {
     func prepareArchive(_ identity: OperationRequestIdentity, password: String?) async throws -> OperationReceipt {
-        _ = try status(identity)
+        if try status(identity).intent?.action == .archiveExtract {
+            return try await prepareArchiveExtraction(identity, password: password)
+        }
         let ownership = try await journal.acquireItem(identity.id)
         defer { withExtendedLifetime(ownership) {} }
         let accepted = try journal.read(identity.id)
