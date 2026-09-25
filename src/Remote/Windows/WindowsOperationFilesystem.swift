@@ -59,7 +59,9 @@ extension WindowsOperationScripts {
         }
         private static string Version(byte[] basic, byte[] standard, bool changed) {
             using (MemoryStream bytes = new MemoryStream()) {
-                bytes.Write(basic, 0, 8);
+                // NTFS can tunnel a displaced name's creation time onto the incoming file.
+                // CreationTime: https://learn.microsoft.com/dotnet/api/system.io.filesysteminfo.creationtime
+                if (changed) bytes.Write(basic, 0, 8);
                 bytes.Write(basic, 16, changed ? 16 : 8);
                 bytes.Write(basic, 32, 4);
                 bytes.Write(standard, 8, 8);
@@ -185,7 +187,7 @@ extension WindowsOperationScripts {
                 Observation after = Observe(handle);
                 if (after.identity.volume != before.identity.volume || after.identity.@object != before.identity.@object ||
                     after.kind != before.kind || after.contentVersion != before.contentVersion || after.linkTarget != before.linkTarget)
-                    throw new IOException("Operation object changed during move: before=" + before.contentVersion + "; after=" + after.contentVersion);
+                    throw new IOException("Operation object changed during move.");
                 return after;
             }
         }

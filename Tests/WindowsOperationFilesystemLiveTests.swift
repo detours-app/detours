@@ -46,6 +46,7 @@ final class WindowsOperationFilesystemLiveTests: XCTestCase {
         XCTAssertEqual(result.after.identity, result.before.identity)
         XCTAssertEqual(result.after.sha256, result.before.sha256)
         XCTAssertEqual(result.after.contentVersion, result.before.contentVersion)
+        XCTAssertNotEqual(result.after.version.prefix(8), result.before.version.prefix(8), "The fixture must exercise creation-time tunneling")
     }
 
     private struct Arguments: Encodable { let fixtureID: UUID }
