@@ -140,7 +140,7 @@ if [ -d Server ]; then
     if [ "$SERVER_HASH" != "$CACHED_LINUX_SERVER_HASH" ] || [ ! -f "$LINUX_SERVER_BINARY" ]; then
         log_info "Rebuild Linux helper"
         if ! resources/scripts/build-server-linux.sh; then
-            log_error "dockerhost is unreachable or the Linux helper rebuild failed"
+            log_error "devtest is unreachable or the Linux helper rebuild failed"
             log_error "Cannot ship without $LINUX_SERVER_BINARY"
             exit 1
         fi

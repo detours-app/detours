@@ -7,7 +7,7 @@ SERVER_BINARY="resources/Servers/detours-server-x86_64-linux"
 SERVER_HASH_FILE="resources/Servers/.cache-hash-linux"
 HASH="$(resources/scripts/server-cache-hash.sh)"
 DOCKER_IMAGE="${DETOURS_SERVER_DOCKER_IMAGE:-swift:6.2-noble}"
-REMOTE_HOST="${DETOURS_DOCKER_HOST:-dockerhost}"
+REMOTE_HOST="devtest"
 REMOTE_DIR="detours-server-build-$HASH-$(date +%s)-$$"
 REMOTE_TMP="/tmp/$REMOTE_DIR"
 REMOTE_TMP_Q="$(printf '%q' "$REMOTE_TMP")"
@@ -22,8 +22,8 @@ trap cleanup EXIT
 mkdir -p resources/Servers
 
 if ! ssh -o BatchMode=yes -o ConnectTimeout=5 "$REMOTE_HOST" true >/dev/null 2>&1; then
-    echo "ERROR dockerhost is unreachable; cannot rebuild detours-server for Linux." >&2
-    echo "ERROR Ensure dockerhost is online or provide resources/Servers/detours-server-x86_64-linux." >&2
+    echo "ERROR devtest is unreachable; cannot rebuild detours-server for Linux." >&2
+    echo "ERROR Ensure devtest is online or provide resources/Servers/detours-server-x86_64-linux." >&2
     exit 1
 fi
 

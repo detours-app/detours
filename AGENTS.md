@@ -146,6 +146,7 @@ rm -f temp.png temp2.png mask.png
 
 - **Spectre** is the source-of-truth editing and Git machine: edit source, make commits, manage repo state, and perform the final verified `/Applications` install here. Never test here.
 - **Foundry** is the exclusive Detours verification machine: unit/integration/live tests, test builds, runtime staging, installed-app verification, screenshot fixtures, and capture setup all happen here.
+- **Linux helper exception:** the build script runs Linux helper compilation and its container tests on **devtest**, orchestrated from Foundry during verification. **dockerhost is production and must never run Detours builds or tests.**
 - Before any command that changes Foundry app state, user preferences, screenshot fixtures, installed apps, or files outside the repo, state that it affects Foundry.
 - Do not run tests, stage fixtures, create test files/folders/volumes, write Detours preferences, populate caches, move test artifacts to Trash, relaunch Detours for a probe, or otherwise mutate Spectre runtime state during verification.
 - If a command touches both machines, call out both sides explicitly before running it.
