@@ -80,6 +80,8 @@ public final class OperationDirectory: @unchecked Sendable {
                               expected: OperationObservation) throws -> OperationObservation {
         try Self.validateName(name)
         try Self.validateName(target)
+        try requireCurrentPath()
+        try destination.requireCurrentPath()
         let current = try observe(name)
         guard current.identity == expected.identity, current.version == expected.version,
               current.kind == expected.kind, current.linkTarget == expected.linkTarget else {
@@ -93,6 +95,7 @@ public final class OperationDirectory: @unchecked Sendable {
         guard result == 0 else { throw Self.systemError() }
         try synchronize()
         try destination.synchronize()
+        try destination.requireCurrentPath()
         let moved = try destination.observe(target)
         guard moved.identity == expected.identity else { throw OperationFilesystemError.identityChanged }
         return moved
@@ -100,6 +103,11 @@ public final class OperationDirectory: @unchecked Sendable {
 
     public func synchronize() throws {
         guard fsync(descriptor) == 0 else { throw Self.systemError() }
+    }
+
+    public func requireCurrentPath() throws {
+        let current = try OperationDirectory(path: path)
+        guard current.identity == identity else { throw OperationFilesystemError.identityChanged }
     }
 
     public func names() throws -> Set<Data> {

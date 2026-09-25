@@ -22,12 +22,20 @@ final class OperationFilesystemTests: XCTestCase {
         try workspace.removeScratch()
     }
 
-    func testPublicationPreservesIdentityAndInvalidUTF8Name() throws {
+    func testPublicationPreservesIdentityAndNativeNameBytes() throws {
         let root = try fixture()
         defer { try? FileManager.default.removeItem(at: root) }
         let directory = try OperationDirectory(path: Data(root.path.utf8))
         let workspace = try OperationWorkspace(parent: directory, id: .init(operation: UUID(), item: UUID()))
+        #if os(Linux)
         let name = Data([0xff, 0x80])
+        #else
+        let name = Data("payload-ä".utf8)
+        XCTAssertThrowsError(try workspace.createFile(named: Data([0xff, 0x80]))) {
+            XCTAssertEqual($0 as? OperationFilesystemError, .system(92))
+        }
+        XCTAssertEqual(try workspace.directory.names(), [])
+        #endif
         let file = try workspace.createFile(named: name)
         try file.write(contentsOf: Data("body".utf8))
         try file.close()

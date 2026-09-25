@@ -57,6 +57,7 @@ public struct OperationReceipt: Codable, Equatable, Sendable {
     public let effects: [OperationEffect]
     public let sourceDisposition: SourceDisposition
     public let contentVerified: Bool
+    public let preparedPayload: OperationEffect?
     public let recovery: [OperationRecoveryReference]
     public let children: [OperationReceipt]
     public let skipped: Bool
@@ -67,6 +68,7 @@ public struct OperationReceipt: Codable, Equatable, Sendable {
         intentDigest: String, revision: UInt64, phase: OperationPhase,
         outcome: OperationOutcome, effects: [OperationEffect] = [],
         sourceDisposition: SourceDisposition = .notRequired, contentVerified: Bool = false,
+        preparedPayload: OperationEffect? = nil,
         recovery: [OperationRecoveryReference] = [], children: [OperationReceipt] = [],
         skipped: Bool = false, failure: String? = nil
     ) {
@@ -81,6 +83,7 @@ public struct OperationReceipt: Codable, Equatable, Sendable {
         self.effects = effects
         self.sourceDisposition = sourceDisposition
         self.contentVerified = contentVerified
+        self.preparedPayload = preparedPayload
         self.recovery = recovery
         self.children = children
         self.skipped = skipped

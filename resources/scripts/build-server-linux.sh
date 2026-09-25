@@ -39,6 +39,7 @@ COPYFILE_DISABLE=1 tar --no-xattrs -czf - \
     Tests/DetoursProcessTests \
     Tests/ServerArchiveOperationsTests.swift \
     Tests/OperationFilesystemTests.swift \
+    Tests/OperationPublicationTests.swift \
     | ssh "$REMOTE_HOST" "tar -xzf - -C $REMOTE_TMP_Q"
 # shellcheck disable=SC2029
 ssh "$REMOTE_HOST" "cat > $REMOTE_TMP_Q/Package.swift" <<'EOF'
@@ -82,13 +83,13 @@ let package = Package(
             dependencies: ["detours-server", "DetoursProcess", "RemoteOperationSupport"],
             path: "Tests",
             exclude: ["DetoursProcessTests"],
-            sources: ["ServerArchiveOperationsTests.swift", "OperationFilesystemTests.swift"]
+            sources: ["ServerArchiveOperationsTests.swift", "OperationFilesystemTests.swift", "OperationPublicationTests.swift"]
         ),
     ]
 )
 EOF
 # shellcheck disable=SC2029
-ssh "$REMOTE_HOST" "cd $REMOTE_TMP_Q && docker run --rm -e HOME=/tmp -v \"\$PWD:/workspace\" -w /workspace $DOCKER_IMAGE_Q sh -c 'owner=\"\$(stat -c %u:%g /workspace)\"; trap \"chown -R \$owner /workspace\" EXIT; apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq zip unzip p7zip-full && swift test --filter DetoursProcessTests && swift test --filter ServerArchiveOperationsTests && swift test --filter OperationFilesystemTests && swift build -c release --product detours-server -Xswiftc -static-stdlib'"
+ssh "$REMOTE_HOST" "cd $REMOTE_TMP_Q && docker run --rm -e HOME=/tmp -v \"\$PWD:/workspace\" -w /workspace $DOCKER_IMAGE_Q sh -c 'owner=\"\$(stat -c %u:%g /workspace)\"; trap \"chown -R \$owner /workspace\" EXIT; apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq zip unzip p7zip-full && swift test --filter DetoursProcessTests && swift test --filter ServerArchiveOperationsTests && swift build -c release --product detours-server -Xswiftc -static-stdlib'"
 scp "$REMOTE_HOST:$REMOTE_TMP/.build/release/detours-server" "$SERVER_BINARY"
 chmod 0755 "$SERVER_BINARY"
 echo "$HASH" > "$SERVER_HASH_FILE"

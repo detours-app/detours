@@ -1,5 +1,12 @@
 # Test Log
 
+## 2026-09-25 (Foundry and devtest, native operation filesystem primitives)
+
+| Check | Commit | Result |
+| --- | --- | --- |
+| Linux helper process, archive and filesystem checks | `1241d4a` | PASS: 18 process tests in 11.785 seconds and 19 archive/filesystem tests in 1.844 seconds, zero failures or skips; static release helper built. The explicit five-case filesystem filter also passed in 0.028 seconds; it duplicates cases already selected by their module name and is removed from subsequent builds. |
+| Signed Foundry build and native filesystem/journal regressions | `1241d4a` | FAIL: signed build passed; 18 of 19 tests passed in 1.151 seconds. APFS rejected the invalid UTF-8 fixture name with `EILSEQ` (92), so the cross-platform test must assert byte preservation on Linux and explicit rejection on macOS. |
+
 ## 2026-09-25 (Foundry and devtest, version-2 operation protocol)
 
 | Check | Commit | Result |
