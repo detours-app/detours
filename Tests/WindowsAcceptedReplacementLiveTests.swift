@@ -58,6 +58,42 @@ extension WindowsAcceptedOperationLiveTests {
         let duplicate = try await send(.commit(identity))
         XCTAssertEqual(duplicate, .receipt(committed))
 
+        let beforeHandoff = try await observation()
+        let (retainedHandoff, retainedIdentity) = try await replace(beforeHandoff, failure: "handoffRefused")
+        XCTAssertEqual(retainedHandoff.outcome, .committed, retainedHandoff.failure ?? "")
+        XCTAssertNotNil(retainedHandoff.failure)
+        XCTAssertEqual(retainedHandoff.effects.first?.observation.sha256, try OperationContentProof.data(bytes).sha256)
+        let holding = try XCTUnwrap(retainedHandoff.recovery.first(where: { $0.purpose == .displacedOriginal }))
+        XCTAssertEqual(holding.identity, beforeHandoff.identity)
+        XCTAssertEqual(retainedHandoff.recovery.filter { $0.purpose == .scratch }.count, 2)
+        let holdingLocation = try XCTUnwrap(holding.knownLocation)
+        let holdingContents = try await contents(at: holdingLocation)
+        XCTAssertEqual(holdingContents, "replacement bytes")
+        let handoffDestination = try await contents(at: destination)
+        XCTAssertEqual(handoffDestination, "replacement bytes")
+
+        func execute(_ intent: OperationIntent) async throws -> OperationReceipt {
+            let request = OperationRequestIdentity(id: intent.id, account: account, epoch: handshake.epoch,
+                intentDigest: try OperationContentProof.data(intent.canonicalData()).sha256)
+            _ = try await send(.accept(identity: request, intent: intent))
+            guard case .receipt(let receipt) = try await send(.execute(request)) else { throw NSError(domain: "AcceptedReplacement", code: 5) }
+            return receipt
+        }
+        let removeIncoming = OperationIntent(id: .init(operation: UUID(), item: UUID()), action: .trash, sources: [destination], destination: nil,
+            sourceObservations: [try XCTUnwrap(retainedHandoff.effects.first?.observation)], conflict: .createNew)
+        let removedIncoming = try await execute(removeIncoming)
+        XCTAssertEqual(removedIncoming.outcome, .committed, removedIncoming.failure ?? "")
+        guard case .lookup(.found(let heldObservation)) = try await send(.lookup(holdingLocation)) else { return XCTFail("Retained original missing") }
+        let restoreOriginal = OperationIntent(id: .init(operation: UUID(), item: UUID()), action: .restore, sources: [holdingLocation],
+            destination: destination, sourceObservations: [heldObservation], conflict: .createNew, reverses: retainedIdentity.id)
+        let originalRestored = try await execute(restoreOriginal)
+        XCTAssertEqual(originalRestored.outcome, .committed, originalRestored.failure ?? "")
+        XCTAssertNil(originalRestored.failure)
+        XCTAssertEqual(originalRestored.effects.first?.observation.identity, beforeHandoff.identity)
+        guard case .status(let recoveredHandoff) = try await send(.status(retainedIdentity)) else { return XCTFail("No recovered handoff record") }
+        XCTAssertTrue(try XCTUnwrap(recoveredHandoff.receipt).recovery.isEmpty)
+        XCTAssertNil(recoveredHandoff.workspace)
+
         let approved = try await observation()
         let (rolledBack, _) = try await replace(approved, failure: "replacementChanged")
         XCTAssertEqual(rolledBack.outcome, .failedUnchanged, rolledBack.failure ?? "")

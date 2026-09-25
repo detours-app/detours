@@ -44,7 +44,8 @@ extension WindowsOperationScripts {
                 try {
                     $commit = Lock-OperationFile (Join-Path $Root 'commit.lock') ''
                     try {
-                        Remove-WindowsTrashDirectory $priorContext
+                        $directoryIdentity = $priorContext.record.windowsTrashDirectory.observation.identity
+                        $workspaceIdentity = $priorContext.record.workspace.root.identity
                         $priorReceipt = $priorContext.record.receipt
                         $priorReceipt.revision = [long]$priorReceipt.revision + 1
                         $priorReceipt.recovery = @($priorReceipt.recovery | Where-Object {
@@ -52,14 +53,30 @@ extension WindowsOperationScripts {
                                 $_.identity.object -ceq $reference.identity.object)
                         })
                         Save-WindowsReceipt $priorContext $priorReceipt | Out-Null
+                        Remove-WindowsTrashDirectory $priorContext
+                        Remove-WindowsWorkspaceContents $priorContext
+                        $priorReceipt = $priorContext.record.receipt
+                        $priorReceipt.revision = [long]$priorReceipt.revision + 1
+                        $priorReceipt.recovery = @($priorReceipt.recovery | Where-Object {
+                            $emptyDirectory = $_.purpose -eq 'scratch' -and $_.identity.volume -ceq $directoryIdentity.volume -and
+                                $_.identity.object -ceq $directoryIdentity.object
+                            $emptyWorkspace = $_.purpose -eq 'scratch' -and $_.identity.volume -ceq $workspaceIdentity.volume -and
+                                $_.identity.object -ceq $workspaceIdentity.object
+                            -not ($emptyDirectory -or $emptyWorkspace)
+                        })
+                        Save-WindowsReceipt $priorContext $priorReceipt | Out-Null
                     } finally { $commit.Dispose() }
                 } catch {
                     $receipt = New-WindowsReceipt $context 'terminal' 'committed'
                     $receipt.effects = @($result.effects); $receipt.sourceDisposition = 'confirmed'; $receipt.contentVerified = $result.contentVerified
                     $receipt.failure = 'Restored; recovery metadata cleanup was not confirmed: ' + $_.Exception.Message
+                    $receipt.recovery = @($priorContext.record.receipt.recovery | Where-Object { $_.purpose -eq 'scratch' })
+                    foreach ($cleanup in $receipt.recovery) { $cleanup.knownLocation = $null }
                     $directory = $priorContext.record.windowsTrashDirectory
-                    if ($null -ne $directory) {
-                        $receipt.recovery = @(@{ identity = $directory.observation.identity; purpose = 'scratch'; original = $null
+                    if ($null -ne $directory -and @($receipt.recovery | Where-Object {
+                        $_.identity.volume -ceq $directory.observation.identity.volume -and $_.identity.object -ceq $directory.observation.identity.object
+                    }).Count -eq 0) {
+                        $receipt.recovery = @($receipt.recovery) + @(@{ identity = $directory.observation.identity; purpose = 'scratch'; original = $null
                             knownLocation = $null; possibleLocations = @($directory.location) })
                     }
                     $result = Save-WindowsReceipt $context $receipt

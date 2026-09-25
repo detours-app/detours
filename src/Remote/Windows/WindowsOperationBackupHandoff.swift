@@ -57,6 +57,12 @@ extension WindowsOperationScripts {
             $receipt = New-WindowsReceipt $Context 'terminal' 'committed'
             $receipt.effects = @($Context.record.receipt.effects); $receipt.sourceDisposition = $Context.record.receipt.sourceDisposition
             $receipt.contentVerified = $Context.record.receipt.contentVerified; $receipt.failure = $failure
+            $directory = $Context.record.windowsTrashDirectory
+            if ($null -ne $directory -and ($null -eq $known -or
+                (Get-OperationPath $known $Context.account) -cne (Get-OperationPath $targetLocation $Context.account))) {
+                $receipt.recovery = @($receipt.recovery) + @(@{ identity = $directory.observation.identity; purpose = 'scratch'; original = $null
+                    knownLocation = $null; possibleLocations = @($directory.location) })
+            }
             foreach ($reference in $receipt.recovery) { if ($reference.purpose -eq 'scratch') { $reference.knownLocation = $null } }
             Save-WindowsReceipt $Context $receipt
         }

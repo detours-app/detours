@@ -311,6 +311,13 @@ final class WindowsAcceptedOperationLiveTests: XCTestCase {
     \#(WindowsOperationScripts.restoreHelpers)
     \#(WindowsOperationScripts.replacementHelpers)
     \#(WindowsOperationScripts.backupHandoffHelpers)
+    $nativeBackupReference = ${function:Set-WindowsBackupReference}
+    function Set-WindowsBackupReference($Context, $KnownLocation, $Locations) {
+        & $nativeBackupReference $Context $KnownLocation $Locations
+        if ($Arguments.trashFailure -eq 'handoffRefused' -and $Context.record.receipt.outcome -eq 'committed' -and $null -eq $KnownLocation) {
+            throw 'Injected refusal after reserving the backup Trash location.'
+        }
+    }
     $nativeProof = ${function:Get-WindowsContentProof}
     function Get-WindowsContentProof([string]$Path) {
         $probe = [System.IO.FileStream]::new((Join-Path (Join-Path $Arguments.root 'journal') 'commit.lock'), 'OpenOrCreate', 'ReadWrite', 'None')
