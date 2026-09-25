@@ -1,5 +1,12 @@
 # Test Log
 
+## 2026-09-25 (Foundry and devtest, accepted Unix uploads)
+
+| Check | Commit | Result |
+| --- | --- | --- |
+| Linux upload service, content, filesystem, publication, archive and process checks | `0313d60` | PASS: 18 process tests in 11.988 seconds and 28 service/content/filesystem/publication/archive tests in 2.466 seconds, zero failures or skips. Static Linux and universal macOS helpers built successfully. |
+| Signed Foundry build and upload/journal checks | `0313d60` | PASS: signed no-install app build and 12 tests, zero failures or skips, 0.879 seconds. Small upload boundaries, separate publication, duplicate commit, rejected content, epoch reset and live Windows journal checks passed. |
+
 ## 2026-09-25 (Foundry and devtest, measured content proofs)
 
 | Check | Commit | Result |

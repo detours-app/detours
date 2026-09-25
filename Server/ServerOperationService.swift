@@ -40,19 +40,36 @@ struct ServerOperationService: Sendable {
         guard contents.count <= 1_048_576 else { throw OperationFilesystemError.unsupported }
         let accepted = try status(identity)
         let ownership = try await journal.acquireItem(identity.id)
-        return try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                do {
-                    var offset = 0
-                    let result = try self.receiveUpload(accepted, ownership: ownership) { maximum in
-                        guard offset < contents.count else { return Data() }
-                        let end = min(contents.count, offset + maximum)
-                        defer { offset = end }
-                        return contents.subdata(in: offset..<end)
-                    }
-                    continuation.resume(returning: result)
-                } catch { continuation.resume(throwing: error) }
+        defer { withExtendedLifetime(ownership) {} }
+        let preparation = try await allocateUpload(accepted, ownership: ownership)
+        do {
+            return try await withCheckedThrowingContinuation { continuation in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    do {
+                        var offset = 0
+                        let result = try self.receiveUpload(preparation, ownership: ownership) { maximum in
+                            guard offset < contents.count else { return Data() }
+                            let end = min(contents.count, offset + maximum)
+                            defer { offset = end }
+                            return contents.subdata(in: offset..<end)
+                        }
+                        continuation.resume(returning: result)
+                    } catch { continuation.resume(throwing: error) }
+                }
             }
+        } catch {
+            let original = error
+            let commit = try await journal.acquireCommit()
+            defer { withExtendedLifetime(commit) {} }
+            try preparation.workspace.removeScratch()
+            let current = try journal.read(identity.id)
+            let unchanged = OperationReceipt(
+                id: identity.id, account: journal.account, epoch: journal.epoch, intentDigest: identity.intentDigest,
+                revision: (current.receipt?.revision ?? 0) + 1, phase: .terminal, outcome: .failedUnchanged,
+                failure: String(describing: original)
+            )
+            try journal.record(unchanged, ownership: ownership)
+            throw original
         }
     }
 
@@ -66,6 +83,8 @@ struct ServerOperationService: Sendable {
         var recovery = published.recovery
         var failure: String?
         do {
+            let cleanup = try await journal.acquireCommit()
+            defer { withExtendedLifetime(cleanup) {} }
             let parent = try OperationDirectory(path: Self.parentPath(destination))
             let workspace = try OperationWorkspace(parent: parent, record: record)
             try workspace.removeScratch()
@@ -81,17 +100,27 @@ struct ServerOperationService: Sendable {
         return result
     }
 
-    func receiveUpload(_ accepted: OperationJournal.Snapshot, ownership: OperationJournal.Ownership,
-                       read: (Int) throws -> Data) throws -> OperationReceipt {
+    // Created on one executor and consumed by one worker; no concurrent workspace access.
+    private struct UploadPreparation: @unchecked Sendable {
+        let accepted: OperationJournal.Snapshot
+        let workspace: OperationWorkspace
+        let output: FileHandle
+        let receipt: OperationReceipt
+    }
+
+    private func allocateUpload(_ accepted: OperationJournal.Snapshot,
+                                ownership: OperationJournal.Ownership) async throws -> UploadPreparation {
+        let commit = try await journal.acquireCommit()
+        defer { withExtendedLifetime(commit) {} }
         guard try journal.read(accepted.id) == accepted, accepted.receipt == nil,
               let intent = accepted.intent, let destination = intent.destination,
-              destination.account == journal.account, let expected = intent.payloadProof,
+              destination.account == journal.account, intent.payloadProof != nil,
               [.copy, .move, .editorUpload].contains(intent.action) else { throw OperationContractError.invalidReceipt }
         guard try !journal.cancellationRequested(intent.id) else { throw OperationContractError.cancelled }
         let parent = try OperationDirectory(path: Self.parentPath(destination))
         let name = OperationWorkspace.plannedName(for: intent.id)
         let planned = OperationLocation(account: journal.account, path: .unix(try parent.childPath(name)))
-        var receipt = OperationReceipt(
+        let receipt = OperationReceipt(
             id: intent.id, account: journal.account, epoch: journal.epoch, intentDigest: accepted.intentDigest,
             revision: 1, phase: .preparing, outcome: .running, plannedPaths: [planned]
         )
@@ -101,6 +130,18 @@ struct ServerOperationService: Sendable {
         let payloadName = Data("payload".utf8)
         let output = try workspace.createFile(named: payloadName)
         try journal.recordWorkspace(workspace.record, ownership: ownership)
+        return UploadPreparation(accepted: accepted, workspace: workspace, output: output, receipt: receipt)
+    }
+
+    private func receiveUpload(_ preparation: UploadPreparation, ownership: OperationJournal.Ownership,
+                               read: (Int) throws -> Data) throws -> OperationReceipt {
+        let accepted = preparation.accepted
+        guard let intent = accepted.intent, let expected = intent.payloadProof,
+              let planned = preparation.receipt.plannedPaths?.first else { throw OperationContractError.invalidReceipt }
+        let workspace = preparation.workspace
+        let output = preparation.output
+        let payloadName = Data("payload".utf8)
+        var receipt = preparation.receipt
         var outputOpen = true
         defer { if outputOpen { try? output.close() } }
         var received: UInt64 = 0
@@ -158,13 +199,6 @@ struct ServerOperationService: Sendable {
                 try output.close()
                 outputOpen = false
             }
-            try workspace.removeScratch()
-            let unchanged = OperationReceipt(
-                id: intent.id, account: journal.account, epoch: journal.epoch, intentDigest: accepted.intentDigest,
-                revision: receipt.revision + 1, phase: .terminal, outcome: .failedUnchanged,
-                failure: String(describing: original)
-            )
-            try journal.record(unchanged, ownership: ownership)
             throw original
         }
     }

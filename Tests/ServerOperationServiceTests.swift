@@ -65,6 +65,24 @@ final class ServerOperationServiceTests: XCTestCase {
         XCTAssertThrowsError(try fixture.service.cancel(fixture.identity))
     }
 
+    func testOpenWorkerRejectsReplacedJournalDirectory() async throws {
+        let fixture = try await Fixture(size: 1)
+        defer { fixture.cleanup() }
+        _ = try await fixture.service.accept(fixture.identity, intent: fixture.intent)
+        let journalRoot = fixture.root.appendingPathComponent("journal")
+        try FileManager.default.moveItem(at: journalRoot, to: fixture.root.appendingPathComponent("old-journal"))
+        let replacement = try await OperationJournal(root: journalRoot, account: fixture.identity.account)
+        XCTAssertNotEqual(replacement.epoch, fixture.identity.epoch)
+        XCTAssertThrowsError(try fixture.service.status(fixture.identity)) {
+            XCTAssertEqual($0 as? OperationContractError, .epochMismatch)
+        }
+        XCTAssertThrowsError(try fixture.service.cancel(fixture.identity))
+        do {
+            _ = try await fixture.service.journal.acquireCommit()
+            XCTFail("Replaced journal admitted an old worker")
+        } catch { XCTAssertEqual(error as? OperationContractError, .epochMismatch) }
+    }
+
     private struct Fixture {
         let root: URL
         let destination: URL

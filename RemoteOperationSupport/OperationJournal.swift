@@ -52,6 +52,7 @@ public final class OperationJournal: Sendable {
 
     public let account: OperationAccount
     private let directory: Int32
+    private let root: URL
     public let epoch: UUID
 
     public init(root: URL, account: OperationAccount) async throws {
@@ -77,6 +78,7 @@ public final class OperationJournal: Sendable {
                 try Self.write(epochRecord, directory: descriptor, name: "epoch.json")
             }
             self.directory = descriptor
+            self.root = root
             self.account = account
             self.epoch = epochRecord.epoch
         } catch {
@@ -88,11 +90,13 @@ public final class OperationJournal: Sendable {
     deinit { _ = close(directory) }
 
     public func acquireItem(_ id: OperationItemID) async throws -> Ownership {
+        try validateEpoch()
         let descriptor = try await Self.acquire(directory: directory, name: name(id) + ".lock")
         return Ownership(descriptor: descriptor, journal: self, id: id)
     }
 
     public func acquireCommit() async throws -> Ownership {
+        try validateEpoch()
         let descriptor = try await Self.acquire(directory: directory, name: "commit.lock")
         return Ownership(descriptor: descriptor, journal: self, id: nil)
     }
@@ -246,6 +250,18 @@ public final class OperationJournal: Sendable {
     }
 
     private func validateEpoch() throws {
+        let currentDirectory = open(root.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard currentDirectory >= 0 else { throw OperationContractError.epochMismatch }
+        defer { _ = close(currentDirectory) }
+        var opened = stat()
+        var currentInfo = stat()
+        guard fstat(directory, &opened) == 0, fstat(currentDirectory, &currentInfo) == 0 else {
+            throw OperationJournalError.system(errno)
+        }
+        guard opened.st_dev == currentInfo.st_dev, opened.st_ino == currentInfo.st_ino else {
+            throw OperationContractError.epochMismatch
+        }
+        try Self.requirePrivate(currentDirectory, directory: true)
         guard let data = try readFile("epoch.json") else { throw OperationContractError.epochMismatch }
         let current = try JSONDecoder().decode(EpochRecord.self, from: data)
         guard current.schemaVersion == 1 else { throw OperationContractError.incompatibleSchema }
