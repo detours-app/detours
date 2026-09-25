@@ -26,6 +26,8 @@
 | Signed Foundry replacement and rollback | `75e6d68` | PASS: both helper builds, signed no-install app build and 63 tests, zero failures or skips, 1.304 seconds. Replacement retention, changed-destination refusal and non-overwriting restoration passed with service, protocol and live Windows journal regressions. |
 | Linux replacement recovery | `389bce8` | PASS: 18 process tests in 11.889 seconds and 51 operation/archive tests in 4.216 seconds, zero failures or skips. Restoration refuses a replaced holding directory; read-only status proves lost publication, preserves an unlocated original as uncertain and locates it when it returns to a recorded path. |
 | Signed Foundry replacement recovery | `389bce8` | PASS: both helper builds, signed no-install app build and 65 tests, zero failures or skips, 1.273 seconds. Replaced holding directories are rejected, lost replacement results are reconciled read-only, and missing-original uncertainty clears only after identity is found at a recorded location. |
+| Linux Trash reservations | `5138d93` | PASS: 18 process tests in 12.188 seconds and 54 operation/archive tests in 4.207 seconds, zero failures or skips. Reservation planning creates no files; metadata preserves raw source bytes, refuses occupied names and non-private directories, and cleanup rejects a replaced metadata identity. |
+| Signed Foundry Trash reservations | `5138d93` | PASS: both helper builds, signed no-install app build and 68 tests, zero failures or skips, 1.347 seconds. Trash metadata permissions, byte encoding, exclusive names and identity-checked cleanup passed alongside replacement, service, protocol and live Windows journal regressions. |
 
 ## 2026-09-25 (Foundry and devtest, measured content proofs)
 
