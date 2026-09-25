@@ -5,6 +5,77 @@ import XCTest
 @testable import detours_server
 
 final class ServerArchiveStreamTests: XCTestCase {
+    func testNativeReaderListsAndExtractsOwnedStreamsAcrossFormats() throws {
+        let formats: [SevenZipArchiveWriter.Format] = [.sevenZ, .zip, .tar, .gzip, .bzip2, .xz]
+        for format in formats {
+            let passwords: [String?] = [.sevenZ, .zip].contains(format) ? [nil, "fixture password"] : [nil]
+            for password in passwords {
+                let fixture = try Fixture()
+                defer { fixture.cleanup() }
+                let source = try FileHandle(forReadingFrom: fixture.source)
+                let archive = try SafeFileWriter.createHandle(at: fixture.archive)
+                defer { try? source.close(); try? archive.close() }
+                try SevenZipArchiveWriter.create(
+                    entries: [fixture.entry("émoji 📁.txt", input: source, size: UInt64(fixture.bytes.count))],
+                    output: archive, password: password, format: format, progress: { _ in }
+                )
+                let input = try FileHandle(forReadingFrom: fixture.archive)
+                defer { try? input.close() }
+                try input.seek(toOffset: 3)
+                let listed = try SevenZipArchiveReader.read(input: input, format: format, password: password, progress: { _ in })
+                XCTAssertEqual(listed.count, 1)
+                XCTAssertEqual(try input.offset(), 3, "Reader must not change the borrowed input offset")
+                if [.sevenZ, .zip, .tar].contains(format) {
+                    XCTAssertEqual(listed.first?.name, "émoji 📁.txt")
+                    XCTAssertEqual(listed.first?.size, UInt64(fixture.bytes.count))
+                }
+                let destination = fixture.root.appendingPathComponent("decoded")
+                let extracted = try SevenZipArchiveReader.read(input: input, format: format, password: password, output: { member in
+                    XCTAssertEqual(member.index, 0)
+                    return try SafeFileWriter.createHandle(at: destination)
+                }, progress: { _ in })
+                XCTAssertEqual(extracted, listed)
+                XCTAssertEqual(try Data(contentsOf: destination), fixture.bytes)
+                XCTAssertEqual(try Data(contentsOf: fixture.source), fixture.bytes)
+                if password != nil {
+                    let wrong = fixture.root.appendingPathComponent("wrong-password")
+                    XCTAssertThrowsError(try SevenZipArchiveReader.read(input: input, format: format, password: "wrong", output: { _ in
+                        try SafeFileWriter.createHandle(at: wrong)
+                    }, progress: { _ in }))
+                }
+            }
+        }
+    }
+
+    func testNativeReaderRefusesNonemptyOutputAndPropagatesCancellation() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
+        let source = try FileHandle(forReadingFrom: fixture.source)
+        let archive = try SafeFileWriter.createHandle(at: fixture.archive)
+        defer { try? source.close(); try? archive.close() }
+        try SevenZipArchiveWriter.create(
+            entries: [fixture.entry("file", input: source, size: UInt64(fixture.bytes.count))],
+            output: archive, password: nil, progress: { _ in }
+        )
+        let input = try FileHandle(forReadingFrom: fixture.archive)
+        defer { try? input.close() }
+        let original = fixture.source
+        XCTAssertThrowsError(try SevenZipArchiveReader.read(input: input, format: .sevenZ, password: nil, output: { _ in
+            try FileHandle(forWritingTo: original)
+        }, progress: { _ in }))
+        XCTAssertEqual(try Data(contentsOf: fixture.source), fixture.bytes)
+        enum Cancelled: Error { case requested }
+        XCTAssertThrowsError(try SevenZipArchiveReader.read(input: input, format: .sevenZ, password: nil, progress: { bytes in
+            if bytes > 0 { throw Cancelled.requested }
+        })) { XCTAssertTrue($0 is Cancelled) }
+        let damaged = fixture.root.appendingPathComponent("damaged")
+        let bytes = try Data(contentsOf: fixture.archive)
+        try bytes.prefix(bytes.count / 2).write(to: damaged)
+        let truncated = try FileHandle(forReadingFrom: damaged)
+        defer { try? truncated.close() }
+        XCTAssertThrowsError(try SevenZipArchiveReader.read(input: truncated, format: .sevenZ, password: nil, progress: { _ in }))
+    }
+
     func testNativeSevenZipRoundTripRetainsOwnedOutputAndTreeContents() throws {
         for password in [nil, "fixture password 🗝"] as [String?] {
             let fixture = try Fixture()

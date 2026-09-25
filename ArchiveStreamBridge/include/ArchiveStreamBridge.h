@@ -34,6 +34,26 @@ int32_t detours_archive_create(int32_t format, int output, const detours_archive
                                detours_archive_input open_input,
                                detours_archive_progress progress, void *context);
 
+typedef struct {
+    const char *name;
+    const char *symbolic_link;
+    const char *hard_link;
+    uint64_t size;
+    uint64_t modified_filetime;
+    uint32_t mode;
+    int is_directory;
+    int has_size;
+    int has_modified;
+} detours_archive_member;
+typedef int (*detours_archive_visit)(void *context, uint32_t index, const detours_archive_member *member);
+/* All members are visited before output is requested. Metadata strings are borrowed
+   only for the visit. A null output callback lists without extracting. Otherwise
+   output transfers an empty regular-file descriptor, which this call closes.
+   The archive descriptor is borrowed and its seek offset is never changed. */
+int32_t detours_archive_read(int32_t format, int input, const char *password,
+                            detours_archive_visit visit, detours_archive_input output,
+                            detours_archive_progress progress, void *context);
+
 #ifdef __cplusplus
 }
 #endif
