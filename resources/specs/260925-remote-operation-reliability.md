@@ -241,7 +241,7 @@ Execution order approved by Marco on 2026-09-25: complete C1-C3, then host mutat
 
 **Phase 3: Make file changes recoverable**
 
-- [ ] **C7** Add FilesystemPrimitives and RemoteOperationSupport commit support for exclusive temporary allocation, stable identity, native no-clobber moves, synchronization and recorded cleanup ownership.
+- [x] **C7** Add FilesystemPrimitives and RemoteOperationSupport commit support for exclusive temporary allocation, stable identity, native no-clobber moves, synchronization and recorded cleanup ownership.
 - [ ] **C8** Route Server/FileOperations.swift, Server/TransferMode.swift and Server/RPCHandler.swift through one journaled preparation/commit/recovery path with per-item results.
 - [ ] **C9** Route WindowsRemoteProvider, WindowsTransferChannel and WindowsOperationScripts through accepted temporary payloads, verified commit and pre-reserved private Trash references.
 - [ ] **C10** Add src/Operations/RemoteOperationCoordinator.swift and src/Operations/RemoteOperationStore.swift; persist accepted intents and consume host receipts without replaying sent mutations.
@@ -313,6 +313,8 @@ Use the existing guarded runner and independent prompt sentries for installed ch
 ---
 
 ## Build Log
+
+- **C7** Added native exclusive rename wrappers, byte-preserving directory operations, stable object observations, exclusively allocated private workspaces and persisted cleanup ownership. Publication rechecks cancellation under the account lock, records intended source/destination locations before rename and records the observed effect afterward; repeat publication is rejected. At `0e516a5`, 40 Linux tests, both helper builds, signed Foundry app build and 26 Foundry/native/Windows regressions passed. APFS rejects invalid UTF-8 names without mutation; Linux preserves those bytes.
 
 - **C3** Shared version-2 requests/replies carry handshake, acceptance, status, cancellation, acknowledgement and receipt data. Both RPC codecs preserve byte-exact paths and reject trailing bytes; compatibility checks cover protocol, schema, capabilities, account and epoch. Host dispatch explicitly refuses capabilities until C8 connects the commit implementation. At `0efdec1`, signed Foundry build and 18 protocol/contract/helper tests passed; Linux helper checks at `9e6dc62` passed 32 tests.
 
