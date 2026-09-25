@@ -185,6 +185,48 @@ final class ServerOperationBackupTests: XCTestCase {
         }
     }
 
+    func testNativeReplacementPreservesSelectedLinksAndDirectories() async throws {
+        for kind in [OperationObservation.Kind.symbolicLink, .directory] {
+            let fixture = try Fixture()
+            defer { fixture.cleanup() }
+            let destination = try fixture.url(fixture.original)
+            let source = fixture.root.appendingPathComponent("incoming")
+            let linkTarget = fixture.root.appendingPathComponent("link-target")
+            try Data("original".utf8).write(to: destination)
+            try Data("link target remains".utf8).write(to: linkTarget)
+            if kind == .symbolicLink {
+                try FileManager.default.createSymbolicLink(atPath: source.path, withDestinationPath: linkTarget.path)
+            } else {
+                try FileManager.default.createDirectory(at: source, withIntermediateDirectories: false)
+                try Data("nested contents".utf8).write(to: source.appendingPathComponent("child"))
+            }
+            let parent = try OperationDirectory(path: Data(fixture.root.path.utf8))
+            let observed = try parent.observe(Data("incoming".utf8))
+            let approved = try parent.observe(Data("source".utf8))
+            let service = try await fixture.service()
+            let intent = OperationIntent(id: .init(operation: UUID(), item: UUID()), action: .move,
+                                         sources: [.init(account: fixture.account, path: .unix(Data(source.path.utf8)))],
+                                         destination: fixture.original, sourceObservations: [observed], conflict: .replace(approved))
+            let request = OperationRequestIdentity(id: intent.id, account: fixture.account, epoch: service.journal.epoch,
+                                                   intentDigest: try OperationContentProof.data(intent.canonicalData()).sha256)
+            _ = try await service.accept(request, intent: intent)
+            let result = try await service.execute(request)
+            XCTAssertEqual(result.outcome, .committed)
+            XCTAssertEqual(result.sourceDisposition, .confirmed)
+            XCTAssertEqual(result.effects.first?.observation.identity, observed.identity)
+            XCTAssertEqual(result.effects.first?.observation.kind, kind)
+            XCTAssertEqual(try parent.lookup(Data("incoming".utf8)), .missing)
+            if kind == .symbolicLink {
+                XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: destination.path), linkTarget.path)
+            } else {
+                XCTAssertEqual(try Data(contentsOf: destination.appendingPathComponent("child")), Data("nested contents".utf8))
+            }
+            XCTAssertEqual(try Data(contentsOf: linkTarget), Data("link target remains".utf8))
+            let original = try XCTUnwrap(result.recovery.first { $0.purpose == .displacedOriginal }?.knownLocation)
+            XCTAssertEqual(try Data(contentsOf: fixture.url(original)), Data("original".utf8))
+        }
+    }
+
     func testNativeReplacementRejectsChangedSourceDestinationAndCancellation() async throws {
         for failure in ["source", "destination", "cancel"] {
             let fixture = try Fixture()

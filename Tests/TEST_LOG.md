@@ -42,6 +42,8 @@
 | Signed Foundry replacement-backup restoration | `2e6c20f` | PASS: both helper builds, signed no-install app build and 85 tests, zero failures or skips, 3.116 seconds. Retained-original restoration, owned cleanup, refusal cases, duplicate results and the live Windows journal passed. |
 | Linux move-phase backup recovery | `fb4a6a6` | PASS: 18 process tests in 11.992 seconds and 64 operation/archive tests in 4.673 seconds, zero failures or skips. Lost backup handoff is reconciled for a real prepared move without discarding its confirmed destination or disposing of its source. |
 | Signed Foundry move-phase backup recovery | `fb4a6a6` | PASS: both helper builds, signed no-install app build and 85 tests, zero failures or skips, 3.142 seconds. Copy and move backup recovery preserve their distinct completion states; live Windows journal checks passed. |
+| Linux native replacement integration | `bdce5c4` | PASS: 18 process tests in 12.189 seconds and 66 operation/archive tests in 4.655 seconds, zero failures or skips. Native rename/move retains the displaced original, confirms source disposition, rejects changed or cancelled intent and returns terminal failure on repeat without replay. |
+| Signed Foundry native replacement integration | `bdce5c4` | PASS: both helper builds, signed no-install app build and 87 tests, zero failures or skips, 3.155 seconds. Native replacement, retained originals, source disposition, refusal/cancellation and terminal duplicate failures passed with live Windows journal checks. |
 
 ## 2026-09-25 (Foundry and devtest, measured content proofs)
 
