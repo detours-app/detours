@@ -13,6 +13,9 @@
 | Linux ZIP diagnostic process checks | `dffb47c` | PASS: 18 tests, zero failures, 11.888 seconds. |
 | Linux ZIP extraction diagnosis | `dffb47c` | FAIL: 104 of 105 tests passed in 10.744 seconds. Phase diagnostics identify the new plain ZIP output as the failing extraction, before comparison with existing ZIP output. Both plain/encrypted 7z comparisons passed. Adding direct header checks to distinguish archive header mismatch from extractor decoding. |
 | Linux ZIP header diagnostic compilation | `f792697` | FAIL: the new assertion placed a throwing UTF-8 unwrap inside XCTest's nonthrowing message autoclosure. Moving the unwrap before the assertion; no tests ran. |
+| devtest forced-UTF-8 ZIP probe | `7cba5db` | PASS: the host 7z forced-UTF-8 output extracts with exact names under both C and C.UTF-8. This host-tool case does not reproduce the build-container failure. Probe fixtures removed. |
+| Linux corrected header diagnostic process checks | `7cba5db` | PASS: compilation and 18 process tests, zero failures, 11.785 seconds. |
+| Linux ZIP header evidence and extraction | `7cba5db` | FAIL: 104 of 105 tests passed in 11.039 seconds. Generated ZIP local and central names and flags match, including UTF-8 flags; plain extraction still reports escaped central names. Testing an explicit UTF-8 locale for Linux archive commands. |
 
 ## 2026-09-25 (Foundry, archive compatibility)
 

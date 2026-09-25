@@ -683,6 +683,11 @@ struct ArchiveOperations {
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = arguments
         process.currentDirectoryURL = currentDirectory
+        #if os(Linux)
+        var environment = ProcessInfo.processInfo.environment
+        environment["LC_ALL"] = "C.UTF-8"
+        process.environment = environment
+        #endif
 
         let errorPipe = Pipe()
         process.standardOutput = FileHandle.nullDevice
