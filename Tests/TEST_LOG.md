@@ -17,6 +17,8 @@
 | Linux native archive reader | `c608b5b` | PASS: 18 process tests in 11.888 seconds and 109 archive/operation tests in 11.880 seconds, zero failures. Reader round trips cover 7z, ZIP, TAR, gzip, bzip2 and xz, encrypted ZIP/7z, unchanged input offsets, nonempty-output refusal, cancellation and truncated inputs. |
 | Signed Foundry native archive reader | `c608b5b` | PASS: both helpers, signed no-install app build and 146 focused tests, zero failures, 9.988 seconds. Native listing/decompression, encrypted formats, owned output refusal, cancellation and damaged inputs passed alongside archive creation, publication/recovery and live Windows journal regressions. Accepted extraction integration remains unfinished. |
 | Linux extraction ownership compilation | `e06ea36` | FAIL: Swift cannot import the platform UTIME_OMIT macro, so compilation stopped before tests. Exposing the actual platform value through the C bridge before rerunning the same checks. |
+| Linux extraction ownership and metadata | `c42afa6` | PASS: 18 process tests in 11.888 seconds and 112 archive/operation tests in 12.531 seconds, zero failures. Recorded empty outputs reopen safely, hard links retain identity/content/metadata, symbolic-link timestamps leave targets unchanged, and substituted objects are refused. |
+| Signed Foundry extraction ownership and metadata | `c42afa6` | PASS: both helpers, signed no-install app build and 149 focused tests, zero failures, 9.961 seconds. Recorded hard links preserve content, permissions and timestamps; symbolic-link timestamp restoration leaves targets unchanged; substituted and nonempty outputs are refused. Archive, publication/recovery and live Windows journal regressions passed. |
 
 ## 2026-09-25 (Foundry and devtest, owned ZIP preparation)
 
