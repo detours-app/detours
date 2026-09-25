@@ -1,5 +1,12 @@
 # Test Log
 
+## 2026-09-25 (Foundry and devtest, shared remote operation contract)
+
+| Check | Commit | Result |
+| --- | --- | --- |
+| Linux helper container checks on devtest, orchestrated by Foundry | `4674819` | PASS: new shared target compiled on Linux; 18 process tests in 11.996 seconds and 14 archive tests in 1.681 seconds, zero failures or skips. Static release helper build passed. |
+| Signed no-install build and focused shared-contract/build-cache regressions on Foundry | `4674819` | PASS: universal macOS helper and signed app build succeeded; 17 tests passed with zero failures or skips in 0.963 seconds. Ten new contract cases cover lost replies, persisted uncertainty, immutable intent, byte-exact paths, duplicate receipts, epoch mismatches, incomplete moves and retained originals. |
+
 ## 2026-09-25 (Foundry and devtest, Linux build host migration)
 
 | Check | Commit | Result |
