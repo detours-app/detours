@@ -313,3 +313,4 @@ Use the existing guarded runner and independent prompt sentries for installed ch
 ## Build Log
 
 - **C1** Added the shared intent, receipt, typed lookup, operation record and outcome reducer, with package and Linux helper build wiring. At `4674819`, Foundry's required signed build passed, including Linux compilation and 32 helper tests on devtest. Foundry then passed all 17 selected tests: ten new `RemoteOperationContractTests` cases and seven `BuildCacheTests`. These prove the shared contract; migration of actual operation callers remains in C4-C16.
+- **C2** Added the Unix journal implementation and six filesystem regressions for acceptance, persistence, cancellation, ownership, tombstones and corrupt/reset records. Verification and the Windows equivalents remain in progress.
