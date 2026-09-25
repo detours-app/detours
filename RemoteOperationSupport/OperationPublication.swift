@@ -6,7 +6,7 @@ public enum OperationPublication {
         let accepted = try journal.read(id)
         guard let intent = accepted.intent, let destination = intent.destination,
               destination.account == journal.account,
-              let ready = accepted.receipt, ready.phase == .readyToCommit, ready.contentVerified,
+              var ready = accepted.receipt, ready.phase == .readyToCommit, ready.contentVerified,
               let payload = ready.preparedPayload, payload.location.account == journal.account,
               ready.recovery.contains(where: { $0.purpose == .scratch && $0.identity == payload.observation.identity
                   && $0.knownLocation == payload.location }) else {
@@ -17,10 +17,7 @@ public enum OperationPublication {
         }
         switch intent.conflict {
         case .createNew: break
-        case .replace(let original):
-            guard ready.recovery.contains(where: {
-                $0.purpose == .displacedOriginal && $0.identity == original.identity && $0.knownLocation != nil
-            }) else { throw OperationContractError.invalidReceipt }
+        case .replace: break
         case .mergeDirectory, .skip: throw OperationContractError.invalidReceipt
         }
         let source = try split(payload.location)
@@ -32,6 +29,10 @@ public enum OperationPublication {
         guard try journal.read(id) == accepted else { throw OperationContractError.conflictingRevision }
         guard try !journal.cancellationRequested(id) else { throw OperationContractError.cancelled }
         try Task.checkCancellation()
+
+        if case .replace = intent.conflict {
+            ready = try OperationReplacement.displace(journal: journal, snapshot: accepted, ownership: ownership)
+        }
 
         let uncertain = OperationRecoveryReference(
             identity: payload.observation.identity, purpose: .scratch, original: nil, knownLocation: nil,
@@ -45,8 +46,18 @@ public enum OperationPublication {
             recovery: recovery, children: ready.children
         )
         try journal.record(committing, ownership: ownership)
-        let observation = try sourceDirectory.moveExclusive(source.name, to: targetDirectory, named: target.name,
-                                                             expected: payload.observation)
+        let observation: OperationObservation
+        do {
+            guard try !journal.cancellationRequested(id) else { throw OperationContractError.cancelled }
+            observation = try sourceDirectory.moveExclusive(source.name, to: targetDirectory, named: target.name,
+                                                            expected: payload.observation)
+        } catch {
+            if case .replace = intent.conflict,
+               case .found(let remaining) = try sourceDirectory.lookup(source.name), remaining.identity == payload.observation.identity {
+                try OperationReplacement.restore(journal: journal, id: id, ownership: ownership, failure: String(describing: error))
+            }
+            throw error
+        }
         let confirmed = OperationObservation(identity: observation.identity, kind: observation.kind,
                                              version: observation.version, byteCount: observation.byteCount,
                                              sha256: payload.observation.sha256, linkTarget: observation.linkTarget,
@@ -64,7 +75,7 @@ public enum OperationPublication {
         return committed
     }
 
-    private static func split(_ location: OperationLocation) throws -> (parent: Data, name: Data) {
+    static func split(_ location: OperationLocation) throws -> (parent: Data, name: Data) {
         guard case .unix(let bytes) = location.path, bytes.first == 47,
               let slash = bytes.lastIndex(of: 47), slash < bytes.index(before: bytes.endIndex) else {
             throw OperationFilesystemError.invalidPath
