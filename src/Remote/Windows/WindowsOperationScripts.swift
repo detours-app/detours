@@ -61,7 +61,7 @@ enum WindowsOperationScripts {
         $bytes = [System.Text.Encoding]::UTF8.GetBytes(($Value | ConvertTo-Json -Compress -Depth 100))
         $stream = [System.IO.FileStream]::new($temporary, 'CreateNew', 'Write', 'None')
         try { $stream.Write($bytes, 0, $bytes.Length); $stream.Flush($true) } finally { $stream.Dispose() }
-        if ([System.IO.File]::Exists($Path)) { [System.IO.File]::Replace($temporary, $Path, $null) }
+        if ([System.IO.File]::Exists($Path)) { [System.IO.File]::Replace($temporary, $Path, [NullString]::Value) }
         else { [System.IO.File]::Move($temporary, $Path) }
     }
 
