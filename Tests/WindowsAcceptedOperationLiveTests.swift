@@ -80,6 +80,28 @@ final class WindowsAcceptedOperationLiveTests: XCTestCase {
         let oldLocation = try await send(.lookup(destination))
         XCTAssertEqual(oldLocation, .lookup(.missing))
 
+        let copyIntent = OperationIntent(id: .init(operation: UUID(), item: UUID()), action: .copy, sources: [renamed],
+            destination: location("copy"), sourceObservations: [try XCTUnwrap(rename.effects.first?.observation)], conflict: .createNew)
+        let copyRequest = try identity(copyIntent)
+        _ = try await send(.accept(identity: copyRequest, intent: copyIntent))
+        guard case .receipt(let copyReady) = try await send(.prepareCopy(copyRequest)) else { return XCTFail("No copy preparation receipt") }
+        XCTAssertEqual(copyReady.phase, .readyToCommit, copyReady.failure ?? "")
+        guard case .receipt(let copy) = try await send(.commit(copyRequest)) else { return XCTFail("No copy result") }
+        XCTAssertEqual(copy.outcome, .committed, copy.failure ?? "")
+        XCTAssertTrue(copy.recovery.isEmpty)
+        XCTAssertEqual(copy.effects.first?.observation.sha256, intent.payloadProof?.sha256)
+        XCTAssertNotEqual(copy.effects.first?.observation.identity, rename.effects.first?.observation.identity)
+
+        let folderIntent = OperationIntent(id: .init(operation: UUID(), item: UUID()), action: .createFolder, sources: [],
+            destination: location("folder"), sourceObservations: [], conflict: .createNew)
+        let folderRequest = try identity(folderIntent)
+        _ = try await send(.accept(identity: folderRequest, intent: folderIntent))
+        guard case .receipt(let folder) = try await send(.execute(folderRequest)) else { return XCTFail("No folder result") }
+        XCTAssertEqual(folder.outcome, .committed, folder.failure ?? "")
+        XCTAssertEqual(folder.effects.first?.observation.kind, .directory)
+        let duplicateFolder = try await send(.execute(folderRequest))
+        XCTAssertEqual(duplicateFolder, .receipt(folder))
+
         let cancelledIntent = OperationIntent(id: .init(operation: UUID(), item: UUID()), action: .editorUpload, sources: [],
             destination: location("cancelled"), sourceObservations: [], conflict: .createNew, payloadProof: intent.payloadProof)
         let cancelledRequest = try identity(cancelledIntent)
