@@ -2,7 +2,7 @@
 
 ## Meta
 
-- Status: Draft
+- Status: Reviewed
 - Branch: fix/remote-operation-reliability
 - Basis: [Remote reliability review](../docs/260925-remote-reliability-review.md), reviewed source 410f826883ef46292c4b5b3439c1368ca451c052.
 - Scope: One remote-operation lifecycle covering all nine review findings.
@@ -94,7 +94,7 @@ There is one recovery task per host. Keep the existing 1, 2, 4, 8, 16-second del
 
 Pane observers, watches, accepted operations and live readers hold explicit lifetime tokens released exactly once on success, error or cancellation. Pane closure releases only its observation and associated watches. The existing five-minute idle grace starts after the last live token is released; persisted unresolved work alone does not keep a connection open indefinitely. A read-only Check Result acquires a fresh bounded session token. Quitting records unfinished operations and closes owned workers; it does not report them cancelled merely because SSH exited.
 
-Reads may be retried after readiness when their caller and generation remain relevant. A sent mutation is never retried by SSHConnection, PowerShellChannel, FileProvider or the queue. Watch recovery registers new watches before the authoritative refresh and rejects events from the old generation. A failed refresh leaves the listing stale, not empty, and does not clear an unresolved operation result.
+Reads may be retried after readiness while their caller has not cancelled and their session generation is still current. A sent mutation is never retried by SSHConnection, PowerShellChannel, FileProvider or the queue. Watch recovery registers new watches before the authoritative refresh and rejects events from the old generation. A failed refresh leaves the listing stale, not empty, and does not clear an unresolved operation result.
 
 #### Operation identity, persistence and outcomes
 
@@ -115,7 +115,7 @@ Each receipt records action/intent digest, phase, known source and destination i
 
 An aggregate operation is successful only when every requested effect is confirmed or the user explicitly skipped it; skipped counts remain separate. A move is committed only when destination and source disposition are confirmed. Cancellation is a request attribute, not evidence of rollback. An unknown item can later become committed, partial or failed unchanged through evidence; that transition cannot register undo twice.
 
-The executing host durably accepts an item before touching user files. Journal phases are accepted, preparing, ready-to-commit, committing, committed, rolling-back and terminal. Persist planned object names and restore information before namespace changes, then actual observations afterward. Once a mutation frame might have reached the host, failed send/read is unknown unless a receipt proves otherwise. A lost, corrupt, incompatible or absent record is never proof that a previously sent operation did not run.
+The executing host durably accepts an item before touching user files. Journal phases are accepted, preparing, ready-to-commit, committing, committed, rolling-back and terminal. Persist planned object names and restore information before namespace changes, then actual observations afterward. Once any byte of a mutation frame has been written to the transport, failed send/read is unknown unless a receipt proves otherwise. A lost, corrupt, incompatible or absent record is never proof that a previously sent operation did not run.
 
 Status reads only complete atomic snapshots and filesystem observations; it does not copy, rename, Trash, restore or resume work. Reconciliation may persist a conclusion about observed effects after obtaining exclusive item ownership, but cannot change user files. A terminal receipt is returned repeatedly with the same meaning. The same identity with different intent is rejected. An incomplete receipt may be reconciled only after its worker is known to have stopped and exclusive ownership is obtained. If identity and recorded observations cannot prove the effect, keep unknown and expose the affected paths and recovery references.
 
@@ -127,7 +127,7 @@ This is not an exactly-once guarantee: filesystem mutation and receipt persisten
 
 Use an OS advisory per-item lock while a worker owns the item: flock on Unix and a private FileStream opened with FileShare.None on Windows. Lock filenames derive only from validated operation/item IDs within the account journal. Do not infer stale lock ownership from PID alone. Status reads the last atomic snapshot without waiting for a long-running worker; an occupied lock means running or stopping.
 
-A separate short per-account commit lock covers every Detours namespace mutation, including publish, source disposition, rename, Trash, restore, rollback and backup handoff. Both persistent RPC and streaming helper processes use the same lock namespace, as do PowerShell and SFTP finalization. Payload copying into private temporary storage does not hold this account lock. A folder orchestrator holds no item lock across child requests. A worker ordinarily holds one item lock; if one namespace action requires multiple items, acquire them in sorted item-ID order before the account lock. Never acquire another item lock while holding the account lock. Lock acquisition is cancellable and has a 10-second maximum wait; expiration returns busy/unknown as appropriate, never permission to bypass the lock.
+A separate short per-account commit lock covers every Detours namespace mutation, including publish, source disposition, rename, Trash, restore, rollback and backup handoff. Both persistent RPC and streaming helper processes use the same lock namespace, as do PowerShell and SFTP finalization. Payload copying into private temporary storage does not hold this account lock. A folder orchestrator holds no item lock across child requests. A worker ordinarily holds one item lock; if one namespace action requires multiple items, acquire them in sorted item-ID order before the account lock. Never acquire another item lock while holding the account lock. Lock acquisition is cancellable and has a 10-second maximum wait; expiration returns busy when the item has not yet changed any user file, otherwise the item's recorded partial or unknown outcome, never permission to bypass the lock.
 
 Hold the account lock only for the recorded same-volume namespace step and its immediately associated journal update. Keep the item lock while releasing the account lock for content hashing, copying or inspecting a privately held source/backup. Reacquire the account lock, reread cancellation and recheck namespace conditions before publication or restoration. Never hide a cross-volume copy-and-delete inside a move to Trash; retain the same-volume recovery object when ordinary Trash cannot accept a same-volume move. This lock does not make a sequence of namespace changes atomic to directory readers.
 
@@ -141,7 +141,7 @@ Create a private, exclusively allocated sibling working directory on the destina
 
 RPC below or at 1 MiB, streaming above 1 MiB and Windows SFTP write only the accepted operation's temporary payload. They do not publish the final path on EOF. The helper or Windows command adapter validates the completed payload and returns ready-to-commit. The coordinator then requests one recorded commit. Windows small-file fallback is selected only by an explicit SFTP-unavailable capability result before payload transfer, and remains bounded at 1 MiB. A transfer error, permission denial, cancellation or byte mismatch does not trigger fallback.
 
-Standard SFTP writers do not participate in the PowerShell journal lock. Give SFTP an exclusively allocated ingress file that is never published. Under item ownership, the Windows finalizer copies ingress into a different, exclusively created helper-owned payload, closes all its writer handles and verifies that payload against the expected manifest before ready-to-commit. Publish only this sealed payload. A late ingress write therefore cannot alter the published file. The extra copy and temporary disk space are an explicit cost of retaining the existing SFTP client. If ingress writer quiescence is unknown, retain ingress with a cleanup obligation; cancellation still prevents finalization, and unverified ingress is never resumed or reused by another operation.
+The stock SFTP server's writers do not participate in the PowerShell journal lock. Give SFTP an exclusively allocated ingress file that is never published. Under item ownership, the Windows finalizer copies ingress into a different, exclusively created helper-owned payload, closes all its writer handles and verifies that payload against the expected manifest before ready-to-commit. Publish only this sealed payload. A late ingress write therefore cannot alter the published file. The extra copy and temporary disk space are an explicit cost of retaining the existing SFTP client. If ingress writer quiescence is unknown, retain ingress with a cleanup obligation; cancellation still prevents finalization, and unverified ingress is never resumed or reused by another operation.
 
 Compute byte counts and SHA-256 over the actual file bytes sent and received, independent of route. For a new directory, use a sorted manifest of relative path bytes, entry kind, file length/hash and symlink target text; include empty directories. Keep separate source-observation and outgoing-payload manifests because link transformations can change the destination representation. Capture and compare source observations before and after reading; a changed source fails validation without source disposal. Preserve the existing link-selection rules and platform metadata contract. Do not promise a snapshot of an actively changing tree.
 
@@ -165,7 +165,7 @@ Revalidate the actual source object moved to its reversible location, not only a
 
 Replace batch-array-or-error mutation returns with per-item results. Within a selected batch, continue after a known item-specific error or user Skip; stop starting further items on cancellation, host failure, unknown outcome or failed rollback. Previously completed items retain undo regardless of later errors. Folder results retain child outcomes and never collapse unresolved children into success.
 
-Unix Trash reserves and records its .trashinfo and moved-item locations before moving; Windows keeps its existing private .detours-trash rather than introducing native Recycle Bin behaviour. Rename the misleading Windows helper name when routing it through the new operation scripts. Both return per-item restore records and use non-replacing restore. A valid receipt authorizes recovery only of its recorded object to its recorded original location, with current permissions and identity checks.
+Unix Trash reserves and records its .trashinfo and moved-item locations before moving; Windows keeps its existing private .detours-trash rather than introducing native Recycle Bin behaviour. Rename the misleading Send-ToRecycleBin helper, which moves items into .detours-trash rather than the Recycle Bin, when moving it into the new operation scripts. Both return per-item restore records and use non-replacing restore. A valid receipt authorizes recovery only of its recorded object to its recorded original location, with current permissions and identity checks.
 
 Undo is a new recorded operation referencing committed item receipts. Check current identities/content before reversing; refuse to overwrite later user work. A cross-host move cannot undo its destination while source disposition is unknown, because that destination may be the only confirmed copy. During the current session, UndoManager retains confirmed changes from partial batches; after restart, retained recovery references remain available without recreating the full prior Undo stack. Permanent delete remains exclusively behind its existing explicit confirmation, has no undo and cannot become a cleanup or recovery action.
 
@@ -228,7 +228,7 @@ Testing, filesystem-safety and UI specialists reviewed the same design. Their co
 **Phase 1: Establish the shared contract**
 
 - [ ] **C1** Add RemoteOperationSupport record, intent, receipt, typed lookup and outcome-reducer types; wire the shared target in Package.swift.
-- [ ] **C2** Add private atomic journal snapshots, epochs, item locks, cancellation records and acknowledged terminal tombstones in RemoteOperationSupport, with Windows equivalents in src/Remote/Windows/WindowsOperationScripts.swift.
+- [ ] **C2** Add private atomic journal snapshots, epochs, item locks, cancellation records and acknowledged terminal tombstones in RemoteOperationSupport, with Windows equivalents in a new src/Remote/Windows/WindowsOperationScripts.swift that takes over the mutation scripts from WindowsRemoteProvider+Scripts.swift; read-only scripts stay there.
 - [ ] **C3** Extend src/Remote/Protocol/Messages.swift and Server/ServerRPCProtocol.swift with version-2 handshake, accepted-operation, status, cancel and receipt payloads, including explicit compatibility errors.
 
 **Phase 2: Make readiness and lifetime authoritative**
@@ -284,11 +284,11 @@ The new interruption controls suspend or lose a response around the actual opera
 - [ ] **T14** Run detours-windows through real SFTP and explicitly selected small-file fallback for the same applicable safety matrix, including committed rename/Trash reply loss and actual SFTP interruption; no unavailable-host skip counts as acceptance (A1-A11).
 - [ ] **T15** Run local-to-Linux, Linux-to-local, local-to-Windows, Windows-to-local and both Linux/Windows directions with known manifests, empty directories, spaces, planned link omissions and selected-link move/undo; compare transformed payloads and original source disposition (A5-A11).
 - [ ] **T16** Run guarded focused XCUI journeys on Foundry for normal connection, visible partial/unknown/cancelling states, tab closure during work, restart recovery, Check Result and available undo; inspect exported screenshots and preserve unrelated local work (A1, A3, A4, A9, A10, A12).
-- [ ] **T19** Keep an actual SFTP ingress writer open across helper finalization and change ingress afterward; the published helper-owned payload retains its verified hash, while uncertain ingress cleanup remains recorded (A5, A6).
-- [ ] **T20** Exercise known unchanged, confirmed and lost-return native macOS Trash handoffs using real temporary files; retain accurate backup location/uncertainty and disable undo that would require an unlocated original (A3, A5, A10).
-- [ ] **T21** Drive clipboard, drag/drop, rename, create-folder, archive creation/extraction, editor save, restore and explicitly confirmed permanent-delete callers through accepted coordinator context; assert typed results, editor replacement failure recovery and no raw mutation bypass (A2-A6, A10).
-- [ ] **T17** Run focused local and macOS-helper filesystem regressions plus the full Foundry suite once after shared changes stabilize, separating the two login-session classes as required, and run the required bounded qualification with zero unexplained failures or skips.
-- [ ] **T18** Confirm the clean synchronized source, build through build.sh, validate helper protocol/schema compatibility, inspect installed launch evidence, record every run immediately in Tests/TEST_LOG.md and complete the final install-only build on Spectre after Foundry passes.
+- [ ] **T17** Keep an actual SFTP ingress writer open across helper finalization and change ingress afterward; the published helper-owned payload retains its verified hash, while uncertain ingress cleanup remains recorded (A5, A6).
+- [ ] **T18** Exercise known unchanged, confirmed and lost-return native macOS Trash handoffs using real temporary files; retain accurate backup location/uncertainty and disable undo that would require an unlocated original (A3, A5, A10).
+- [ ] **T19** Drive clipboard, drag/drop, rename, create-folder, archive creation/extraction, editor save, restore and explicitly confirmed permanent-delete callers through accepted coordinator context; assert typed results, editor replacement failure recovery and no raw mutation bypass (A2-A6, A10).
+- [ ] **T20** Run focused local and macOS-helper filesystem regressions plus the full Foundry suite once after shared changes stabilize, separating the two login-session classes as required, and run the three-minute blocking qualification once with zero unexplained failures or skips.
+- [ ] **T21** Confirm the clean synchronized source, build through build.sh, validate helper protocol/schema compatibility, inspect installed launch evidence, record every run immediately in Tests/TEST_LOG.md and complete the final install-only build on Spectre after Foundry passes.
 
 ### Evidence and closure
 
@@ -298,9 +298,9 @@ For each case retain the source commit, real adapter/route, operation/item IDs, 
 | --- | --- | --- |
 | Lost reply replay | C2, C3, C6, C10, C11 | T2, T3, T10, T13, T14 |
 | Premature readiness | C3, C4 | T1, T13, T16 |
-| Ineffective cancellation | C2, C5, C6, C10 | T4, T5, T12-T16, T21 |
+| Ineffective cancellation | C2, C5, C6, C10 | T4, T5, T12-T16, T19 |
 | Partial folder rollback | C7-C12 | T6, T9, T15 |
-| Replacement parity | C7-C10, C13, C14 | T6, T11, T13-T15, T19-T21 |
+| Replacement parity | C7-C10, C13, C14 | T6, T11, T13-T15, T17-T19 |
 | Lost batch results/undo | C8-C11, C14 | T10, T11, T13, T14, T16 |
 | Lookup uncertainty | C1, C7, C11 | T8, T13, T14 |
 | Unowned partial files | C2, C7-C9 | T4, T7, T13-T15 |
