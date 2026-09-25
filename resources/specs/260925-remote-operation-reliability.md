@@ -314,6 +314,8 @@ Use the existing guarded runner and independent prompt sentries for installed ch
 
 ## Build Log
 
+- **C8** In progress. Added measured content proofs using existing platform SHA-256 facilities; at `a18e1e4`, 42 Linux tests, both helper builds, signed Foundry app build and 10 Foundry regressions passed. Unix upload preparation now has immutable payload proofs, planned temporary names and persisted ownership; service integration and verification continue.
+
 - **C7** Added native exclusive rename wrappers, byte-preserving directory operations, stable object observations, exclusively allocated private workspaces and persisted cleanup ownership. Publication rechecks cancellation under the account lock, records intended source/destination locations before rename and records the observed effect afterward; repeat publication is rejected. At `0e516a5`, 40 Linux tests, both helper builds, signed Foundry app build and 26 Foundry/native/Windows regressions passed. APFS rejects invalid UTF-8 names without mutation; Linux preserves those bytes.
 
 - **C3** Shared version-2 requests/replies carry handshake, acceptance, status, cancellation, acknowledgement and receipt data. Both RPC codecs preserve byte-exact paths and reject trailing bytes; compatibility checks cover protocol, schema, capabilities, account and epoch. Host dispatch explicitly refuses capabilities until C8 connects the commit implementation. At `0efdec1`, signed Foundry build and 18 protocol/contract/helper tests passed; Linux helper checks at `9e6dc62` passed 32 tests.

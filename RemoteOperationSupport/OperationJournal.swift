@@ -24,6 +24,7 @@ public final class OperationJournal: Sendable {
         public let intent: OperationIntent?
         public let receipt: OperationReceipt?
         public let acknowledged: Bool
+        public let workspace: OperationWorkspace.Record?
     }
 
     public final class Ownership: Sendable {
@@ -121,6 +122,7 @@ public final class OperationJournal: Sendable {
     }
 
     public func read(_ id: OperationItemID) throws -> Snapshot {
+        try validateEpoch()
         guard let data = try readFile(name(id) + ".json") else { throw OperationJournalError.missingRecord }
         let snapshot = try JSONDecoder().decode(Snapshot.self, from: data)
         guard snapshot.schemaVersion == 1 else { throw OperationContractError.incompatibleSchema }
@@ -130,6 +132,7 @@ public final class OperationJournal: Sendable {
     }
 
     public func accept(_ intent: OperationIntent, digest: String, ownership: Ownership) throws -> Snapshot {
+        try validateEpoch()
         try requireOwnership(ownership, id: intent.id)
         if let data = try readFile(name(intent.id) + ".json") {
             let existing = try JSONDecoder().decode(Snapshot.self, from: data)
@@ -141,7 +144,7 @@ public final class OperationJournal: Sendable {
         guard try !cancellationRequested(intent.id) else { throw OperationContractError.cancelled }
         let snapshot = Snapshot(
             schemaVersion: 1, epoch: epoch, account: account, id: intent.id,
-            intentDigest: digest, revision: 1, intent: intent, receipt: nil, acknowledged: false
+            intentDigest: digest, revision: 1, intent: intent, receipt: nil, acknowledged: false, workspace: nil
         )
         try write(snapshot, name: name(intent.id) + ".json")
         return snapshot
@@ -160,7 +163,7 @@ public final class OperationJournal: Sendable {
         let snapshot = Snapshot(
             schemaVersion: 1, epoch: epoch, account: account, id: receipt.id,
             intentDigest: previous.intentDigest, revision: previous.revision + 1,
-            intent: intent, receipt: receipt, acknowledged: false
+            intent: intent, receipt: receipt, acknowledged: false, workspace: previous.workspace
         )
         try write(snapshot, name: name(receipt.id) + ".json")
     }
@@ -175,7 +178,7 @@ public final class OperationJournal: Sendable {
         let tombstone = Snapshot(
             schemaVersion: 1, epoch: epoch, account: account, id: id,
             intentDigest: previous.intentDigest, revision: previous.revision + 1,
-            intent: nil, receipt: receipt, acknowledged: true
+            intent: nil, receipt: receipt, acknowledged: true, workspace: nil
         )
         try write(tombstone, name: name(id) + ".json")
     }
@@ -184,7 +187,24 @@ public final class OperationJournal: Sendable {
         try write(id, name: name(id) + ".cancel")
     }
 
+    public func recordWorkspace(_ workspace: OperationWorkspace.Record, ownership: Ownership) throws {
+        try requireOwnership(ownership, id: workspace.id)
+        let previous = try read(workspace.id)
+        guard !previous.acknowledged else { throw OperationContractError.invalidReceipt }
+        if let saved = previous.workspace {
+            guard saved.root == workspace.root, workspace.objects.starts(with: saved.objects) else {
+                throw OperationContractError.identityMismatch
+            }
+        }
+        try write(Snapshot(
+            schemaVersion: 1, epoch: epoch, account: account, id: workspace.id, intentDigest: previous.intentDigest,
+            revision: previous.revision + 1, intent: previous.intent, receipt: previous.receipt,
+            acknowledged: false, workspace: workspace
+        ), name: name(workspace.id) + ".json")
+    }
+
     public func cancellationRequested(_ id: OperationItemID) throws -> Bool {
+        try validateEpoch()
         guard let data = try readFile(name(id) + ".cancel") else { return false }
         guard try JSONDecoder().decode(OperationItemID.self, from: data) == id else {
             throw OperationContractError.identityMismatch
@@ -221,7 +241,16 @@ public final class OperationJournal: Sendable {
     }
 
     private func write<Value: Encodable>(_ value: Value, name: String) throws {
+        try validateEpoch()
         try Self.write(value, directory: directory, name: name)
+    }
+
+    private func validateEpoch() throws {
+        guard let data = try readFile("epoch.json") else { throw OperationContractError.epochMismatch }
+        let current = try JSONDecoder().decode(EpochRecord.self, from: data)
+        guard current.schemaVersion == 1 else { throw OperationContractError.incompatibleSchema }
+        guard current.account == account else { throw OperationContractError.identityMismatch }
+        guard current.epoch == epoch else { throw OperationContractError.epochMismatch }
     }
 
     private static func write<Value: Encodable>(_ value: Value, directory: Int32, name: String) throws {

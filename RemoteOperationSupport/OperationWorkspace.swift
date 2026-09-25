@@ -28,8 +28,13 @@ public final class OperationWorkspace {
     public let directory: OperationDirectory
     public private(set) var record: Record
 
-    public init(parent: OperationDirectory, id: OperationItemID) throws {
-        let name = Data(".detours-partial-\(id.operation)-\(id.item)-\(UUID())".utf8)
+    public static func plannedName(for id: OperationItemID) -> Data {
+        Data(".detours-partial-\(id.operation)-\(id.item)-\(UUID())".utf8)
+    }
+
+    public init(parent: OperationDirectory, id: OperationItemID, plannedName: Data? = nil) throws {
+        let name = plannedName ?? Self.plannedName(for: id)
+        try OperationDirectory.validateName(name)
         let result = try OperationDirectory.withBytes(name) { mkdirat(parent.descriptor, $0, mode_t(0o700)) }
         guard result == 0 else { throw OperationDirectory.systemError() }
         try parent.synchronize()

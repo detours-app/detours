@@ -58,6 +58,8 @@ public struct OperationReceipt: Codable, Equatable, Sendable {
     public let sourceDisposition: SourceDisposition
     public let contentVerified: Bool
     public let preparedPayload: OperationEffect?
+    public let plannedPaths: [OperationLocation]?
+    public let measuredBytes: UInt64?
     public let recovery: [OperationRecoveryReference]
     public let children: [OperationReceipt]
     public let skipped: Bool
@@ -69,6 +71,8 @@ public struct OperationReceipt: Codable, Equatable, Sendable {
         outcome: OperationOutcome, effects: [OperationEffect] = [],
         sourceDisposition: SourceDisposition = .notRequired, contentVerified: Bool = false,
         preparedPayload: OperationEffect? = nil,
+        plannedPaths: [OperationLocation]? = nil,
+        measuredBytes: UInt64? = nil,
         recovery: [OperationRecoveryReference] = [], children: [OperationReceipt] = [],
         skipped: Bool = false, failure: String? = nil
     ) {
@@ -84,6 +88,8 @@ public struct OperationReceipt: Codable, Equatable, Sendable {
         self.sourceDisposition = sourceDisposition
         self.contentVerified = contentVerified
         self.preparedPayload = preparedPayload
+        self.plannedPaths = plannedPaths
+        self.measuredBytes = measuredBytes
         self.recovery = recovery
         self.children = children
         self.skipped = skipped

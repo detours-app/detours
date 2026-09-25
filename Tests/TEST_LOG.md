@@ -1,5 +1,12 @@
 # Test Log
 
+## 2026-09-25 (Foundry and devtest, measured content proofs)
+
+| Check | Commit | Result |
+| --- | --- | --- |
+| Linux content proof, filesystem, publication, archive and process checks | `a18e1e4` | PASS: 18 process tests in 11.989 seconds and 24 content/filesystem/publication/archive tests in 2.370 seconds, zero failures or skips. Known SHA-256 vectors and cancellation pass; both helper builds succeeded. |
+| Signed Foundry build and content/publication regressions | `a18e1e4` | PASS: signed no-install app build and 10 tests, zero failures or skips, 0.026 seconds. CryptoKit proofs match known vectors and stop on cancellation; native publication and ownership checks remain green. |
+
 ## 2026-09-25 (Foundry and devtest, native operation filesystem primitives)
 
 | Check | Commit | Result |
