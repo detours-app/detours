@@ -221,6 +221,12 @@ final class WindowsAcceptedOperationLiveTests: XCTestCase {
     \#(WindowsOperationScripts.requestHelpers)
     \#(WindowsOperationScripts.mutationHelpers)
     \#(WindowsOperationScripts.ingressHelpers)
+    $nativeProof = ${function:Get-WindowsContentProof}
+    function Get-WindowsContentProof([string]$Path) {
+        $probe = [System.IO.FileStream]::new((Join-Path (Join-Path $Arguments.root 'journal') 'commit.lock'), 'OpenOrCreate', 'ReadWrite', 'None')
+        $probe.Dispose()
+        & $nativeProof $Path
+    }
     Invoke-WindowsOperation (Join-Path $Arguments.root 'journal') $Arguments.account $Arguments.operation.request $Arguments.operation.canonicalIntent
     """#
 }

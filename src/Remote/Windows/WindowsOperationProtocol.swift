@@ -56,6 +56,9 @@ extension WindowsOperationScripts {
     """#)
 
     static let requestHelpers = #"""
+    function Get-WindowsContentProof([string]$Path) {
+        [DetoursOperationFiles]::Prove($Path)
+    }
     function Get-OperationPath($Location, $Account) {
         if ($Location.account.hostIdentity -cne $Account.hostIdentity -or
             $Location.account.accountIdentity -cne $Account.accountIdentity) { throw 'Operation location account mismatch.' }

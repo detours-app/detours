@@ -71,6 +71,11 @@ extension WindowsOperationScripts {
     }
     function Remove-WindowsWorkspace($Context) {
         if ($null -eq $Context.record.workspace) { return }
+        $commit = Lock-OperationFile (Join-Path $Context.root 'commit.lock') ''
+        try { Remove-WindowsWorkspaceContents $Context } finally { $commit.Dispose() }
+    }
+    function Remove-WindowsWorkspaceContents($Context) {
+        if ($null -eq $Context.record.workspace) { return }
         $path = [string]$Context.record.windowsWorkspacePath
         $root = [DetoursOperationFiles]::Observe($path)
         $owned = $Context.record.workspace.root.identity
@@ -99,14 +104,15 @@ extension WindowsOperationScripts {
         if ($null -eq $previous -or $previous.phase -in @('terminal', 'readyToCommit')) { return }
         if ($Context.record.windowsIngressReady -and -not $Context.record.windowsIngressSealing) { return }
         $receipt = New-WindowsReceipt $Context 'terminal' 'unknown'
+        $receipt.effects = @($previous.effects)
         $receipt.failure = 'Operation worker ended before its result was recorded.'
-        if ($previous.phase -eq 'committing' -and $null -ne $previous.preparedPayload) {
+        if ($previous.phase -eq 'committing' -and ($null -ne $previous.preparedPayload -or @($previous.effects).Count -eq 1)) {
             $destination = Get-OperationPath $Context.record.intent.destination $Context.account
             $lookup = Get-WindowsOperationLookup $destination
             if ($lookup.ContainsKey('found')) {
-                $expected = $previous.preparedPayload.observation
+                $expected = if ($null -ne $previous.preparedPayload) { $previous.preparedPayload.observation } else { $previous.effects[0].observation }
                 $actual = $lookup.found._0
-                if ($actual.kind -eq 'file') { $actual = [DetoursOperationFiles]::Prove($destination) }
+                if ($actual.kind -eq 'file') { $actual = (Get-WindowsContentProof $destination) }
                 if ($actual.identity.volume -ceq $expected.identity.volume -and $actual.identity.object -ceq $expected.identity.object -and
                     $actual.kind -ceq $expected.kind -and $actual.contentVersion -ceq $expected.contentVersion -and
                     $actual.linkTarget -ceq $expected.linkTarget -and ($null -eq $expected.sha256 -or $actual.sha256 -ceq $expected.sha256)) {
@@ -133,7 +139,7 @@ extension WindowsOperationScripts {
         } else {
             if ($intent.action -ne 'copy' -or @($intent.sources).Count -ne 1 -or @($intent.sourceObservations).Count -ne 1) { throw 'Invalid accepted copy.' }
             $source = Get-OperationPath $intent.sources[0] $Context.account
-            $before = [DetoursOperationFiles]::Prove($source)
+            $before = (Get-WindowsContentProof $source)
             Assert-WindowsObservation $before $intent.sourceObservations[0]
             $proof = @{ byteCount = $before.byteCount; sha256 = $before.sha256 }
             $sourceStream = [System.IO.FileStream]::new($source, 'Open', 'Read', 'Read')
@@ -152,12 +158,12 @@ extension WindowsOperationScripts {
         } finally { if ($null -ne $sourceStream) { $sourceStream.Dispose() } }
         $payload = Join-Path $Context.record.windowsWorkspacePath 'payload'
         if ($null -ne $source) {
-            $after = [DetoursOperationFiles]::Prove($source)
+            $after = (Get-WindowsContentProof $source)
             Assert-WindowsObservation $after $before
             [System.IO.File]::SetLastWriteTimeUtc($payload, [System.IO.File]::GetLastWriteTimeUtc($source))
             [System.IO.File]::SetAttributes($payload, [System.IO.File]::GetAttributes($source))
         }
-        $observed = [DetoursOperationFiles]::Prove($payload)
+        $observed = (Get-WindowsContentProof $payload)
         if ($observed.byteCount -ne $proof.byteCount -or $observed.sha256 -cne $proof.sha256) { throw 'Operation payload verification failed.' }
         Assert-WindowsOperationActive $Context
         $receipt = New-WindowsReceipt $Context 'readyToCommit' 'running'
@@ -173,12 +179,12 @@ extension WindowsOperationScripts {
             if ($Context.record.receipt.phase -ne 'readyToCommit') { throw 'Operation payload is not ready to commit.' }
             $payload = $Context.record.receipt.preparedPayload
             $source = Get-OperationPath $payload.location $Context.account
-            Assert-WindowsObservation ([DetoursOperationFiles]::Prove($source)) $payload.observation
+            Assert-WindowsObservation ((Get-WindowsContentProof $source)) $payload.observation
         } elseif ($intent.action -in @('rename', 'move')) {
             if (@($intent.sources).Count -ne 1 -or @($intent.sourceObservations).Count -ne 1) { throw 'Invalid accepted native move.' }
             $source = Get-OperationPath $intent.sources[0] $Context.account
             $observed = [DetoursOperationFiles]::Observe($source)
-            if ($observed.kind -eq 'file') { $observed = [DetoursOperationFiles]::Prove($source) }
+            if ($observed.kind -eq 'file') { $observed = (Get-WindowsContentProof $source) }
             Assert-WindowsObservation $observed $intent.sourceObservations[0]
             $payload = @{ location = $intent.sources[0]; observation = $observed }
         } elseif ($intent.action -ne 'createFolder' -or @($intent.sources).Count -ne 0) { throw 'Unsupported accepted native operation.' }
@@ -200,32 +206,38 @@ extension WindowsOperationScripts {
                 $expected = $payload.observation
                 $observed = [DetoursOperationFiles]::MoveExclusive($source, $destination,
                     $expected.identity.volume, $expected.identity.object, $expected.version)
-                if ($observed.kind -eq 'file') {
-                    $observed = [DetoursOperationFiles]::Prove($destination)
-                    if ($observed.sha256 -cne $expected.sha256) { throw 'Published operation content changed.' }
-                }
             }
-            $receipt = New-WindowsReceipt $Context 'terminal' 'committed'
+            $receipt = New-WindowsReceipt $Context 'committing' 'running'
             $receipt.effects = @(@{ location = $intent.destination; observation = $observed })
-            $receipt.contentVerified = $null -ne $observed.sha256
-            if ($intent.action -in @('rename', 'move')) { $receipt.sourceDisposition = 'confirmed'; $receipt.recovery = @() }
+            if ($intent.action -in @('rename', 'move')) { $receipt.sourceDisposition = 'unknown' }
             Save-WindowsReceipt $Context $receipt | Out-Null
-            if ($null -ne $Context.record.workspace) {
-                try {
-                    Remove-WindowsWorkspace $Context
-                    $receipt = New-WindowsReceipt $Context 'terminal' 'committed'
-                    $receipt.effects = @($Context.record.receipt.effects); $receipt.contentVerified = $true; $receipt.recovery = @()
-                    Save-WindowsReceipt $Context $receipt | Out-Null
-                } catch {
-                    $receipt = New-WindowsReceipt $Context 'terminal' 'committed'
-                    $receipt.effects = @($Context.record.receipt.effects); $receipt.contentVerified = $true
-                    $receipt.failure = 'Committed; scratch cleanup requires recovery: ' + $_.Exception.Message
-                    foreach ($reference in $receipt.recovery) { $reference.knownLocation = $null }
-                    Save-WindowsReceipt $Context $receipt | Out-Null
-                }
-            }
-            $receipt
         } finally { $commit.Dispose() }
+        if ($observed.kind -eq 'file') {
+            $verified = Get-WindowsContentProof $destination
+            Assert-WindowsObservation $verified $observed
+            if ($verified.sha256 -cne $payload.observation.sha256) { throw 'Published operation content changed.' }
+            $observed = $verified
+        }
+        $receipt = New-WindowsReceipt $Context 'terminal' 'committed'
+        $receipt.effects = @(@{ location = $intent.destination; observation = $observed })
+        $receipt.contentVerified = $null -ne $observed.sha256
+        if ($intent.action -in @('rename', 'move')) { $receipt.sourceDisposition = 'confirmed'; $receipt.recovery = @() }
+        Save-WindowsReceipt $Context $receipt | Out-Null
+        if ($null -ne $Context.record.workspace) {
+            try {
+                Remove-WindowsWorkspace $Context
+                $receipt = New-WindowsReceipt $Context 'terminal' 'committed'
+                $receipt.effects = @($Context.record.receipt.effects); $receipt.contentVerified = $true; $receipt.recovery = @()
+                Save-WindowsReceipt $Context $receipt | Out-Null
+            } catch {
+                $receipt = New-WindowsReceipt $Context 'terminal' 'committed'
+                $receipt.effects = @($Context.record.receipt.effects); $receipt.contentVerified = $true
+                $receipt.failure = 'Committed; scratch cleanup requires recovery: ' + $_.Exception.Message
+                foreach ($reference in $receipt.recovery) { $reference.knownLocation = $null }
+                Save-WindowsReceipt $Context $receipt | Out-Null
+            }
+        }
+        $receipt
     }
     function Invoke-WindowsMutation($Context, [string]$Kind, $Parameters) {
         if ($Kind -notin @('prepareUpload', 'prepareCopy', 'commit', 'execute')) { throw 'Unsupported Windows operation request.' }

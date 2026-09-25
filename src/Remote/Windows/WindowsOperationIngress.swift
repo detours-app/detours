@@ -55,7 +55,7 @@ extension WindowsOperationScripts {
                 Assert-WindowsObservation ([DetoursOperationFiles]::ObserveStream($inputStream)) $opened
             } finally { $inputStream.Dispose() }
             $payload = Join-Path $Context.record.windowsWorkspacePath 'payload'
-            $proof = [DetoursOperationFiles]::Prove($payload)
+            $proof = (Get-WindowsContentProof $payload)
             if ($proof.byteCount -ne $intent.payloadProof.byteCount -or $proof.sha256 -cne $intent.payloadProof.sha256) {
                 throw 'Operation ingress content verification failed.'
             }
