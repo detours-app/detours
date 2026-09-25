@@ -1,4 +1,5 @@
 import Foundation
+import FilesystemPrimitives
 #if canImport(Darwin)
 import Darwin
 #else
@@ -91,6 +92,93 @@ public final class OperationWorkspace {
         guard fstat(descriptor, &info) == 0 else { throw OperationDirectory.systemError() }
         guard OperationDirectory.identity(info) == owned.identity else { throw OperationFilesystemError.identityChanged }
         guard fsync(descriptor) == 0 else { throw OperationDirectory.systemError() }
+    }
+
+    public func openEmptyFileForWriting(named name: Data) throws -> FileHandle {
+        let target = try parentForObject(name)
+        guard let owned = record.objects.first(where: { $0.name == name }), owned.kind == .file else {
+            throw OperationFilesystemError.unexpectedContents
+        }
+        let descriptor = try OperationDirectory.withBytes(target.name) {
+            openat(target.directory.descriptor, $0, O_WRONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK)
+        }
+        guard descriptor >= 0 else { throw OperationDirectory.systemError() }
+        let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+        var information = stat()
+        guard fstat(descriptor, &information) == 0 else { throw OperationDirectory.systemError() }
+        guard OperationDirectory.identity(information) == owned.identity,
+              information.st_mode & mode_t(S_IFMT) == mode_t(S_IFREG), information.st_size == 0 else {
+            throw OperationFilesystemError.identityChanged
+        }
+        return handle
+    }
+
+    public func createHardLink(named name: Data, to source: Data) throws {
+        let origin = try parentForObject(source)
+        let target = try parentForObject(name)
+        guard let owned = record.objects.first(where: { $0.name == source }), owned.kind == .file else {
+            throw OperationFilesystemError.unexpectedContents
+        }
+        let before = try origin.directory.observe(origin.name)
+        guard before.identity == owned.identity, before.kind == .file else { throw OperationFilesystemError.identityChanged }
+        let result = try OperationDirectory.withBytes(origin.name) { sourceName in
+            try OperationDirectory.withBytes(target.name) { destinationName in
+                linkat(origin.directory.descriptor, sourceName, target.directory.descriptor, destinationName, 0)
+            }
+        }
+        guard result == 0 else { throw OperationDirectory.systemError() }
+        let observation = try target.directory.observe(target.name)
+        record = Record(id: record.id, root: record.root,
+                        objects: record.objects + [OperationOwnedObject(name: name, observation: observation)])
+        try target.directory.synchronize()
+        guard observation.identity == owned.identity, observation.kind == .file,
+              try origin.directory.observe(origin.name).identity == owned.identity else {
+            throw OperationFilesystemError.identityChanged
+        }
+    }
+
+    public func applyMetadata(named name: Data, mode: UInt32, modified: Date?) throws {
+        let target = try parentForObject(name)
+        guard let owned = record.objects.first(where: { $0.name == name }) else { throw OperationFilesystemError.unexpectedContents }
+        let observed = try target.directory.observe(target.name)
+        guard observed.identity == owned.identity, observed.kind == owned.kind else { throw OperationFilesystemError.identityChanged }
+        var times: [timespec] = []
+        if let modified {
+            let seconds = floor(modified.timeIntervalSince1970)
+            guard seconds.isFinite, seconds >= Double(Int.min), seconds < Double(Int.max) else {
+                throw OperationFilesystemError.unsupported
+            }
+            let nanos = Int((modified.timeIntervalSince1970 - seconds) * 1_000_000_000)
+            times = [timespec(tv_sec: 0, tv_nsec: Int(UTIME_OMIT)), timespec(tv_sec: Int(seconds), tv_nsec: nanos)]
+        }
+        if owned.kind == .symbolicLink {
+            if !times.isEmpty {
+                let descriptor = try OperationDirectory.withBytes(target.name) {
+                    detours_open_symlink(target.directory.descriptor, $0)
+                }
+                guard descriptor >= 0 else { throw OperationDirectory.systemError() }
+                defer { _ = close(descriptor) }
+                var information = stat()
+                guard fstat(descriptor, &information) == 0 else { throw OperationDirectory.systemError() }
+                guard OperationDirectory.identity(information) == owned.identity,
+                      information.st_mode & mode_t(S_IFMT) == mode_t(S_IFLNK) else { throw OperationFilesystemError.identityChanged }
+                guard detours_set_symlink_times(descriptor, &times) == 0 else { throw OperationDirectory.systemError() }
+            }
+        } else {
+            let descriptor = try OperationDirectory.withBytes(target.name) {
+                openat(target.directory.descriptor, $0, O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK)
+            }
+            guard descriptor >= 0 else { throw OperationDirectory.systemError() }
+            defer { _ = close(descriptor) }
+            var information = stat()
+            guard fstat(descriptor, &information) == 0 else { throw OperationDirectory.systemError() }
+            guard OperationDirectory.identity(information) == owned.identity else { throw OperationFilesystemError.identityChanged }
+            guard fchmod(descriptor, mode_t(mode & 0o7777)) == 0 else { throw OperationDirectory.systemError() }
+            if !times.isEmpty, futimens(descriptor, &times) != 0 { throw OperationDirectory.systemError() }
+            guard fsync(descriptor) == 0 else { throw OperationDirectory.systemError() }
+        }
+        try requireRoot()
+        guard try target.directory.observe(target.name).identity == owned.identity else { throw OperationFilesystemError.identityChanged }
     }
 
     public func createDirectory(named name: Data) throws {

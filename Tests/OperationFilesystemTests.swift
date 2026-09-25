@@ -3,6 +3,74 @@ import RemoteOperationSupport
 import XCTest
 
 final class OperationFilesystemTests: XCTestCase {
+    func testOwnedArchiveOutputsPreserveHardLinksAndMetadata() throws {
+        let root = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let directory = try OperationDirectory(path: Data(root.path.utf8))
+        let workspace = try OperationWorkspace(parent: directory, id: .init(operation: UUID(), item: UUID()))
+        let payload = Data("payload".utf8)
+        let alias = Data("alias".utf8)
+        try workspace.createFile(named: payload).close()
+        let output = try workspace.openEmptyFileForWriting(named: payload)
+        try output.write(contentsOf: Data("owned content".utf8))
+        try output.close()
+        XCTAssertThrowsError(try workspace.openEmptyFileForWriting(named: payload))
+        try workspace.createHardLink(named: alias, to: payload)
+        XCTAssertEqual(try workspace.directory.observe(payload).identity, try workspace.directory.observe(alias).identity)
+        let modified = Date(timeIntervalSince1970: 1_600_000_000)
+        try workspace.applyMetadata(named: payload, mode: 0o100640, modified: modified)
+        let url = URL(fileURLWithPath: try XCTUnwrap(String(data: try workspace.directory.childPath(alias), encoding: .utf8)))
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        XCTAssertEqual((attributes[.posixPermissions] as? NSNumber)?.intValue, 0o640)
+        XCTAssertEqual(attributes[.modificationDate] as? Date, modified)
+        XCTAssertEqual(try Data(contentsOf: url), Data("owned content".utf8))
+        let saved = try JSONEncoder().encode(workspace.record)
+        let reopened = try OperationWorkspace(parent: directory, record: JSONDecoder().decode(OperationWorkspace.Record.self, from: saved))
+        try reopened.removeScratch()
+        XCTAssertEqual(try directory.names(), [])
+    }
+
+    func testOwnedLinkTimestampDoesNotFollowTargetAndRefusesSubstitution() throws {
+        let root = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let outside = root.appendingPathComponent("outside")
+        try Data("keep".utf8).write(to: outside)
+        let directory = try OperationDirectory(path: Data(root.path.utf8))
+        let before = try directory.observe(Data("outside".utf8))
+        let workspace = try OperationWorkspace(parent: directory, id: .init(operation: UUID(), item: UUID()))
+        let link = Data("link".utf8)
+        try workspace.createSymbolicLink(named: link, target: Data(outside.path.utf8))
+        let original = try workspace.directory.observe(link)
+        try workspace.applyMetadata(named: link, mode: 0o120777, modified: Date(timeIntervalSince1970: 1_600_000_000))
+        let updated = try workspace.directory.observe(link)
+        XCTAssertEqual(updated.identity, original.identity)
+        XCTAssertNotEqual(updated.version, original.version)
+        XCTAssertEqual(try directory.observe(Data("outside".utf8)), before)
+        let linkURL = URL(fileURLWithPath: try XCTUnwrap(String(data: try workspace.directory.childPath(link), encoding: .utf8)))
+        try FileManager.default.moveItem(at: linkURL, to: root.appendingPathComponent("saved-link"))
+        try Data("substitute".utf8).write(to: linkURL)
+        XCTAssertThrowsError(try workspace.applyMetadata(named: link, mode: 0o600, modified: Date()))
+        XCTAssertThrowsError(try workspace.createHardLink(named: Data("alias".utf8), to: link))
+        XCTAssertEqual(try Data(contentsOf: linkURL), Data("substitute".utf8))
+        XCTAssertEqual(try directory.observe(Data("outside".utf8)), before)
+    }
+
+    func testOwnedOutputRefusesReplacedEmptyFile() throws {
+        let root = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let directory = try OperationDirectory(path: Data(root.path.utf8))
+        let workspace = try OperationWorkspace(parent: directory, id: .init(operation: UUID(), item: UUID()))
+        let payload = Data("payload".utf8)
+        try workspace.createFile(named: payload).close()
+        let output = URL(fileURLWithPath: try XCTUnwrap(String(data: try workspace.directory.childPath(payload), encoding: .utf8)))
+        try FileManager.default.moveItem(at: output, to: root.appendingPathComponent("saved"))
+        try Data().write(to: output)
+        XCTAssertThrowsError(try workspace.openEmptyFileForWriting(named: payload))
+        XCTAssertThrowsError(try workspace.createHardLink(named: Data("alias".utf8), to: payload))
+        XCTAssertThrowsError(try workspace.applyMetadata(named: payload, mode: 0o777, modified: Date()))
+        XCTAssertEqual(try Data(contentsOf: output), Data())
+    }
+
     func testCompetingDestinationIsNeverReplaced() throws {
         let root = try fixture()
         defer { try? FileManager.default.removeItem(at: root) }
