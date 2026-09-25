@@ -2,12 +2,37 @@ import Foundation
 import RemoteOperationSupport
 
 struct WindowsOperationArguments: Encodable {
-    let request: OperationRequest
+    private enum Key: String, CodingKey { case prepareIngress, sealIngress, identity = "_0" }
+
+    enum Request: Encodable {
+        case shared(OperationRequest)
+        case prepareIngress(OperationRequestIdentity)
+        case sealIngress(OperationRequestIdentity)
+
+        func encode(to encoder: Encoder) throws {
+            switch self {
+            case .shared(let request): try request.encode(to: encoder)
+            case .prepareIngress(let identity), .sealIngress(let identity):
+                let key: Key
+                if case .prepareIngress = self { key = .prepareIngress } else { key = .sealIngress }
+                var container = encoder.container(keyedBy: Key.self)
+                var value = container.nestedContainer(keyedBy: Key.self, forKey: key)
+                try value.encode(identity, forKey: .identity)
+            }
+        }
+    }
+
+    let request: Request
     let canonicalIntent: Data?
 
     init(_ request: OperationRequest) throws {
-        self.request = request
+        self.request = .shared(request)
         if case .accept(_, let intent) = request { canonicalIntent = try intent.canonicalData() } else { canonicalIntent = nil }
+    }
+
+    init(ingress request: Request) {
+        self.request = request
+        self.canonicalIntent = nil
     }
 }
 
@@ -18,6 +43,7 @@ extension WindowsOperationScripts {
     \#(journalHelpers)
     \#(requestHelpers)
     \#(mutationHelpers)
+    \#(ingressHelpers)
     $profile = [Environment]::GetFolderPath('UserProfile')
     if ([string]::IsNullOrWhiteSpace($profile)) { throw 'Windows user profile is unavailable.' }
     $machine = [Microsoft.Win32.Registry]::GetValue('HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Cryptography', 'MachineGuid', $null)
@@ -130,6 +156,9 @@ extension WindowsOperationScripts {
             if ($kind -eq 'acknowledge') {
                 Confirm-OperationResult $Root $identity.id $Account $epoch ([bool]$parameters.retainingUndo) $ownership | Out-Null
                 return @{ acknowledged = @{ _0 = $identity } }
+            }
+            if ($kind -in @('prepareIngress', 'sealIngress')) {
+                return @{ receipt = @{ _0 = (Invoke-WindowsIngress $context $kind) } }
             }
             return @{ receipt = @{ _0 = (Invoke-WindowsMutation $context $kind $parameters) } }
         } finally { $ownership.Dispose() }

@@ -97,6 +97,7 @@ extension WindowsOperationScripts {
     function Resolve-WindowsOperation($Context) {
         $previous = $Context.record.receipt
         if ($null -eq $previous -or $previous.phase -in @('terminal', 'readyToCommit')) { return }
+        if ($Context.record.windowsIngressReady -and -not $Context.record.windowsIngressSealing) { return }
         $receipt = New-WindowsReceipt $Context 'terminal' 'unknown'
         $receipt.failure = 'Operation worker ended before its result was recorded.'
         if ($previous.phase -eq 'committing' -and $null -ne $previous.preparedPayload) {

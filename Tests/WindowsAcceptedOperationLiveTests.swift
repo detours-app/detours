@@ -24,6 +24,7 @@ final class WindowsAcceptedOperationLiveTests: XCTestCase {
         let root = try JSONDecoder().decode(String.self, from: rootData)
         do {
             try await exercise(channel: channel, root: root)
+            try await exerciseIngress(channel: channel, root: root, control: control)
             try await cleanup(channel: channel, root: root)
             await channel.disconnect()
         } catch {
@@ -134,6 +135,76 @@ final class WindowsAcceptedOperationLiveTests: XCTestCase {
         XCTAssertNil(snapshot.workspace)
     }
 
+    private func exerciseIngress(channel: PowerShellChannel, root: String, control: URL) async throws {
+        let account = OperationAccount(hostIdentity: "accepted-fixture", accountIdentity: "accepted-fixture-user")
+        func send(_ arguments: WindowsOperationArguments) async throws -> OperationReply {
+            let script = try PowerShellScript(source: PowerShellScript.prelude(operationBody: Self.requestScript),
+                arguments: Arguments(root: root, account: account, operation: arguments))
+            return try OperationReply.decode(await channel.run(script, operation: "AcceptedIngressRequest"))
+        }
+        guard case .handshake(let handshake) = try await send(WindowsOperationArguments(.handshake)) else {
+            return XCTFail("No ingress handshake")
+        }
+        let bytes = Data(repeating: 73, count: 1_048_577)
+        let local = control.appendingPathComponent("ingress-upload")
+        try bytes.write(to: local)
+        let destination = OperationLocation(account: account, path: .windows(root + "\\sealed"))
+        let intent = OperationIntent(id: .init(operation: UUID(), item: UUID()), action: .editorUpload, sources: [],
+            destination: destination, sourceObservations: [], conflict: .createNew, payloadProof: try OperationContentProof.data(bytes))
+        let identity = OperationRequestIdentity(id: intent.id, account: account, epoch: handshake.epoch,
+            intentDigest: try OperationContentProof.data(intent.canonicalData()).sha256)
+        _ = try await send(WindowsOperationArguments(.accept(identity: identity, intent: intent)))
+        let allocated = try await send(.init(ingress: .prepareIngress(identity)))
+        guard case .receipt(let allocation) = allocated,
+              case .windows(let ingress) = allocation.preparedPayload?.location.path else { return XCTFail("No ingress allocation") }
+        XCTAssertEqual(allocation.phase, .preparing, allocation.failure ?? "")
+        let duplicate = try await send(.init(ingress: .prepareIngress(identity)))
+        XCTAssertEqual(duplicate, allocated)
+        let sftp = ProcessWindowsSFTPClient(sshTarget: "detours-windows", controlDirectory: control, hostTrust: SSHHostTrust())
+        try await sftp.upload(localURL: local, remotePath: ingress)
+
+        let transport = PowerShellProcessTransport(sshTarget: "detours-windows", controlDirectory: control,
+            hostTrust: SSHHostTrust(), executionMode: .persistent)
+        let writer = PowerShellChannel(transport: transport)
+        do {
+            _ = try await writer.run(PowerShellScript(source: """
+                param($Arguments)
+                $global:IngressWriter = [System.IO.FileStream]::new($Arguments.path, 'Open', 'ReadWrite', 'ReadWrite,Delete')
+                $true
+                """, arguments: ["path": ingress]), operation: "HoldIngressWriter")
+            guard case .receipt(let sealed) = try await send(.init(ingress: .sealIngress(identity))) else {
+                throw PowerShellChannelError.invalidResponse("No sealed receipt")
+            }
+            XCTAssertEqual(sealed.phase, .readyToCommit, sealed.failure ?? "")
+            XCTAssertNotEqual(sealed.preparedPayload?.observation.identity, allocation.preparedPayload?.observation.identity)
+            guard case .receipt(let committed) = try await send(WindowsOperationArguments(.commit(identity))) else {
+                throw PowerShellChannelError.invalidResponse("No sealed commit")
+            }
+            XCTAssertEqual(committed.outcome, .committed, committed.failure ?? "")
+            XCTAssertFalse(committed.recovery.isEmpty, "An open ingress writer must leave a cleanup obligation")
+            _ = try await writer.run(PowerShellScript(source: """
+                $global:IngressWriter.Position = 0
+                $global:IngressWriter.WriteByte(88)
+                $global:IngressWriter.Flush($true)
+                $true
+                """), operation: "LateIngressWrite")
+            let verification = try PowerShellScript(source: PowerShellScript.prelude(operationBody: """
+                param($Arguments)
+                \(WindowsOperationScripts.filesystemHelpers)
+                [DetoursOperationFiles]::Prove($Arguments.path)
+                """), arguments: ["path": root + "\\sealed"])
+            let observed = try JSONDecoder().decode(OperationObservation.self,
+                from: await channel.run(verification, operation: "VerifySealedFile"))
+            XCTAssertEqual(observed.sha256, intent.payloadProof?.sha256)
+            XCTAssertEqual(observed.identity, committed.effects.first?.observation.identity)
+            _ = try await writer.run(PowerShellScript(source: "$global:IngressWriter.Dispose(); $true"), operation: "CloseIngressWriter")
+            await transport.stop()
+        } catch {
+            await transport.stop()
+            throw error
+        }
+    }
+
     private func cleanup(channel: PowerShellChannel, root: String) async throws {
         struct Cleanup: Encodable { let root: String }
         let script = try PowerShellScript(source: PowerShellScript.prelude(operationBody: """
@@ -149,6 +220,7 @@ final class WindowsAcceptedOperationLiveTests: XCTestCase {
     \#(WindowsOperationScripts.journalHelpers)
     \#(WindowsOperationScripts.requestHelpers)
     \#(WindowsOperationScripts.mutationHelpers)
+    \#(WindowsOperationScripts.ingressHelpers)
     Invoke-WindowsOperation (Join-Path $Arguments.root 'journal') $Arguments.account $Arguments.operation.request $Arguments.operation.canonicalIntent
     """#
 }
