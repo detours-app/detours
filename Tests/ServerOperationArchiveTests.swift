@@ -1,0 +1,248 @@
+import Foundation
+import RemoteOperationSupport
+import XCTest
+@testable import detours_server
+
+final class ServerOperationArchiveTests: XCTestCase {
+    func testAcceptedArchivePreparesPrivatelyAndCommitsOnceWithoutPersistingPassword() async throws {
+        for encrypted in [false, true] {
+            let fixture = try await Fixture(encrypted: encrypted, overlap: true)
+            defer { fixture.cleanup() }
+            _ = try await fixture.service.accept(fixture.identity, intent: fixture.intent)
+            let response = try await fixture.service.reply(to: .prepareArchive(identity: fixture.identity, password: fixture.password))
+            guard case .receipt(let ready) = response else { return XCTFail("Expected prepared archive receipt") }
+            XCTAssertEqual(ready.phase, .readyToCommit)
+            XCTAssertTrue(ready.contentVerified)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.destination.path))
+            let snapshot = try fixture.service.status(fixture.identity)
+            XCTAssertEqual(try snapshot.sourceManifest?.entries.map { try XCTUnwrap(String(data: $0.relativePath, encoding: .utf8)) },
+                           ["first", "first/empty", "first/link", "first/nested", "first/nested/émoji 📁.txt", "second/notes"])
+            XCTAssertEqual(snapshot.payloadManifest?.entries.first?.observation, ready.preparedPayload?.observation)
+            try fixture.assertSourcesUnchanged()
+            let duplicate = try await fixture.service.prepareArchive(fixture.identity, password: nil)
+            XCTAssertEqual(duplicate, ready)
+            let committed = try await fixture.service.commit(fixture.identity)
+            XCTAssertEqual(committed.outcome, .committed)
+            XCTAssertEqual(committed.effects.count, 1)
+            XCTAssertEqual(committed.effects.first?.observation.identity, ready.preparedPayload?.observation.identity)
+            XCTAssertTrue(committed.recovery.isEmpty)
+            XCTAssertNil(committed.failure)
+            let extracted = URL(fileURLWithPath: try ArchiveOperations().extractArchive(archive: fixture.destination.path, password: fixture.password))
+            XCTAssertEqual(try Data(contentsOf: extracted.appendingPathComponent("first/nested/émoji 📁.txt")), fixture.contents)
+            XCTAssertEqual(try Data(contentsOf: extracted.appendingPathComponent("second/notes")), Data("second file".utf8))
+            XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: extracted.appendingPathComponent("first/empty").path), [])
+            XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: extracted.appendingPathComponent("first/link").path), "nested/émoji 📁.txt")
+            let attributes = try FileManager.default.attributesOfItem(atPath: extracted.appendingPathComponent("first/nested/émoji 📁.txt").path)
+            XCTAssertEqual((attributes[.posixPermissions] as? NSNumber)?.intValue, 0o640)
+            XCTAssertEqual(attributes[.modificationDate] as? Date, fixture.modified)
+            try fixture.assertSourcesUnchanged()
+            try fixture.assertNoSavedPassword()
+            try FileManager.default.moveItem(at: fixture.destination, to: fixture.root.appendingPathComponent("saved.7z"))
+            try Data("later occupant".utf8).write(to: fixture.destination)
+            let repeated = try await fixture.service.commit(fixture.identity)
+            XCTAssertEqual(repeated, committed)
+            XCTAssertEqual(try Data(contentsOf: fixture.destination), Data("later occupant".utf8))
+        }
+    }
+
+    func testReplacementRetainsOriginalAndRechecksApprovedVersion() async throws {
+        for changed in [false, true] {
+            let fixture = try await Fixture(replace: true)
+            defer { fixture.cleanup() }
+            _ = try await fixture.service.accept(fixture.identity, intent: fixture.intent)
+            _ = try await fixture.service.prepareArchive(fixture.identity, password: nil)
+            XCTAssertEqual(try Data(contentsOf: fixture.destination), Data("original destination".utf8))
+            if changed {
+                try Data("later destination".utf8).write(to: fixture.destination)
+                do {
+                    _ = try await fixture.service.commit(fixture.identity)
+                    XCTFail("Changed replacement was published")
+                } catch { XCTAssertEqual(error as? OperationFilesystemError, .identityChanged) }
+                XCTAssertEqual(try Data(contentsOf: fixture.destination), Data("later destination".utf8))
+            } else {
+                let result = try await fixture.service.commit(fixture.identity)
+                XCTAssertEqual(result.outcome, .committed)
+                let original = try XCTUnwrap(result.recovery.first { $0.purpose == .displacedOriginal })
+                let saved = try fixture.url(XCTUnwrap(original.knownLocation))
+                XCTAssertEqual(try Data(contentsOf: saved), Data("original destination".utf8))
+                _ = try ArchiveOperations().extractArchive(archive: fixture.destination.path, password: nil)
+            }
+            try fixture.assertSourcesUnchanged()
+        }
+    }
+
+    func testChangedSourceAndOccupiedDestinationFailBeforeAllocation() async throws {
+        for sourceChanged in [false, true] {
+            let fixture = try await Fixture()
+            defer { fixture.cleanup() }
+            _ = try await fixture.service.accept(fixture.identity, intent: fixture.intent)
+            if sourceChanged {
+                try Data("changed source".utf8).write(to: fixture.file)
+            } else { try Data("competitor".utf8).write(to: fixture.destination) }
+            do {
+                _ = try await fixture.service.prepareArchive(fixture.identity, password: nil)
+                XCTFail("Invalid archive preparation succeeded")
+            } catch {
+                if sourceChanged { XCTAssertEqual(error as? OperationFilesystemError, .identityChanged) }
+            }
+            let result = try fixture.service.status(fixture.identity)
+            XCTAssertNil(result.workspace)
+            XCTAssertEqual(result.receipt?.outcome, .failedUnchanged)
+            if sourceChanged {
+                XCTAssertEqual(try Data(contentsOf: fixture.file), Data("changed source".utf8))
+                XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.destination.path))
+            } else {
+                XCTAssertEqual(try Data(contentsOf: fixture.destination), Data("competitor".utf8))
+                try fixture.assertSourcesUnchanged()
+            }
+            let duplicate = try await fixture.service.prepareArchive(fixture.identity, password: nil)
+            XCTAssertEqual(duplicate, result.receipt)
+        }
+    }
+
+    func testCancelledAndCompetingPublicationPreserveSources() async throws {
+        for cancel in [false, true] {
+            let fixture = try await Fixture()
+            defer { fixture.cleanup() }
+            _ = try await fixture.service.accept(fixture.identity, intent: fixture.intent)
+            _ = try await fixture.service.prepareArchive(fixture.identity, password: nil)
+            if cancel {
+                try fixture.service.cancel(fixture.identity)
+            } else { try Data("competitor".utf8).write(to: fixture.destination) }
+            do {
+                _ = try await fixture.service.commit(fixture.identity)
+                XCTFail("Invalid archive publication succeeded")
+            } catch {
+                if cancel { XCTAssertEqual(error as? OperationContractError, .cancelled) }
+            }
+            try fixture.assertSourcesUnchanged()
+            if cancel {
+                XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.destination.path))
+            } else { XCTAssertEqual(try Data(contentsOf: fixture.destination), Data("competitor".utf8)) }
+        }
+    }
+
+    func testModifiedOrSubstitutedPreparedArchiveCannotBePublished() async throws {
+        for substitute in [false, true] {
+            let fixture = try await Fixture()
+            defer { fixture.cleanup() }
+            _ = try await fixture.service.accept(fixture.identity, intent: fixture.intent)
+            let ready = try await fixture.service.prepareArchive(fixture.identity, password: nil)
+            let payload = try fixture.url(XCTUnwrap(ready.preparedPayload).location)
+            if substitute { try FileManager.default.moveItem(at: payload, to: fixture.root.appendingPathComponent("saved")) }
+            try Data("other writer".utf8).write(to: payload)
+            do {
+                _ = try await fixture.service.commit(fixture.identity)
+                XCTFail("Changed archive was published")
+            } catch { XCTAssertEqual(error as? OperationFilesystemError, .identityChanged) }
+            XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.destination.path))
+            try fixture.assertSourcesUnchanged()
+            let result = try fixture.service.status(fixture.identity)
+            XCTAssertEqual(result.receipt?.outcome, substitute ? .partial : .failedUnchanged)
+            if substitute { XCTAssertEqual(try Data(contentsOf: payload), Data("other writer".utf8)) }
+        }
+    }
+
+    func testEncryptedIntentCannotSilentlyBecomePlainArchive() async throws {
+        for encrypted in [false, true] {
+            let fixture = try await Fixture(encrypted: encrypted)
+            defer { fixture.cleanup() }
+            _ = try await fixture.service.accept(fixture.identity, intent: fixture.intent)
+            do {
+                _ = try await fixture.service.prepareArchive(fixture.identity, password: encrypted ? nil : "unapproved fixture password")
+                XCTFail("Changed encryption intent was accepted")
+            } catch { XCTAssertEqual(error as? OperationContractError, .intentMismatch) }
+            XCTAssertNil(try fixture.service.status(fixture.identity).workspace)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.destination.path))
+            try fixture.assertSourcesUnchanged()
+        }
+    }
+
+    func testArchiveInsideSelectedSourceIsRefusedBeforeTemporaryFiles() async throws {
+        let fixture = try await Fixture(inside: true)
+        defer { fixture.cleanup() }
+        _ = try await fixture.service.accept(fixture.identity, intent: fixture.intent)
+        do {
+            _ = try await fixture.service.prepareArchive(fixture.identity, password: nil)
+            XCTFail("Archive preparation changed its selected source")
+        } catch { XCTAssertEqual(error as? OperationFilesystemError, .unsupported) }
+        XCTAssertNil(try fixture.service.status(fixture.identity).workspace)
+        XCTAssertEqual(try fixture.service.status(fixture.identity).receipt?.outcome, .failedUnchanged)
+        try fixture.assertSourcesUnchanged()
+    }
+
+    private struct Fixture {
+        let root: URL
+        let file: URL
+        let destination: URL
+        let service: ServerOperationService
+        let intent: OperationIntent
+        let identity: OperationRequestIdentity
+        let originals: [(URL, OperationManifest)]
+        let password: String?
+        let contents = Data(repeating: 42, count: 131_073)
+        let modified = Date(timeIntervalSince1970: 1_600_000_000)
+
+        init(encrypted: Bool = false, overlap: Bool = false, replace: Bool = false, inside: Bool = false) async throws {
+            root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            file = root.appendingPathComponent("first/nested/émoji 📁.txt")
+            destination = root.appendingPathComponent(inside ? "first/result.7z" : "result.7z")
+            password = encrypted ? "transient fixture secret 🗝" : nil
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: root.appendingPathComponent("first/empty"), withIntermediateDirectories: false)
+            try FileManager.default.createDirectory(at: root.appendingPathComponent("second"), withIntermediateDirectories: false)
+            try contents.write(to: file)
+            try FileManager.default.setAttributes([.posixPermissions: 0o640, .modificationDate: modified], ofItemAtPath: file.path)
+            try FileManager.default.createSymbolicLink(atPath: root.appendingPathComponent("first/link").path, withDestinationPath: "nested/émoji 📁.txt")
+            try Data("second file".utf8).write(to: root.appendingPathComponent("second/notes"))
+            if replace { try Data("original destination".utf8).write(to: destination) }
+            let account = OperationAccount(hostIdentity: "fixture", accountIdentity: "fixture-user")
+            service = try await ServerOperationService(root: root.appendingPathComponent("journal"), account: account, homeDirectory: root)
+            var sources = [root.appendingPathComponent("first"), root.appendingPathComponent("second/notes")]
+            if overlap { sources.append(file) }
+            originals = try sources.map { source in
+                let parent = try OperationDirectory(path: Data(source.deletingLastPathComponent().path.utf8))
+                return (source, try parent.manifest(Data(source.lastPathComponent.utf8), progress: { _ in }))
+            }
+            let observations = try sources.map { source in
+                try OperationDirectory(path: Data(source.deletingLastPathComponent().path.utf8))
+                    .proveObject(Data(source.lastPathComponent.utf8), progress: { _ in })
+            }
+            let conflict: OperationIntent.Conflict
+            if replace {
+                conflict = .replace(try OperationDirectory(path: Data(root.path.utf8)).observe(Data("result.7z".utf8)))
+            } else { conflict = .createNew }
+            intent = OperationIntent(id: .init(operation: UUID(), item: UUID()), action: .archiveCreate,
+                                     sources: sources.map { .init(account: account, path: .unix(Data($0.path.utf8))) },
+                                     destination: .init(account: account, path: .unix(Data(destination.path.utf8))),
+                                     sourceObservations: observations, conflict: conflict, archiveFormat: "sevenZ", archiveEncrypted: encrypted)
+            identity = OperationRequestIdentity(id: intent.id, account: account, epoch: service.journal.epoch,
+                                                intentDigest: try OperationContentProof.data(intent.canonicalData()).sha256)
+        }
+
+        func assertSourcesUnchanged() throws {
+            for (source, original) in originals {
+                let parent = try OperationDirectory(path: Data(source.deletingLastPathComponent().path.utf8))
+                XCTAssertEqual(try parent.manifest(Data(source.lastPathComponent.utf8), progress: { _ in }), original)
+            }
+        }
+
+        func assertNoSavedPassword() throws {
+            guard let password else { return }
+            let journal = root.appendingPathComponent("journal")
+            let enumerator = try XCTUnwrap(FileManager.default.enumerator(at: journal, includingPropertiesForKeys: [.isRegularFileKey]))
+            for case let file as URL in enumerator {
+                if try file.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true {
+                    XCTAssertNil(try Data(contentsOf: file).range(of: Data(password.utf8)), file.lastPathComponent)
+                }
+            }
+        }
+
+        func url(_ location: OperationLocation) throws -> URL {
+            guard case .unix(let bytes) = location.path else { throw OperationFilesystemError.invalidPath }
+            return URL(fileURLWithPath: try XCTUnwrap(String(data: bytes, encoding: .utf8)))
+        }
+
+        func cleanup() { XCTAssertNoThrow(try FileManager.default.removeItem(at: root)) }
+    }
+}

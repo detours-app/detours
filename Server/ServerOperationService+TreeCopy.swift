@@ -1,12 +1,6 @@
 import Foundation
 import RemoteOperationSupport
 
-private struct ServerTreePreparation: @unchecked Sendable {
-    let workspace: OperationWorkspace
-    let location: OperationLocation
-    let payload: OperationLocation
-}
-
 extension ServerOperationService {
     func prepareTreeCopy(_ identity: OperationRequestIdentity) async throws -> OperationReceipt {
         _ = try status(identity)
@@ -19,7 +13,7 @@ extension ServerOperationService {
               [.directory, .symbolicLink].contains(intent.sourceObservations[0].kind), let destination = intent.destination else {
             throw OperationContractError.invalidReceipt
         }
-        var preparation: ServerTreePreparation?
+        var preparation: ServerPayloadPreparation?
         do {
             try requirePreparationDestination(intent)
             let source = intent.sources[0]
@@ -35,7 +29,7 @@ extension ServerOperationService {
                 throw OperationFilesystemError.unsupported
             }
             try journal.recordManifests(identity.id, source: manifest, payload: nil, ownership: ownership)
-            let allocated = try await allocateTree(identity, target: target.directory, ownership: ownership)
+            let allocated = try await allocatePreparation(identity, target: target.directory, ownership: ownership)
             preparation = allocated
             var copied: UInt64 = 0
             for entry in manifest.entries {
@@ -90,33 +84,12 @@ extension ServerOperationService {
             try journal.record(result, ownership: ownership)
             return result
         } catch {
-            try await failTreePreparation(identity, preparation: preparation, ownership: ownership, failure: error)
+            try await failPreparation(identity, preparation: preparation, ownership: ownership, failure: error)
             throw error
         }
     }
 
-    private func allocateTree(_ identity: OperationRequestIdentity, target: OperationDirectory,
-                              ownership: OperationJournal.Ownership) async throws -> ServerTreePreparation {
-        let commit = try await journal.acquireCommit()
-        defer { withExtendedLifetime(commit) {} }
-        guard try !journal.cancellationRequested(identity.id) else { throw OperationContractError.cancelled }
-        guard let intent = try journal.read(identity.id).intent else { throw OperationContractError.invalidReceipt }
-        try requirePreparationDestination(intent)
-        let name = OperationWorkspace.plannedName(for: identity.id)
-        let location = OperationLocation(account: journal.account, path: .unix(try target.childPath(name)))
-        let current = try journal.read(identity.id)
-        try journal.record(OperationReceipt(
-            id: identity.id, account: journal.account, epoch: journal.epoch, intentDigest: identity.intentDigest,
-            revision: (current.receipt?.revision ?? 0) + 1, phase: .preparing, outcome: .running,
-            sourceDisposition: current.intent?.action == .move ? .present : .notRequired, plannedPaths: [location]
-        ), ownership: ownership)
-        let workspace = try OperationWorkspace(parent: target, id: identity.id, plannedName: name)
-        try journal.recordWorkspace(workspace.record, ownership: ownership)
-        let payload = OperationLocation(account: journal.account, path: .unix(try workspace.directory.childPath(Data("payload".utf8))))
-        return ServerTreePreparation(workspace: workspace, location: location, payload: payload)
-    }
-
-    private func createTreeMember(_ relative: Data, observation: OperationObservation, preparation: ServerTreePreparation,
+    private func createTreeMember(_ relative: Data, observation: OperationObservation, preparation: ServerPayloadPreparation,
                                   identity: OperationRequestIdentity, ownership: OperationJournal.Ownership) async throws -> FileHandle? {
         let commit = try await journal.acquireCommit()
         defer { withExtendedLifetime(commit) {} }
@@ -134,38 +107,5 @@ extension ServerOperationService {
         }
         try journal.recordWorkspace(preparation.workspace.record, ownership: ownership)
         return output
-    }
-
-    private func failTreePreparation(_ identity: OperationRequestIdentity, preparation: ServerTreePreparation?,
-                                     ownership: OperationJournal.Ownership, failure: Error) async throws {
-        var recovery: [OperationRecoveryReference] = []
-        var detail = String(describing: failure)
-        let current = try journal.read(identity.id)
-        var outcome: OperationOutcome = current.receipt?.plannedPaths == nil ? .failedUnchanged : .unknown
-        if let preparation {
-            do {
-                let commit = try await journal.acquireCommit()
-                defer { withExtendedLifetime(commit) {} }
-                try preparation.workspace.removeScratch()
-                outcome = .failedUnchanged
-            } catch {
-                outcome = .partial
-                detail += "; scratch cleanup: \(error)"
-                var known: OperationLocation?
-                do {
-                    let root = try resolve(preparation.location)
-                    if case .found(let observed) = try root.directory.lookup(root.name),
-                       observed.identity == preparation.workspace.record.root.identity { known = preparation.location }
-                } catch { detail += "; location check: \(error)" }
-                recovery = [.init(identity: preparation.workspace.record.root.identity, purpose: .scratch, original: nil,
-                                  knownLocation: known, possibleLocations: [preparation.location])]
-            }
-        }
-        try journal.record(OperationReceipt(
-            id: identity.id, account: journal.account, epoch: journal.epoch, intentDigest: identity.intentDigest,
-            revision: (current.receipt?.revision ?? 0) + 1, phase: .terminal, outcome: outcome,
-            sourceDisposition: current.intent?.action == .move ? .present : .notRequired,
-            plannedPaths: current.receipt?.plannedPaths, recovery: recovery, failure: detail
-        ), ownership: ownership)
     }
 }

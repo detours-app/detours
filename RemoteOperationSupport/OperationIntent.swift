@@ -105,13 +105,15 @@ public struct OperationIntent: Codable, Equatable, Sendable {
     public let children: [OperationItemID]
     public let reverses: OperationItemID?
     public let archiveFormat: String?
+    public let archiveEncrypted: Bool?
     public let payloadProof: OperationContentProof?
 
     public init(
         id: OperationItemID, action: Action, sources: [OperationLocation],
         destination: OperationLocation?, sourceObservations: [OperationObservation],
         conflict: Conflict, children: [OperationItemID] = [],
-        reverses: OperationItemID? = nil, archiveFormat: String? = nil, payloadProof: OperationContentProof? = nil
+        reverses: OperationItemID? = nil, archiveFormat: String? = nil, archiveEncrypted: Bool? = nil,
+        payloadProof: OperationContentProof? = nil
     ) {
         self.id = id
         self.action = action
@@ -122,6 +124,7 @@ public struct OperationIntent: Codable, Equatable, Sendable {
         self.children = children
         self.reverses = reverses
         self.archiveFormat = archiveFormat
+        self.archiveEncrypted = archiveEncrypted
         self.payloadProof = payloadProof
     }
 

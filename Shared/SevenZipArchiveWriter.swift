@@ -10,6 +10,7 @@ public enum SevenZipArchiveError: Error, Equatable {
     case invalidEntry
     case allocationFailed
     case nativeFailure(Int32)
+    case inputFailure(Int32)
 }
 
 public enum SevenZipArchiveWriter {
@@ -21,9 +22,12 @@ public enum SevenZipArchiveWriter {
         public let mode: UInt32
         public let modified: Date
         public let linkTarget: Data?
+        /// Returns a new readable handle that the writer closes after duplicating its descriptor.
+        public let openInput: (@Sendable () throws -> FileHandle)?
 
         public init(name: String, input: FileHandle?, size: UInt64, directory: Bool,
-                    mode: UInt32, modified: Date, linkTarget: Data? = nil) {
+                    mode: UInt32, modified: Date, linkTarget: Data? = nil,
+                    openInput: (@Sendable () throws -> FileHandle)? = nil) {
             self.name = name
             self.input = input
             self.size = size
@@ -31,6 +35,7 @@ public enum SevenZipArchiveWriter {
             self.mode = mode
             self.modified = modified
             self.linkTarget = linkTarget
+            self.openInput = openInput
         }
     }
 
@@ -50,7 +55,9 @@ public enum SevenZipArchiveWriter {
             let ticks = (entry.modified.timeIntervalSince1970 + 11_644_473_600) * 10_000_000
             guard !entry.name.contains("\0"), !components.contains(where: { $0.isEmpty || $0 == "." || $0 == ".." }),
                   seen.insert(entry.name).inserted, ticks.isFinite, ticks >= 0, ticks < Double(UInt64.max),
-                  entry.directory || entry.input != nil || entry.linkTarget != nil else { throw SevenZipArchiveError.invalidEntry }
+                  entry.directory || entry.input != nil || entry.linkTarget != nil || entry.openInput != nil else {
+                throw SevenZipArchiveError.invalidEntry
+            }
             guard let name = strdup(entry.name) else { throw SevenZipArchiveError.allocationFailed }
             names.append(name)
             var target: UnsafeMutableRawPointer?
@@ -67,10 +74,13 @@ public enum SevenZipArchiveWriter {
                 modified_filetime: UInt64(ticks), link_bytes: target.map { UnsafeRawPointer($0) }
             ))
         }
-        let reporter = Reporter(progress)
+        let reporter = Reporter(entries: entries, progress: progress)
         let result = native.withUnsafeBufferPointer { items in
             func invoke(_ secret: UnsafePointer<CChar>?) -> Int32 {
-                detours_sevenzip_create(output.fileDescriptor, items.baseAddress, UInt32(items.count), secret, { context, bytes in
+                detours_sevenzip_create(output.fileDescriptor, items.baseAddress, UInt32(items.count), secret, { context, index in
+                    guard let context else { return -1 }
+                    return Unmanaged<Reporter>.fromOpaque(context).takeUnretainedValue().open(Int(index))
+                }, { context, bytes in
                     guard let context else { return 1 }
                     return Unmanaged<Reporter>.fromOpaque(context).takeUnretainedValue().report(bytes)
                 }, Unmanaged.passUnretained(reporter).toOpaque())
@@ -85,9 +95,35 @@ public enum SevenZipArchiveWriter {
     private final class Reporter: @unchecked Sendable {
         private let lock = NSLock()
         private let progress: @Sendable (UInt64) throws -> Void
+        private let entries: [Entry]
         private var recordedFailure: Error?
 
-        init(_ progress: @escaping @Sendable (UInt64) throws -> Void) { self.progress = progress }
+        init(entries: [Entry], progress: @escaping @Sendable (UInt64) throws -> Void) {
+            self.entries = entries
+            self.progress = progress
+        }
+
+        func open(_ index: Int) -> Int32 {
+            lock.lock()
+            defer { lock.unlock() }
+            guard recordedFailure == nil, entries.indices.contains(index) else { return -1 }
+            do {
+                let entry = entries[index]
+                let input: FileHandle
+                if let openInput = entry.openInput {
+                    input = try openInput()
+                } else if let existing = entry.input {
+                    input = existing
+                } else { throw SevenZipArchiveError.invalidEntry }
+                defer { if entry.openInput != nil { try? input.close() } }
+                let descriptor = dup(input.fileDescriptor)
+                guard descriptor >= 0 else { throw SevenZipArchiveError.inputFailure(errno) }
+                return descriptor
+            } catch {
+                recordedFailure = error
+                return -1
+            }
+        }
 
         var failure: Error? {
             lock.lock()

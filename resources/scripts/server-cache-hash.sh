@@ -11,6 +11,7 @@ cd "$(dirname "$0")/../.."
     done
     shasum -a 256 Tests/ServerArchiveOperationsTests.swift
     shasum -a 256 Tests/ServerArchiveStreamTests.swift
+    shasum -a 256 Tests/ServerOperationArchiveTests.swift
     shasum -a 256 Tests/OperationFilesystemTests.swift
     shasum -a 256 Tests/OperationPublicationTests.swift
     shasum -a 256 Tests/OperationContentProofTests.swift

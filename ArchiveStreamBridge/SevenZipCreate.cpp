@@ -31,10 +31,12 @@ class Input final : public ISequentialInStream, public CMyUnknownImp {
     Z7_COM_ADDREF_RELEASE
     Z7_IFACE_COM7_IMP(ISequentialInStream)
     const detours_archive_entry &entry;
+    int descriptor;
     Progress &progress;
     uint64_t offset = 0;
 public:
-    Input(const detours_archive_entry &item, Progress &reporter): entry(item), progress(reporter) {}
+    Input(const detours_archive_entry &item, int file, Progress &reporter): entry(item), descriptor(file), progress(reporter) {}
+    ~Input() { if (descriptor >= 0) close(descriptor); }
 };
 
 Z7_COM7F_IMF(Input::Read(void *data, UInt32 size, UInt32 *processed)) {
@@ -47,7 +49,7 @@ Z7_COM7F_IMF(Input::Read(void *data, UInt32 size, UInt32 *processed)) {
         memcpy(data, static_cast<const char *>(entry.link_bytes) + offset, size);
         count = size;
     } else {
-        do { count = pread(entry.descriptor, data, size, static_cast<off_t>(offset)); } while (count < 0 && errno == EINTR);
+        do { count = pread(descriptor, data, size, static_cast<off_t>(offset)); } while (count < 0 && errno == EINTR);
         if (count <= 0) return E_FAIL;
     }
     offset += static_cast<uint64_t>(count);
@@ -83,6 +85,7 @@ Z7_COM7F_IMF(Output::Write(const void *data, UInt32 size, UInt32 *processed)) {
         total += static_cast<UInt32>(count);
         offset += static_cast<uint64_t>(count);
         if (processed) *processed = total;
+        RINOK(progress.report(static_cast<uint64_t>(count)))
     }
     return S_OK;
 }
@@ -126,10 +129,11 @@ class Update final : public IArchiveUpdateCallback, public ICryptoGetTextPasswor
     const detours_archive_entry *entries;
     uint32_t count;
     const char *password;
+    detours_archive_input openInput;
     Progress &progress;
 public:
-    Update(const detours_archive_entry *items, uint32_t length, const char *secret, Progress &reporter):
-        entries(items), count(length), password(secret), progress(reporter) {}
+    Update(const detours_archive_entry *items, uint32_t length, const char *secret, detours_archive_input opener, Progress &reporter):
+        entries(items), count(length), password(secret), openInput(opener), progress(reporter) {}
 };
 
 Z7_COM7F_IMF(Update::SetTotal(UInt64)) { return progress.report(); }
@@ -173,7 +177,12 @@ Z7_COM7F_IMF(Update::GetStream(UInt32 index, ISequentialInStream **stream)) {
     if (index >= count) return E_INVALIDARG;
     RINOK(progress.report())
     if (!entries[index].is_directory) {
-        CMyComPtr<ISequentialInStream> input = new Input(entries[index], progress);
+        int descriptor = -1;
+        if (!entries[index].link_bytes) {
+            descriptor = openInput ? openInput(progress.context, index) : dup(entries[index].descriptor);
+            if (descriptor < 0) return E_FAIL;
+        }
+        CMyComPtr<ISequentialInStream> input = new Input(entries[index], descriptor, progress);
         *stream = input.Detach();
     }
     return S_OK;
@@ -193,6 +202,7 @@ Z7_COM7F_IMF(Update::CryptoGetTextPassword2(Int32 *defined, BSTR *value)) {
 
 extern "C" int32_t detours_sevenzip_create(int output, const detours_archive_entry *entries,
                                            uint32_t count, const char *password,
+                                           detours_archive_input open_input,
                                            detours_archive_progress callback, void *context) {
     try {
         struct stat information;
@@ -201,7 +211,7 @@ extern "C" int32_t detours_sevenzip_create(int output, const detours_archive_ent
         for (uint32_t index = 0; index < count; ++index) {
             const auto &entry = entries[index];
             if (!entry.name || !*entry.name || entry.size > static_cast<uint64_t>(std::numeric_limits<off_t>::max())) return E_INVALIDARG;
-            if (!entry.is_directory && !entry.link_bytes && entry.descriptor < 0) return E_INVALIDARG;
+            if (!entry.is_directory && !entry.link_bytes && entry.descriptor < 0 && !open_input) return E_INVALIDARG;
         }
         Progress progress{callback, context};
         auto *handler = new NArchive::N7z::CHandler;
@@ -212,7 +222,7 @@ extern "C" int32_t detours_sevenzip_create(int output, const detours_archive_ent
             RINOK(static_cast<ISetProperties *>(handler)->SetProperties(names, &encrypted, 1))
         }
         CMyComPtr<IOutStream> stream = new Output(output, progress);
-        CMyComPtr<IArchiveUpdateCallback> update = new Update(entries, count, password, progress);
+        CMyComPtr<IArchiveUpdateCallback> update = new Update(entries, count, password, open_input, progress);
         const HRESULT result = archive->UpdateItems(stream, count, update);
         if (result != S_OK) return result;
         return fsync(output) == 0 ? S_OK : E_FAIL;

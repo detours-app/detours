@@ -231,6 +231,8 @@ cp resources/icons/AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
 cp "$LINUX_SERVER_BINARY" "$APP_DIR/Contents/Resources/Servers/"
 cp "$DARWIN_SERVER_BINARY" "$APP_DIR/Contents/Resources/Servers/"
 cp -R "$PREVIEW_ASSETS_DIR" "$APP_DIR/Contents/Resources/PreviewAssets"
+mkdir -p "$APP_DIR/Contents/Resources/SevenZip"
+cp SevenZip/README.md SevenZip/License.txt SevenZip/copying.txt SevenZip/unRarLicense.txt "$APP_DIR/Contents/Resources/SevenZip/"
 echo -n "APPL????" > "$APP_DIR/Contents/PkgInfo"
 
 cat > "$APP_DIR/Contents/Info.plist" << EOF

@@ -9,6 +9,21 @@ public struct OperationManifest: Codable, Equatable, Sendable {
     public let entries: [Entry]
     public let proof: OperationContentProof
 
+    public static func combining(_ trees: [(prefix: Data, manifest: OperationManifest)]) throws -> OperationManifest {
+        var combined: [Data: OperationObservation] = [:]
+        for tree in trees {
+            let components = tree.prefix.split(separator: 47, omittingEmptySubsequences: false)
+            guard !components.isEmpty else { throw OperationFilesystemError.invalidPath }
+            for component in components { try OperationDirectory.validateName(Data(component)) }
+            for entry in tree.manifest.entries {
+                let path = tree.prefix + (entry.relativePath.isEmpty ? Data() : Data([47]) + entry.relativePath)
+                if let previous = combined[path], previous != entry.observation { throw OperationFilesystemError.identityChanged }
+                combined[path] = entry.observation
+            }
+        }
+        return try OperationManifest(entries: combined.map { Entry(relativePath: $0.key, observation: $0.value) })
+    }
+
     init(entries: [Entry]) throws {
         let sorted = entries.sorted { $0.relativePath.lexicographicallyPrecedes($1.relativePath) }
         let payload = sorted.map { entry in

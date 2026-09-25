@@ -95,6 +95,63 @@ final class ServerArchiveStreamTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: fixture.archive), Data("keep".utf8))
     }
 
+    func testDeferredInputsOpenOnlyWhenUsedAndCloseAfterEachMember() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
+        let output = try SafeFileWriter.createHandle(at: fixture.archive)
+        defer { try? output.close() }
+        let source = fixture.source
+        let handles = OpenedHandles()
+        let entries = (0..<16).map { index in
+            SevenZipArchiveWriter.Entry(name: "member-\(index)", input: nil, size: UInt64(fixture.bytes.count),
+                                        directory: false, mode: 0o100640, modified: Date(timeIntervalSince1970: 1_600_000_000),
+                                        openInput: {
+                let input = try FileHandle(forReadingFrom: source)
+                handles.append(input)
+                return input
+            })
+        }
+        XCTAssertTrue(handles.snapshot.isEmpty)
+        try SevenZipArchiveWriter.create(entries: entries, output: output, password: nil, progress: { _ in })
+        XCTAssertEqual(handles.snapshot.count, 16)
+        for handle in handles.snapshot { XCTAssertThrowsError(try handle.read(upToCount: 1)) }
+        let extracted = URL(fileURLWithPath: try ArchiveOperations().extractArchive(archive: fixture.archive.path, password: nil))
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: extracted.path).count, 16)
+        for index in 0..<16 { XCTAssertEqual(try Data(contentsOf: extracted.appendingPathComponent("member-\(index)")), fixture.bytes) }
+    }
+
+    func testDeferredInputFailurePropagatesWithoutChangingSource() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
+        let output = try SafeFileWriter.createHandle(at: fixture.archive)
+        defer { try? output.close() }
+        let entry = SevenZipArchiveWriter.Entry(name: "refused", input: nil, size: 1, directory: false,
+                                                mode: 0o100600, modified: Date(), openInput: {
+            throw OperationFilesystemError.identityChanged
+        })
+        XCTAssertThrowsError(try SevenZipArchiveWriter.create(entries: [entry], output: output, password: nil, progress: { _ in })) {
+            XCTAssertEqual($0 as? OperationFilesystemError, .identityChanged)
+        }
+        XCTAssertEqual(try Data(contentsOf: fixture.source), fixture.bytes)
+    }
+
+    private final class OpenedHandles: @unchecked Sendable {
+        private let lock = NSLock()
+        private var handles: [FileHandle] = []
+
+        func append(_ handle: FileHandle) {
+            lock.lock()
+            defer { lock.unlock() }
+            handles.append(handle)
+        }
+
+        var snapshot: [FileHandle] {
+            lock.lock()
+            defer { lock.unlock() }
+            return handles
+        }
+    }
+
     private struct Fixture {
         let root: URL
         let source: URL
