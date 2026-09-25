@@ -1,5 +1,11 @@
 # Test Log
 
+## 2026-09-25 (Foundry and devtest, owned archive streams)
+
+| Check | Commit | Result |
+| --- | --- | --- |
+| Linux native archive adapter build | `a4359f7` | FAIL: the adapter called the handler's private SetProperties override rather than its public ISetProperties interface. Compilation stopped before tests; the call now uses the public interface. |
+
 ## 2026-09-25 (Foundry and devtest, complete folder preparation)
 
 | Check | Commit | Result |

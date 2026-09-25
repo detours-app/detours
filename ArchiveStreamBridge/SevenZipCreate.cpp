@@ -209,7 +209,7 @@ extern "C" int32_t detours_sevenzip_create(int output, const detours_archive_ent
         if (password && *password) {
             const wchar_t *names[] = {L"he"};
             NWindows::NCOM::CPropVariant encrypted(true);
-            RINOK(handler->SetProperties(names, &encrypted, 1))
+            RINOK(static_cast<ISetProperties *>(handler)->SetProperties(names, &encrypted, 1))
         }
         CMyComPtr<IOutStream> stream = new Output(output, progress);
         CMyComPtr<IArchiveUpdateCallback> update = new Update(entries, count, password, progress);
