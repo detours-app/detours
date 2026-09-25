@@ -40,6 +40,7 @@ extension ServerOperationService {
             let information = try trashStore.prepare(reservation)
             metadata = information
             let target = try resolve(reservation.item)
+            try target.directory.requirePrivate()
             guard origin.directory.identity.volume == target.directory.identity.volume else {
                 throw OperationFilesystemError.unsupported
             }

@@ -92,10 +92,11 @@ struct ServerOperationService: Sendable {
         let ownership = try await journal.acquireItem(identity.id)
         let snapshot = try status(identity)
         if let result = snapshot.receipt, [.committed, .terminal].contains(result.phase) { return result }
-        let published = try await OperationPublication.publish(journal: journal, id: identity.id, ownership: ownership)
+        let publication = try await OperationPublication.publish(journal: journal, id: identity.id, ownership: ownership)
+        let published = try await handoffReplacement(publication, ownership: ownership)
         guard let record = snapshot.workspace, let destination = snapshot.intent?.destination else { return published }
         var recovery = published.recovery
-        var failure: String?
+        var failure = published.failure
         do {
             let cleanup = try await journal.acquireCommit()
             defer { withExtendedLifetime(cleanup) {} }
@@ -103,12 +104,13 @@ struct ServerOperationService: Sendable {
             let workspace = try OperationWorkspace(parent: parent, record: record)
             try workspace.removeScratch()
             recovery.removeAll { $0.purpose == .scratch && $0.identity == record.root.identity }
-        } catch { failure = String(describing: error) }
+        } catch { failure = [failure, "Scratch cleanup: \(error)"].compactMap { $0 }.joined(separator: "; ") }
         let result = OperationReceipt(
             id: identity.id, account: journal.account, epoch: journal.epoch, intentDigest: identity.intentDigest,
             revision: published.revision + 1, phase: published.outcome == .committed ? .terminal : .committed,
             outcome: published.outcome, effects: published.effects, sourceDisposition: published.sourceDisposition,
-            contentVerified: published.contentVerified, recovery: recovery, children: published.children, failure: failure
+            contentVerified: published.contentVerified, plannedPaths: published.plannedPaths,
+            recovery: recovery, children: published.children, failure: failure
         )
         try journal.record(result, ownership: ownership)
         return result

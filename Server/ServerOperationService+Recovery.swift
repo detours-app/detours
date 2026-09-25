@@ -17,7 +17,7 @@ extension ServerOperationService {
                 id: receipt.id, account: receipt.account, epoch: receipt.epoch, intentDigest: receipt.intentDigest,
                 revision: receipt.revision + 1, phase: receipt.phase, outcome: receipt.outcome, effects: receipt.effects,
                 sourceDisposition: receipt.sourceDisposition, contentVerified: receipt.contentVerified,
-                recovery: recovery, children: receipt.children,
+                plannedPaths: receipt.plannedPaths, recovery: recovery, children: receipt.children,
                 failure: recovery.contains { $0.purpose == .displacedOriginal && $0.knownLocation == nil }
                     ? "The displaced original's current location could not be confirmed." : nil
             ), ownership: ownership)
