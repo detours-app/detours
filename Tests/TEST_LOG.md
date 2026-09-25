@@ -44,6 +44,8 @@
 | Signed Foundry move-phase backup recovery | `fb4a6a6` | PASS: both helper builds, signed no-install app build and 85 tests, zero failures or skips, 3.142 seconds. Copy and move backup recovery preserve their distinct completion states; live Windows journal checks passed. |
 | Linux native replacement integration | `bdce5c4` | PASS: 18 process tests in 12.189 seconds and 66 operation/archive tests in 4.655 seconds, zero failures or skips. Native rename/move retains the displaced original, confirms source disposition, rejects changed or cancelled intent and returns terminal failure on repeat without replay. |
 | Signed Foundry native replacement integration | `bdce5c4` | PASS: both helper builds, signed no-install app build and 87 tests, zero failures or skips, 3.155 seconds. Native replacement, retained originals, source disposition, refusal/cancellation and terminal duplicate failures passed with live Windows journal checks. |
+| Linux native link and directory replacement | `a86dc44` | PASS: 18 process tests in 11.886 seconds and 67 operation/archive tests in 4.982 seconds, zero failures or skips. Native replacements preserve selected link/directory identities, link targets, nested contents and displaced originals. |
+| Signed Foundry native link and directory replacement | `a86dc44` | PASS: both helper builds, signed no-install app build and 88 tests, zero failures or skips, 3.216 seconds. Selected links and directories move with their identities intact while link targets, nested contents and displaced originals are preserved; live Windows journal checks passed. |
 
 ## 2026-09-25 (Foundry and devtest, measured content proofs)
 
