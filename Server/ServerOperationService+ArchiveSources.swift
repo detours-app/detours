@@ -76,8 +76,10 @@ extension ServerOperationService {
                                     measuredBytes: measured - measuredBefore)
     }
 
-    func archiveEntries(_ sources: ServerArchiveSources, id: OperationItemID) throws -> [SevenZipArchiveWriter.Entry] {
-        try sources.inputs.entries.map { entry in
+    func archiveEntries(_ sources: ServerArchiveSources, id: OperationItemID,
+                        preservingHardLinks: Bool = false) throws -> [SevenZipArchiveWriter.Entry] {
+        var files: [OperationObjectIdentity: String] = [:]
+        return try sources.inputs.entries.map { entry in
             let observation = entry.observation
             guard let name = String(data: entry.relativePath, encoding: .utf8),
                   let metadata = observation.contentVersion.flatMap({ String(data: $0, encoding: .utf8) }) else {
@@ -85,7 +87,11 @@ extension ServerOperationService {
             }
             let fields = metadata.split(separator: ":", omittingEmptySubsequences: false)
             guard fields.count == 6, let seconds = Int64(fields[1]), let nanos = UInt32(fields[2]), nanos < 1_000_000_000,
-                  let mode = UInt32(fields[3]) else { throw OperationFilesystemError.unsupported }
+                  let mode = UInt32(fields[3]), let userID = UInt32(fields[4]), let groupID = UInt32(fields[5]) else {
+                throw OperationFilesystemError.unsupported
+            }
+            let hardLink = preservingHardLinks && observation.kind == .file ? files[observation.identity] : nil
+            if preservingHardLinks, observation.kind == .file, hardLink == nil { files[observation.identity] = name }
             guard let path = sources.locations[entry.relativePath] else { throw OperationFilesystemError.invalidPath }
             let location = OperationLocation(account: journal.account, path: .unix(path))
             let opener: (@Sendable () throws -> FileHandle)?
@@ -100,7 +106,7 @@ extension ServerOperationService {
                 name: name, input: nil, size: observation.kind == .file ? observation.byteCount : 0,
                 directory: observation.kind == .directory, mode: mode,
                 modified: Date(timeIntervalSince1970: Double(seconds) + Double(nanos) / 1_000_000_000),
-                linkTarget: observation.linkTarget, openInput: opener
+                linkTarget: observation.linkTarget, userID: userID, groupID: groupID, hardLink: hardLink, openInput: opener
             )
         }
     }

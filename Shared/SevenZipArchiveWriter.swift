@@ -14,7 +14,7 @@ public enum SevenZipArchiveError: Error, Equatable {
 }
 
 public enum SevenZipArchiveWriter {
-    public enum Format: Int32, Sendable { case sevenZ = 0, zip = 1 }
+    public enum Format: Int32, Sendable { case sevenZ = 0, zip = 1, tar = 2, gzip = 3, bzip2 = 4, xz = 5 }
 
     public struct Entry: Sendable {
         public let name: String
@@ -24,11 +24,15 @@ public enum SevenZipArchiveWriter {
         public let mode: UInt32
         public let modified: Date
         public let linkTarget: Data?
+        public let userID: UInt32
+        public let groupID: UInt32
+        public let hardLink: String?
         /// Returns a new readable handle that the writer closes after duplicating its descriptor.
         public let openInput: (@Sendable () throws -> FileHandle)?
 
         public init(name: String, input: FileHandle?, size: UInt64, directory: Bool,
                     mode: UInt32, modified: Date, linkTarget: Data? = nil,
+                    userID: UInt32 = UInt32(getuid()), groupID: UInt32 = UInt32(getgid()), hardLink: String? = nil,
                     openInput: (@Sendable () throws -> FileHandle)? = nil) {
             self.name = name
             self.input = input
@@ -37,6 +41,9 @@ public enum SevenZipArchiveWriter {
             self.mode = mode
             self.modified = modified
             self.linkTarget = linkTarget
+            self.userID = userID
+            self.groupID = groupID
+            self.hardLink = hardLink
             self.openInput = openInput
         }
     }
@@ -62,6 +69,13 @@ public enum SevenZipArchiveWriter {
             }
             guard let name = strdup(entry.name) else { throw SevenZipArchiveError.allocationFailed }
             names.append(name)
+            var hardLink: UnsafeMutablePointer<CChar>?
+            if let target = entry.hardLink {
+                guard format == .tar, seen.contains(target), target != entry.name, !target.contains("\0"),
+                      let pointer = strdup(target) else { throw SevenZipArchiveError.invalidEntry }
+                names.append(pointer)
+                hardLink = pointer
+            }
             var target: UnsafeMutableRawPointer?
             if let data = entry.linkTarget {
                 let buffer = UnsafeMutableRawPointer.allocate(byteCount: max(1, data.count), alignment: 1)
@@ -73,7 +87,8 @@ public enum SevenZipArchiveWriter {
                 name: UnsafePointer(name), descriptor: entry.input?.fileDescriptor ?? -1,
                 is_directory: entry.directory ? 1 : 0, mode: entry.mode,
                 size: entry.linkTarget.map { UInt64($0.count) } ?? entry.size,
-                modified_filetime: UInt64(ticks), link_bytes: target.map { UnsafeRawPointer($0) }
+                modified_filetime: UInt64(ticks), link_bytes: target.map { UnsafeRawPointer($0) },
+                user_id: entry.userID, group_id: entry.groupID, hard_link: hardLink.map { UnsafePointer($0) }
             ))
         }
         let reporter = Reporter(entries: entries, progress: progress)

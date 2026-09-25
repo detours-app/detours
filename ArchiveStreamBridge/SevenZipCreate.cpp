@@ -1,8 +1,8 @@
 #include "include/ArchiveStreamBridge.h"
-#include "../SevenZip/CPP/7zip/Archive/7z/7zHandler.h"
-#include "../SevenZip/CPP/7zip/Archive/Zip/ZipHandler.h"
+#include "../SevenZip/CPP/7zip/Archive/IArchive.h"
 #include "../SevenZip/CPP/7zip/IPassword.h"
 #include "../SevenZip/CPP/Common/UTFConvert.h"
+#include "../SevenZip/CPP/Common/MyCom.h"
 #include "../SevenZip/CPP/Windows/PropVariant.h"
 #include <algorithm>
 #include <cerrno>
@@ -12,7 +12,33 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+STDAPI GetNumberOfFormats(UINT32 *count);
+STDAPI GetHandlerProperty2(UInt32 index, PROPID property, PROPVARIANT *value);
+STDAPI CreateArchiver(const GUID *classID, const GUID *interfaceID, void **object);
+
 namespace {
+HRESULT createArchive(int32_t format, CMyComPtr<IOutArchive> &archive) {
+    const wchar_t *names[] = {L"7z", L"zip", L"tar", L"gzip", L"bzip2", L"xz"};
+    if (format < 0 || format >= 6) return E_INVALIDARG;
+    UINT32 count = 0;
+    RINOK(GetNumberOfFormats(&count))
+    for (UINT32 index = 0; index < count; ++index) {
+        NWindows::NCOM::CPropVariant name;
+        RINOK(GetHandlerProperty2(index, NArchive::NHandlerPropID::kName, &name))
+        if (name.vt != VT_BSTR || wcscmp(name.bstrVal, names[format]) != 0) continue;
+        NWindows::NCOM::CPropVariant identifier;
+        RINOK(GetHandlerProperty2(index, NArchive::NHandlerPropID::kClassID, &identifier))
+        if (identifier.vt != VT_BSTR || SysStringByteLen(identifier.bstrVal) != sizeof(GUID)) return E_FAIL;
+        GUID classID;
+        memcpy(&classID, identifier.bstrVal, sizeof(classID));
+        void *object = nullptr;
+        RINOK(CreateArchiver(&classID, &IID_IOutArchive, &object))
+        archive.Attach(static_cast<IOutArchive *>(object));
+        return S_OK;
+    }
+    return CLASS_E_CLASSNOTAVAILABLE;
+}
+
 struct Progress {
     detours_archive_progress callback;
     void *context;
@@ -161,6 +187,26 @@ Z7_COM7F_IMF(Update::GetProperty(UInt32 index, PROPID property, PROPVARIANT *val
     case kpidIsDir: result = (entry.is_directory != 0); break;
     case kpidSize: result = static_cast<UInt64>(entry.size); break;
     case kpidAttrib: result = static_cast<UInt32>(0x8000 | (entry.mode << 16)); break;
+    case kpidPosixAttrib: result = static_cast<UInt32>(entry.mode); break;
+    case kpidUserId: result = static_cast<UInt32>(entry.user_id); break;
+    case kpidGroupId: result = static_cast<UInt32>(entry.group_id); break;
+    case kpidSymLink: {
+        if (!entry.link_bytes) break;
+        if (entry.size > std::numeric_limits<UInt32>::max()) return E_INVALIDARG;
+        AString bytes;
+        bytes.SetFrom(static_cast<const char *>(entry.link_bytes), static_cast<UInt32>(entry.size));
+        UString target;
+        if (!ConvertUTF8ToUnicode(bytes, target)) return E_INVALIDARG;
+        result = target;
+        break;
+    }
+    case kpidHardLink: {
+        if (!entry.hard_link) break;
+        UString target;
+        if (!ConvertUTF8ToUnicode(AString(entry.hard_link), target)) return E_INVALIDARG;
+        result = target;
+        break;
+    }
     case kpidMTime: {
         FILETIME time;
         time.dwLowDateTime = static_cast<UInt32>(entry.modified_filetime);
@@ -216,10 +262,9 @@ extern "C" int32_t detours_archive_create(int32_t format, int output, const deto
         }
         Progress progress{callback, context};
         CMyComPtr<IOutArchive> archive;
-        if (format == DETOURS_ARCHIVE_SEVEN_Z) archive = new NArchive::N7z::CHandler;
-        else if (format == DETOURS_ARCHIVE_ZIP) archive = new NArchive::NZip::CHandler;
-        else return E_INVALIDARG;
+        RINOK(createArchive(format, archive))
         if (password && *password) {
+            if (format != DETOURS_ARCHIVE_SEVEN_Z && format != DETOURS_ARCHIVE_ZIP) return E_INVALIDARG;
             CMyComPtr<ISetProperties> properties;
             RINOK(archive.QueryInterface(IID_ISetProperties, &properties))
             const wchar_t *names[] = {format == DETOURS_ARCHIVE_ZIP ? L"em" : L"he"};

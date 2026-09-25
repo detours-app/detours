@@ -17,6 +17,9 @@ extension ServerOperationService {
             switch intent.archiveFormat {
             case ServerArchiveFormat.sevenZ.rawValue: format = .sevenZ
             case ServerArchiveFormat.zip.rawValue: format = .zip
+            case ServerArchiveFormat.tarGz.rawValue: format = .gzip
+            case ServerArchiveFormat.tarBz2.rawValue: format = .bzip2
+            case ServerArchiveFormat.tarXz.rawValue: format = .xz
             default: throw OperationFilesystemError.unsupported
             }
             guard let encrypted = intent.archiveEncrypted, encrypted == (password?.isEmpty == false) else {
@@ -26,19 +29,28 @@ extension ServerOperationService {
             if format == .zip, let password, password.utf8.count > 80 {
                 throw ArchiveOperationsError.invalidPassword("ZIP passwords are limited to 80 UTF-8 bytes")
             }
+            let tarFormat = [SevenZipArchiveWriter.Format.gzip, .bzip2, .xz].contains(format)
+            guard !tarFormat || !encrypted else { throw ArchiveOperationsError.invalidPassword("TAR archives do not support passwords") }
             try requirePreparationDestination(intent)
             let source = try await archiveSources(intent, identity: identity, ownership: ownership, measuredBefore: 0)
             let target = try resolve(destination)
             guard !(source.manifest.entries + source.inputs.entries).contains(where: {
                 $0.observation.kind == .directory && $0.observation.identity == target.directory.identity
             }) else { throw OperationFilesystemError.unsupported }
-            let entries = try archiveEntries(source, id: identity.id)
+            var entries = try archiveEntries(source, id: identity.id, preservingHardLinks: tarFormat)
             try journal.recordManifests(identity.id, source: source.manifest, payload: nil, archiveInputs: source.inputs, ownership: ownership)
             let allocated = try await allocatePreparation(identity, target: target.directory, ownership: ownership)
             preparation = allocated
-            let output = try await createArchiveOutput(allocated, identity: identity, ownership: ownership)
+            let tar: ServerTarArchive?
+            if tarFormat {
+                let prepared = try await prepareTar(entries, preparation: allocated, identity: identity,
+                                                     ownership: ownership, measuredBefore: source.measuredBytes)
+                tar = prepared
+                entries = [prepared.entry]
+            } else { tar = nil }
+            let output = try await createArchiveOutput(allocated, name: Data("payload".utf8), identity: identity, ownership: ownership)
             let progress = ServerArchiveProgress(service: self, identity: identity, ownership: ownership,
-                                                 measuredBefore: source.measuredBytes)
+                                                 measuredBefore: tar?.measuredBytes ?? source.measuredBytes)
             do {
                 try await writeArchive(entries, output: output, password: password, format: format, progress: progress)
                 try output.close()
@@ -48,8 +60,15 @@ extension ServerOperationService {
             }
             let payload = try await treeCopyManifest(allocated.payload, identity: identity, ownership: ownership,
                                                      measuredBefore: progress.measured)
-            let (hashed, overflow) = progress.measured.addingReportingOverflow(payload.proof.byteCount)
+            var (hashed, overflow) = progress.measured.addingReportingOverflow(payload.proof.byteCount)
             guard !overflow else { throw OperationFilesystemError.unsupported }
+            if let tar {
+                let finalTar = try await treeCopyManifest(tar.location, identity: identity, ownership: ownership, measuredBefore: hashed)
+                guard finalTar == tar.manifest else { throw OperationFilesystemError.identityChanged }
+                try allocated.workspace.validateManifest(finalTar, root: Data("archive.tar".utf8))
+                (hashed, overflow) = hashed.addingReportingOverflow(finalTar.proof.byteCount)
+                guard !overflow else { throw OperationFilesystemError.unsupported }
+            }
             let finalSource = try await archiveSources(intent, identity: identity, ownership: ownership, measuredBefore: hashed)
             guard source.manifest == finalSource.manifest, source.root == finalSource.root,
                   source.inputs == finalSource.inputs, source.locations == finalSource.locations,
@@ -83,12 +102,12 @@ extension ServerOperationService {
         }
     }
 
-    private func createArchiveOutput(_ preparation: ServerPayloadPreparation, identity: OperationRequestIdentity,
-                                     ownership: OperationJournal.Ownership) async throws -> FileHandle {
+    func createArchiveOutput(_ preparation: ServerPayloadPreparation, name: Data, identity: OperationRequestIdentity,
+                             ownership: OperationJournal.Ownership) async throws -> FileHandle {
         let commit = try await journal.acquireCommit()
         defer { withExtendedLifetime(commit) {} }
         guard try !journal.cancellationRequested(identity.id) else { throw OperationContractError.cancelled }
-        let output = try preparation.workspace.createFile(named: Data("payload".utf8))
+        let output = try preparation.workspace.createFile(named: name)
         do {
             try journal.recordWorkspace(preparation.workspace.record, ownership: ownership)
             return output
@@ -98,8 +117,8 @@ extension ServerOperationService {
         }
     }
 
-    private func writeArchive(_ entries: [SevenZipArchiveWriter.Entry], output: FileHandle, password: String?, format: SevenZipArchiveWriter.Format,
-                              progress: ServerArchiveProgress) async throws {
+    func writeArchive(_ entries: [SevenZipArchiveWriter.Entry], output: FileHandle, password: String?, format: SevenZipArchiveWriter.Format,
+                      progress: ServerArchiveProgress) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
@@ -111,7 +130,7 @@ extension ServerOperationService {
     }
 }
 
-private final class ServerArchiveProgress: @unchecked Sendable {
+final class ServerArchiveProgress: @unchecked Sendable {
     private let lock = NSLock()
     private let service: ServerOperationService
     private let identity: OperationRequestIdentity

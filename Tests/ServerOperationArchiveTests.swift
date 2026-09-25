@@ -5,8 +5,11 @@ import XCTest
 
 final class ServerOperationArchiveTests: XCTestCase {
     func testAcceptedArchivePreparesPrivatelyAndCommitsOnceWithoutPersistingPassword() async throws {
-        for (format, encrypted) in [(ServerArchiveFormat.sevenZ, false), (.sevenZ, true), (.zip, false), (.zip, true)] {
-            let fixture = try await Fixture(encrypted: encrypted, overlap: true, format: format)
+        let cases: [(ServerArchiveFormat, Bool)] = [(.sevenZ, false), (.sevenZ, true), (.zip, false), (.zip, true),
+                                                    (.tarGz, false), (.tarBz2, false), (.tarXz, false)]
+        for (format, encrypted) in cases {
+            let tar = [ServerArchiveFormat.tarGz, .tarBz2, .tarXz].contains(format)
+            let fixture = try await Fixture(encrypted: encrypted, overlap: !tar, format: format)
             defer { fixture.cleanup() }
             _ = try await fixture.service.accept(fixture.identity, intent: fixture.intent)
             let response = try await fixture.service.reply(to: .prepareArchive(identity: fixture.identity, password: fixture.password))
@@ -39,8 +42,10 @@ final class ServerOperationArchiveTests: XCTestCase {
             XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: extracted.appendingPathComponent("first/empty").path), [])
             let link = extracted.appendingPathComponent("first/link")
             XCTAssertEqual(try Data(contentsOf: link), fixture.contents)
-            XCTAssertEqual(try link.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink, false)
-            XCTAssertEqual(snapshot.archiveInputManifest?.entries.first { $0.relativePath == Data("first/link".utf8) }?.observation.kind, .file)
+            XCTAssertEqual(try link.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink, tar)
+            if tar { XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: link.path), "nested/émoji 📁.txt") }
+            XCTAssertEqual(snapshot.archiveInputManifest?.entries.first { $0.relativePath == Data("first/link".utf8) }?.observation.kind,
+                           tar ? .symbolicLink : .file)
             let legacy = try ArchiveOperations().createArchive(items: fixture.originals.map { $0.0.path }, format: format.rawValue,
                                                                archiveName: "legacy", password: fixture.password)
             print("Archive compatibility: \(format.rawValue), encrypted=\(encrypted), existing output extraction")
@@ -58,7 +63,7 @@ final class ServerOperationArchiveTests: XCTestCase {
             }
             try fixture.assertSourcesUnchanged()
             try fixture.assertNoSavedPassword()
-            try FileManager.default.moveItem(at: fixture.destination, to: fixture.root.appendingPathComponent("saved.7z"))
+            try FileManager.default.moveItem(at: fixture.destination, to: fixture.root.appendingPathComponent("saved." + format.fileExtension))
             try Data("later occupant".utf8).write(to: fixture.destination)
             let repeated = try await fixture.service.commit(fixture.identity)
             XCTAssertEqual(repeated, committed)
@@ -207,6 +212,36 @@ final class ServerOperationArchiveTests: XCTestCase {
         try fixture.assertSourcesUnchanged()
     }
 
+    func testCompressedTarPreservesHardLinksAndRefusesEncryption() async throws {
+        for format in [ServerArchiveFormat.tarGz, .tarBz2, .tarXz] {
+            for encrypted in [false, true] {
+                let fixture = try await Fixture(encrypted: encrypted, format: format, hardLink: true)
+                defer { fixture.cleanup() }
+                _ = try await fixture.service.accept(fixture.identity, intent: fixture.intent)
+                if encrypted {
+                    do {
+                        _ = try await fixture.service.prepareArchive(fixture.identity, password: fixture.password)
+                        XCTFail("TAR accepted an encrypted intent")
+                    } catch {
+                        XCTAssertEqual(error as? ArchiveOperationsError, .invalidPassword("TAR archives do not support passwords"))
+                    }
+                    XCTAssertNil(try fixture.service.status(fixture.identity).workspace)
+                    XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.destination.path))
+                } else {
+                    _ = try await fixture.service.prepareArchive(fixture.identity, password: nil)
+                    let committed = try await fixture.service.commit(fixture.identity)
+                    XCTAssertEqual(committed.outcome, .committed)
+                    let extracted = URL(fileURLWithPath: try ArchiveOperations().extractArchive(archive: fixture.destination.path, password: nil))
+                    let first = try OperationDirectory(path: Data(extracted.appendingPathComponent("first").path.utf8))
+                    let nested = try OperationDirectory(path: Data(extracted.appendingPathComponent("first/nested").path.utf8))
+                    XCTAssertEqual(try first.observe(Data("hard".utf8)).identity, try nested.observe(Data("émoji 📁.txt".utf8)).identity)
+                    XCTAssertEqual(try Data(contentsOf: extracted.appendingPathComponent("first/hard")), fixture.contents)
+                }
+                try fixture.assertSourcesUnchanged()
+            }
+        }
+    }
+
     private func assertZIPHeaders(_ archive: URL, encrypted: Bool) throws {
         let bytes = [UInt8](try Data(contentsOf: archive))
         func integer(_ offset: Int, _ count: Int) throws -> Int {
@@ -263,7 +298,7 @@ final class ServerOperationArchiveTests: XCTestCase {
         let modified = Date(timeIntervalSince1970: 1_600_000_000)
 
         init(encrypted: Bool = false, overlap: Bool = false, replace: Bool = false, inside: Bool = false,
-             format: ServerArchiveFormat = .sevenZ) async throws {
+             format: ServerArchiveFormat = .sevenZ, hardLink: Bool = false) async throws {
             root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
             file = root.appendingPathComponent("first/nested/émoji 📁.txt")
             destination = root.appendingPathComponent((inside ? "first/result." : "result.") + format.fileExtension)
@@ -274,6 +309,7 @@ final class ServerOperationArchiveTests: XCTestCase {
             try contents.write(to: file)
             try FileManager.default.setAttributes([.posixPermissions: 0o640, .modificationDate: modified], ofItemAtPath: file.path)
             try FileManager.default.createSymbolicLink(atPath: root.appendingPathComponent("first/link").path, withDestinationPath: "nested/émoji 📁.txt")
+            if hardLink { try FileManager.default.linkItem(at: file, to: root.appendingPathComponent("first/hard")) }
             try Data("second file".utf8).write(to: root.appendingPathComponent("second/notes"))
             if replace { try Data("original destination".utf8).write(to: destination) }
             let account = OperationAccount(hostIdentity: "fixture", accountIdentity: "fixture-user")
