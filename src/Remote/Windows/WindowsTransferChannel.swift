@@ -1,10 +1,12 @@
 import Foundation
+import RemoteOperationSupport
 
 enum WindowsTransferError: Error, Equatable, LocalizedError {
     case unsupportedLargeTransferWithoutSFTP(byteCount: Int64)
     case byteCountMismatch(expected: Int64, actual: Int64)
     case invalidBase64Payload
     case partialFileMissing
+    case invalidAcceptedUpload
 
     var errorDescription: String? {
         switch self {
@@ -16,6 +18,8 @@ enum WindowsTransferError: Error, Equatable, LocalizedError {
             return "Windows transfer returned invalid base64 data."
         case .partialFileMissing:
             return "The downloaded partial file was missing before it could be finalized."
+        case .invalidAcceptedUpload:
+            return "The Windows host returned an invalid upload preparation result."
         }
     }
 }
@@ -93,6 +97,39 @@ actor WindowsTransferChannel {
             }
             try await uploadViaPowerShell(localURL: localURL, remotePath: remotePath, byteCount: byteCount)
         }
+    }
+
+    func prepareAcceptedUpload(localURL: URL, identity: OperationRequestIdentity, sftpAvailable: Bool) async throws -> OperationReceipt {
+        if !sftpAvailable {
+            let values = try localURL.resourceValues(forKeys: [.fileSizeKey])
+            guard let size = values.fileSize else { throw WindowsTransferError.invalidAcceptedUpload }
+            guard size <= fallbackThreshold else {
+                throw WindowsTransferError.unsupportedLargeTransferWithoutSFTP(byteCount: Int64(size))
+            }
+            let contents = try Data(contentsOf: localURL)
+            guard contents.count <= fallbackThreshold else {
+                throw WindowsTransferError.unsupportedLargeTransferWithoutSFTP(byteCount: Int64(contents.count))
+            }
+            return try await acceptedReceipt(WindowsOperationArguments(.prepareUpload(identity: identity, contents: contents)), identity: identity)
+        }
+        let allocation = try await acceptedReceipt(.init(ingress: .prepareIngress(identity)), identity: identity)
+        if allocation.phase == .terminal || allocation.phase == .readyToCommit { return allocation }
+        guard allocation.phase == .preparing, let payload = allocation.preparedPayload,
+              payload.location.account == identity.account, case .windows(let ingress) = payload.location.path else {
+            throw WindowsTransferError.invalidAcceptedUpload
+        }
+        try await sftpClient.upload(localURL: localURL, remotePath: ingress)
+        return try await acceptedReceipt(.init(ingress: .sealIngress(identity)), identity: identity)
+    }
+
+    private func acceptedReceipt(_ arguments: WindowsOperationArguments, identity: OperationRequestIdentity) async throws -> OperationReceipt {
+        let script = try PowerShellScript(source: WindowsOperationScripts.protocolScript, arguments: arguments)
+        let reply = try OperationReply.decode(await powerShellChannel.run(script, operation: "AcceptedUpload"))
+        guard case .receipt(let receipt) = reply, receipt.id == identity.id, receipt.account == identity.account,
+              receipt.epoch == identity.epoch, receipt.intentDigest == identity.intentDigest else {
+            throw WindowsTransferError.invalidAcceptedUpload
+        }
+        return receipt
     }
 
     private func downloadViaPowerShell(remotePath: String, expectedByteCount: Int64, to localURL: URL) async throws {

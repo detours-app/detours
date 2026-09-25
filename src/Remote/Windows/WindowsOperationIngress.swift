@@ -22,12 +22,14 @@ extension WindowsOperationScripts {
                 try {
                     $observed = [DetoursOperationFiles]::ObserveStream($stream)
                     $Context.record.workspace.objects = @(New-WindowsOwnedObject 'ingress' $observed)
-                    $Context.record | Add-Member -NotePropertyName windowsIngressReady -NotePropertyValue $true -Force
                     Save-WindowsWorkspace $Context
                 } finally { $stream.Dispose() }
                 $receipt = New-WindowsReceipt $Context 'preparing' 'running'
                 $receipt.preparedPayload = @{ location = (Get-WindowsOperationLocation $path $Context.account); observation = $observed }
-                return Save-WindowsReceipt $Context $receipt
+                Save-WindowsReceipt $Context $receipt | Out-Null
+                $Context.record | Add-Member -NotePropertyName windowsIngressReady -NotePropertyValue $true -Force
+                Save-WindowsWorkspace $Context
+                return $receipt
             }
             if (-not $Context.record.windowsIngressReady) { throw 'Operation ingress was not allocated.' }
             $path = Get-OperationPath $Context.record.receipt.preparedPayload.location $Context.account
