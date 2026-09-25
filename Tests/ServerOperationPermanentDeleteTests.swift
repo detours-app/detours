@@ -105,6 +105,27 @@ final class ServerOperationPermanentDeleteTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: child), fixture.bytes)
     }
 
+    #if canImport(Darwin)
+    func testLaterPermissionFailureRestoresRemainingTreeAndKeepsConfirmedDeletions() async throws {
+        let fixture = try await Fixture(kind: .directory, readOnlyChild: true)
+        defer { fixture.cleanup() }
+        _ = try await fixture.service.accept(fixture.identity, intent: fixture.intent)
+        let result = try await fixture.service.execute(fixture.identity)
+        XCTAssertEqual(result.outcome, .partial)
+        XCTAssertEqual(result.sourceDisposition, .present)
+        XCTAssertTrue(result.recovery.isEmpty)
+        XCTAssertEqual(result.effects.map(\.location), [
+            OperationLocation(account: fixture.identity.account, path: .unix(Data(fixture.source.appendingPathComponent("outside-link").path.utf8))),
+        ])
+        XCTAssertEqual(try Data(contentsOf: fixture.source.appendingPathComponent("nested/file")), fixture.bytes)
+        XCTAssertEqual(try Data(contentsOf: fixture.outside), fixture.bytes)
+        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: fixture.source.appendingPathComponent("loop").path), ".")
+        XCTAssertEqual(Set(try FileManager.default.contentsOfDirectory(atPath: fixture.root.path)), ["outside", "journal", "source"])
+        let duplicate = try await fixture.service.execute(fixture.identity)
+        XCTAssertEqual(duplicate, result)
+    }
+    #endif
+
     private struct Fixture {
         let root: URL
         let source: URL
@@ -116,7 +137,7 @@ final class ServerOperationPermanentDeleteTests: XCTestCase {
         let manifest: OperationManifest
         let bytes = Data("keep outside".utf8)
 
-        init(kind: OperationObservation.Kind) async throws {
+        init(kind: OperationObservation.Kind, readOnlyChild: Bool = false) async throws {
             root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
             source = root.appendingPathComponent("source")
             outside = root.appendingPathComponent("outside")
@@ -131,6 +152,9 @@ final class ServerOperationPermanentDeleteTests: XCTestCase {
                 try FileManager.default.createSymbolicLink(atPath: source.appendingPathComponent("outside-link").path,
                                                           withDestinationPath: outside.path)
                 try FileManager.default.createSymbolicLink(atPath: source.appendingPathComponent("loop").path, withDestinationPath: ".")
+                if readOnlyChild {
+                    try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: source.appendingPathComponent("nested").path)
+                }
             }
             parent = try OperationDirectory(path: Data(root.path.utf8))
             manifest = try parent.manifest(Data("source".utf8), progress: { _ in })
@@ -148,6 +172,12 @@ final class ServerOperationPermanentDeleteTests: XCTestCase {
                                                 intentDigest: try OperationContentProof.data(intent.canonicalData()).sha256)
         }
 
-        func cleanup() { try? FileManager.default.removeItem(at: root) }
+        func cleanup() {
+            let nested = source.appendingPathComponent("nested")
+            if FileManager.default.fileExists(atPath: nested.path) {
+                XCTAssertNoThrow(try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: nested.path))
+            }
+            XCTAssertNoThrow(try FileManager.default.removeItem(at: root))
+        }
     }
 }
