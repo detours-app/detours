@@ -34,9 +34,11 @@ COPYFILE_DISABLE=1 tar --no-xattrs -czf - \
     Server \
     Shared \
     RemoteOperationSupport \
+    FilesystemPrimitives \
     LinuxStaticFoundationGuard \
     Tests/DetoursProcessTests \
     Tests/ServerArchiveOperationsTests.swift \
+    Tests/OperationFilesystemTests.swift \
     | ssh "$REMOTE_HOST" "tar -xzf - -C $REMOTE_TMP_Q"
 # shellcheck disable=SC2029
 ssh "$REMOTE_HOST" "cat > $REMOTE_TMP_Q/Package.swift" <<'EOF'
@@ -50,8 +52,10 @@ let package = Package(
         .executable(name: "detours-server", targets: ["detours-server"]),
     ],
     targets: [
+        .target(name: "FilesystemPrimitives", path: "FilesystemPrimitives"),
         .target(
             name: "RemoteOperationSupport",
+            dependencies: ["FilesystemPrimitives"],
             path: "RemoteOperationSupport"
         ),
         .target(
@@ -75,16 +79,16 @@ let package = Package(
         ),
         .testTarget(
             name: "ServerArchiveOperationsTests",
-            dependencies: ["detours-server", "DetoursProcess"],
+            dependencies: ["detours-server", "DetoursProcess", "RemoteOperationSupport"],
             path: "Tests",
             exclude: ["DetoursProcessTests"],
-            sources: ["ServerArchiveOperationsTests.swift"]
+            sources: ["ServerArchiveOperationsTests.swift", "OperationFilesystemTests.swift"]
         ),
     ]
 )
 EOF
 # shellcheck disable=SC2029
-ssh "$REMOTE_HOST" "cd $REMOTE_TMP_Q && docker run --rm -e HOME=/tmp -v \"\$PWD:/workspace\" -w /workspace $DOCKER_IMAGE_Q sh -c 'owner=\"\$(stat -c %u:%g /workspace)\"; trap \"chown -R \$owner /workspace\" EXIT; apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq zip unzip p7zip-full && swift test --filter DetoursProcessTests && swift test --filter ServerArchiveOperationsTests && swift build -c release --product detours-server -Xswiftc -static-stdlib'"
+ssh "$REMOTE_HOST" "cd $REMOTE_TMP_Q && docker run --rm -e HOME=/tmp -v \"\$PWD:/workspace\" -w /workspace $DOCKER_IMAGE_Q sh -c 'owner=\"\$(stat -c %u:%g /workspace)\"; trap \"chown -R \$owner /workspace\" EXIT; apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq zip unzip p7zip-full && swift test --filter DetoursProcessTests && swift test --filter ServerArchiveOperationsTests && swift test --filter OperationFilesystemTests && swift build -c release --product detours-server -Xswiftc -static-stdlib'"
 scp "$REMOTE_HOST:$REMOTE_TMP/.build/release/detours-server" "$SERVER_BINARY"
 chmod 0755 "$SERVER_BINARY"
 echo "$HASH" > "$SERVER_HASH_FILE"

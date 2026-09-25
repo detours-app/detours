@@ -31,8 +31,10 @@ let package = Package(
         ),
     ],
     targets: [
+        .target(name: "FilesystemPrimitives", path: "FilesystemPrimitives"),
         .target(
             name: "RemoteOperationSupport",
+            dependencies: ["FilesystemPrimitives"],
             path: "RemoteOperationSupport"
         ),
         .target(
