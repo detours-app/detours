@@ -48,7 +48,7 @@ extension WindowsAcceptedOperationLiveTests {
         func accept(_ name: String) async throws -> OperationRequestIdentity {
             guard case .lookup(.found(let observed)) = try await send(.lookup(location(name))) else { throw CocoaError(.fileNoSuchFile) }
             let intent = OperationIntent(id: .init(operation: UUID(), item: UUID()), action: .permanentDelete,
-                sources: [location(name)], sourceObservations: [observed], conflict: .createNew)
+                sources: [location(name)], destination: nil, sourceObservations: [observed], conflict: .createNew)
             let identity = OperationRequestIdentity(id: intent.id, account: account, epoch: handshake.epoch,
                 intentDigest: try OperationContentProof.data(intent.canonicalData()).sha256)
             _ = try await send(.accept(identity: identity, intent: intent))
