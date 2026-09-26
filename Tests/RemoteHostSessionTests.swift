@@ -4,6 +4,21 @@ import XCTest
 @testable import Detours
 
 final class RemoteHostSessionTests: XCTestCase {
+    func testRepeatedProcessExitsCannotRenewRecoveryBudget() async throws {
+        let transport = ExitingHostTransport()
+        let states = SessionStateRecorder()
+        let session = RemoteHostSession(transport: transport, attemptLimit: .milliseconds(20), recoveryLimit: .milliseconds(90),
+            recoveryDelays: [.milliseconds(5)], publish: { await states.append($0, generation: $1) })
+        let started = ContinuousClock.now
+        do { _ = try await session.ensureReady(); XCTFail("Exiting helpers became ready") } catch RemoteHostSessionError.failed(.timedOut) {}
+        XCTAssertLessThan(started.duration(to: .now), .seconds(1))
+        let attempts = await transport.attempts
+        XCTAssertGreaterThan(attempts, 2)
+        let connected = await states.containsConnected()
+        XCTAssertFalse(connected)
+        await session.disconnect()
+    }
+
     func testCancelledReadinessWaiterDoesNotCancelSharedAttempt() async throws {
         let transport = ControlledHostTransport()
         let session = RemoteHostSession(transport: transport, publish: { _, _ in })
@@ -131,6 +146,16 @@ private actor SessionStateRecorder {
     private var values: [SSHConnectionState] = []
     func append(_ value: SSHConnectionState, generation: UInt64) { values.append(value) }
     func containsConnected() -> Bool { values.contains(.connected) }
+}
+
+private actor ExitingHostTransport: RemoteHostSessionTransport {
+    private(set) var attempts = 0
+    func handshake(generation: UInt64, onFailure: @escaping @Sendable (UInt64, SSHConnectionFailureReason) async -> Void) async throws -> OperationHandshake {
+        attempts += 1
+        throw RemoteHostSessionError.failed(.processExited(255))
+    }
+    func retire(generation: UInt64) async {}
+    func setActivePaneCount(_ count: Int) async {}
 }
 
 private actor ControlledHostTransport: RemoteHostSessionTransport {
