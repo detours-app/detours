@@ -1,16 +1,17 @@
 import Foundation
 
 final class RemoteMeasuredProgress: @unchecked Sendable {
+    enum Source: Hashable { case sent, remote }
     private let lock = NSLock()
-    private var measuredBytes: UInt64 = 0
+    private var measuredBytes: [Source: UInt64] = [:]
     private var advanced: ContinuousClock.Instant
     private var failure: Error?
 
     init(startedAt: ContinuousClock.Instant = .now) { advanced = startedAt }
 
-    func record(_ bytes: UInt64, at now: ContinuousClock.Instant = .now) {
+    func record(_ bytes: UInt64, at now: ContinuousClock.Instant = .now, source: Source = .remote) {
         lock.withLock {
-            if bytes > measuredBytes { measuredBytes = bytes; advanced = now }
+            if bytes > measuredBytes[source, default: 0] { measuredBytes[source] = bytes; advanced = now }
         }
     }
 

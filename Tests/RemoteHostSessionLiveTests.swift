@@ -4,6 +4,67 @@ import XCTest
 @testable import Detours
 
 final class RemoteHostSessionLiveTests: XCTestCase {
+    func testWindowsRequestCancellationKeepsVerifiedSessionUsable() async throws {
+        let control = try makeControlDirectory()
+        defer { try? FileManager.default.removeItem(at: control) }
+        let channel = PowerShellChannel(hostID: UUID(), sshTarget: "detours-windows", controlDirectory: control)
+        let session = RemoteHostSession(transport: WindowsHostSessionTransport(channel: channel), publish: { _, _ in })
+        await channel.bind(session: session)
+        let ready = try await session.ensureReady()
+        let markerData = try await channel.run(PowerShellScript(source: "[System.IO.Path]::GetTempFileName()"), operation: "CancellationFixture")
+        let marker = try JSONDecoder().decode(String.self, from: markerData)
+        let remove = try PowerShellScript(source: "param($Arguments); [System.IO.File]::Delete($Arguments.path)", arguments: ["path": marker])
+        let script = try PowerShellScript(source: """
+            param($Arguments)
+            [System.IO.File]::WriteAllText($Arguments.path, 'started')
+            [System.Threading.Thread]::Sleep(30000)
+            $true
+            """, arguments: ["path": marker])
+        let request = Task { try await channel.run(script, operation: "CancellableReadFixture") }
+        do {
+            let probe = try PowerShellScript(source: "param($Arguments); [System.IO.File]::ReadAllText($Arguments.path)", arguments: ["path": marker])
+            let deadline = ContinuousClock.now.advanced(by: .seconds(10))
+            var started = false
+            while !started, ContinuousClock.now < deadline {
+                let data = try await channel.runIndependent(probe, operation: "CancellationFixtureState")
+                started = try JSONDecoder().decode(String.self, from: data) == "started"
+            }
+            XCTAssertTrue(started, "Remote execution must start before cancellation")
+            let cancelledAt = ContinuousClock.now
+            request.cancel()
+            do { _ = try await request.value; XCTFail("Cancelled request succeeded") } catch is CancellationError {}
+            XCTAssertLessThan(cancelledAt.duration(to: .now), .seconds(5))
+            try await session.requireGeneration(ready.generation)
+            let next = try await channel.run(PowerShellScript(source: "7"), operation: "AfterCancellation")
+            XCTAssertEqual(try JSONDecoder().decode(Int.self, from: next), 7)
+            _ = try await channel.runIndependent(remove, operation: "CancellationFixtureCleanup")
+            await session.disconnect()
+        } catch {
+            request.cancel()
+            _ = await request.result
+            do {
+                _ = try await channel.runIndependent(remove, operation: "CancellationFixtureCleanup")
+            } catch { XCTFail("Cancellation fixture cleanup failed: \(error)") }
+            await session.disconnect()
+            throw error
+        }
+    }
+
+    func testWindowsMeasuredRequestOutlivesControlDeadline() async throws {
+        let control = try makeControlDirectory()
+        defer { try? FileManager.default.removeItem(at: control) }
+        let channel = PowerShellChannel(hostID: UUID(), sshTarget: "detours-windows", controlDirectory: control)
+        do {
+            let reply = try await channel.run(PowerShellScript(source: "[System.Threading.Thread]::Sleep(11000); 7"),
+                operation: "MeasuredDeadlineFixture", progress: RemoteMeasuredProgress())
+            XCTAssertEqual(try JSONDecoder().decode(Int.self, from: reply), 7)
+            await channel.disconnect()
+        } catch {
+            await channel.disconnect()
+            throw error
+        }
+    }
+
     func testDisconnectStopsWaitingPersistentReader() async throws {
         let control = try makeControlDirectory()
         defer { try? FileManager.default.removeItem(at: control) }

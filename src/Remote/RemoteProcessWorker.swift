@@ -154,7 +154,7 @@ final class RemoteProcessWorker: @unchecked Sendable {
                         offset += count
                         let total = lock.withLock { writtenBytes += Int64(count); return writtenBytes }
                         if let progress {
-                            progress.record(UInt64(total))
+                            progress.record(UInt64(total), source: .sent)
                             deadline = clock.now.advanced(by: timeout)
                         }
                         continue
@@ -173,6 +173,19 @@ final class RemoteProcessWorker: @unchecked Sendable {
     func readExactly(_ count: Int, timeout: Duration? = .seconds(10)) throws -> Data {
         let deadline = timeout.map { clock.now.advanced(by: $0) }
         return try readExactly(count, deadline: deadline)
+    }
+
+    func readFrame(progress: RemoteMeasuredProgress) throws -> Data {
+        var frames = RPCStreamHandler()
+        while true {
+            try progress.check()
+            let chunk: Data
+            do {
+                chunk = try read(maximumBytes: 64 * 1024, timeout: .milliseconds(250))
+            } catch RemoteProcessWorkerError.timedOut { continue }
+            guard !chunk.isEmpty else { throw RemoteProcessWorkerError.closed }
+            if let frame = try frames.append(chunk).first { return frame }
+        }
     }
 
     func readFrame(timeout: Duration? = .seconds(10)) throws -> Data {

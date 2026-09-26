@@ -60,7 +60,10 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
         try await current.perform { try $0.start() }
     }
 
-    func sendFrame(_ frame: Data) async throws {
+    func sendFrame(_ frame: Data) async throws { try await send(frame, progress: nil) }
+    func sendFrame(_ frame: Data, progress: RemoteMeasuredProgress) async throws { try await send(frame, progress: progress) }
+
+    private func send(_ frame: Data, progress: RemoteMeasuredProgress?) async throws {
         if executionMode == .oneShot {
             guard let dispatcher = stateLock.withLock({ dispatcherBase64 }) else {
                 throw PowerShellChannelError.processFailed("PowerShell channel is not connected.")
@@ -71,17 +74,23 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
         let oneShot = executionMode == .oneShot
         do {
             try await current.perform { worker in
-                try worker.write(frame)
+                try worker.write(frame, timeout: progress == nil ? .seconds(10) : .seconds(30), progress: progress)
                 if oneShot { worker.closeInput() }
             }
         } catch { throw mapped(error, worker: current) }
     }
 
-    func readFrame() async throws -> Data {
+    func readFrame() async throws -> Data { try await read(progress: nil) }
+    func readFrame(progress: RemoteMeasuredProgress) async throws -> Data { try await read(progress: progress) }
+
+    private func read(progress: RemoteMeasuredProgress?) async throws -> Data {
         let current = try currentWorker()
         let timeout = responseTimeout
         do {
-            let result = try await current.perform { try $0.readFrame(timeout: timeout) }
+            let result = try await current.perform { worker in
+                if let progress { return try worker.readFrame(progress: progress) }
+                return try worker.readFrame(timeout: timeout)
+            }
             if executionMode == .oneShot { try await retire(current) }
             return result
         } catch { throw mapped(error, worker: current) }

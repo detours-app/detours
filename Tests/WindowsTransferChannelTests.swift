@@ -17,6 +17,10 @@ final class WindowsTransferChannelTests: XCTestCase {
         progressing.record(20, at: start.advanced(by: .seconds(525)))
         progressing.record(19, at: start.advanced(by: .seconds(529)))
         XCTAssertThrowsError(try progressing.check(at: start.advanced(by: .seconds(530))))
+        let phases = RemoteMeasuredProgress(startedAt: start)
+        phases.record(1_000_000, at: start, source: .sent)
+        phases.record(1, at: start.advanced(by: .seconds(25)))
+        XCTAssertNoThrow(try phases.check(at: start.advanced(by: .seconds(50))))
     }
 
     func testAcceptedSFTPFailureNeverFallsBack() async throws {

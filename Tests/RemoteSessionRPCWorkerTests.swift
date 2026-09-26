@@ -39,14 +39,16 @@ final class RemoteSessionRPCWorkerTests: XCTestCase {
     }
 
     func testStalledOperationProgressStopsActualWorker() async throws {
-        let worker = makeWorker("/bin/cat >/dev/null; exec /bin/sleep 30")
+        let worker = makeWorker("/bin/cat >/dev/null; exec /bin/sleep 60")
         let progress = RemoteMeasuredProgress(startedAt: ContinuousClock.now.advanced(by: .seconds(-31)))
+        let started = ContinuousClock.now
         do {
             _ = try await worker.perform {
                 try RemoteSessionRPCClient.exchangeOperation(.handshake, worker: $0, progress: progress)
             }
             XCTFail("Stalled operation returned success")
         } catch RemoteProcessWorkerError.timedOut {}
+        XCTAssertLessThan(started.duration(to: .now), .seconds(35))
         XCTAssertFalse(worker.process.isRunning)
     }
 

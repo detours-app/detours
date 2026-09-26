@@ -129,8 +129,7 @@ actor WindowsTransferChannel {
     }
 
     private func acceptedReceipt(_ arguments: WindowsOperationArguments, identity: OperationRequestIdentity) async throws -> OperationReceipt {
-        let script = try PowerShellScript(source: WindowsOperationScripts.protocolScript, arguments: arguments)
-        let reply = try OperationReply.decode(await powerShellChannel.run(script, operation: "AcceptedUpload"))
+        let reply = try OperationReply.decode(await powerShellChannel.runOperation(arguments, operation: "AcceptedUpload"))
         guard case .receipt(let receipt) = reply, receipt.id == identity.id, receipt.account == identity.account,
               receipt.epoch == identity.epoch, receipt.intentDigest == identity.intentDigest else {
             throw WindowsTransferError.invalidAcceptedUpload
@@ -291,6 +290,7 @@ final class ProcessWindowsSFTPClient: WindowsSFTPClient, @unchecked Sendable {
                 }
             }
         } catch {
+            try Task.checkCancellation()
             try progress.check()
             throw error
         }

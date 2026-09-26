@@ -1,68 +1,6 @@
 import Darwin
 import Foundation
 
-enum PowerShellChannelError: Error, Equatable, LocalizedError {
-    case responseIDMismatch(expected: UInt64, actual: UInt64)
-    case remoteError(String)
-    case invalidResponse(String)
-    case processFailed(String)
-    case timeout(String)
-    case unexpectedEOF
-
-    var errorDescription: String? {
-        switch self {
-        case .responseIDMismatch:
-            return "The Windows host sent a reply that didn't match the request."
-        case .remoteError:
-            return "The Windows host reported an error."
-        case .invalidResponse:
-            return "The Windows host sent an unexpected reply."
-        case .processFailed:
-            return "The connection to the Windows host failed."
-        case .timeout:
-            return "The Windows host stopped responding."
-        case .unexpectedEOF:
-            return "The connection to the Windows host closed unexpectedly."
-        }
-    }
-
-    var failureReason: String? {
-        switch self {
-        case let .remoteError(message), let .processFailed(message):
-            // The host's own message (or the underlying ssh error) is the useful detail.
-            return message.isEmpty ? nil : message
-        case .responseIDMismatch, .invalidResponse, .timeout, .unexpectedEOF:
-            return nil
-        }
-    }
-
-    var recoverySuggestion: String? {
-        switch self {
-        case .remoteError:
-            return "Check the item and your permissions on the host, then try again."
-        case .processFailed:
-            return "Check that the host is reachable over SSH, then try again."
-        case .responseIDMismatch, .invalidResponse, .timeout, .unexpectedEOF:
-            return "Reconnect to the host and try again."
-        }
-    }
-}
-
-protocol PowerShellChannelTransport: Sendable {
-    func start(dispatcherBase64: String) async throws
-    func sendFrame(_ frame: Data) async throws
-    func readFrame() async throws -> Data
-    func stop() async
-    /// Tears down the shared SSH control master for this host. The command, transfer, and
-    /// watch channels all multiplex over one ControlPath socket, so closing it ends every
-    /// session for the host at once. Transports without a real control master no-op.
-    func closeControlConnection() async
-}
-
-extension PowerShellChannelTransport {
-    func closeControlConnection() async {}
-}
-
 actor PowerShellChannel: RemoteConnectionHandle {
     private struct Request: Encodable {
         let id: UInt64
@@ -134,18 +72,18 @@ actor PowerShellChannel: RemoteConnectionHandle {
         self.idleTimeout = idleTimeout
     }
 
-    func run(_ script: PowerShellScript, operation: String) async throws -> Data {
+    func run(_ script: PowerShellScript, operation: String, progress: RemoteMeasuredProgress? = nil) async throws -> Data {
         if sessionManaged {
             guard let session else { throw RemoteHostSessionError.retired }
             let lifetime = try await session.acquireLifetime(.reader)
             defer { lifetime.release() }
             let ready = try await session.ensureReady()
-            let reply = try await runRequest(script, operation: operation, generation: ready.generation)
+            let reply = try await runRequest(script, operation: operation, generation: ready.generation, progress: progress)
             try Task.checkCancellation()
             try await session.requireGeneration(ready.generation)
             return reply
         }
-        return try await runRequest(script, operation: operation, generation: nil)
+        return try await runRequest(script, operation: operation, generation: nil, progress: progress)
     }
 
     func runIndependent(_ script: PowerShellScript, operation: String) async throws -> Data {
@@ -251,7 +189,7 @@ actor PowerShellChannel: RemoteConnectionHandle {
         await transport.closeControlConnection()
     }
 
-    private func runRequest(_ script: PowerShellScript, operation: String, generation: UInt64?) async throws -> Data {
+    private func runRequest(_ script: PowerShellScript, operation: String, generation: UInt64?, progress: RemoteMeasuredProgress? = nil) async throws -> Data {
         try await acquireRequestSlot()
         beginInFlightOperation()
         defer {
@@ -261,13 +199,16 @@ actor PowerShellChannel: RemoteConnectionHandle {
         do {
             try Task.checkCancellation()
             if sessionManaged, generation == nil || generation != sessionGeneration { throw RemoteHostSessionError.obsoleteGeneration }
-            let reply = try await sendAndReceive(script, operation: operation)
+            let reply = try await sendAndReceive(script, operation: operation, progress: progress)
             if sessionManaged, generation != sessionGeneration { throw RemoteHostSessionError.obsoleteGeneration }
             return reply
         } catch let error as PowerShellChannelError where Self.isRemoteOperationError(error) {
             // An operation-level error from a responsive host is not a connection drop; surface
             // it to the caller without restarting or publishing a failed state.
             throw error
+        } catch is CancellationError {
+            await transport.stop()
+            throw CancellationError()
         } catch {
             if sessionManaged {
                 if let generation, generation == sessionGeneration {
@@ -280,13 +221,13 @@ actor PowerShellChannel: RemoteConnectionHandle {
         }
     }
 
-    private func sendAndReceive(_ script: PowerShellScript, operation: String) async throws -> Data {
+    private func sendAndReceive(_ script: PowerShellScript, operation: String, progress: RemoteMeasuredProgress?) async throws -> Data {
         try await startIfNeeded()
-        return try await exchange(script, operation: operation, through: transport)
+        return try await exchange(script, operation: operation, through: transport, progress: progress)
     }
 
     private func exchange(_ script: PowerShellScript, operation: String,
-                          through transport: any PowerShellChannelTransport) async throws -> Data {
+                          through transport: any PowerShellChannelTransport, progress: RemoteMeasuredProgress? = nil) async throws -> Data {
         try Task.checkCancellation()
         let requestID = nextRequestID
         nextRequestID += 1
@@ -298,9 +239,16 @@ actor PowerShellChannel: RemoteConnectionHandle {
             argumentsJSON: script.argumentsJSON
         )
         let payload = try JSONEncoder.detoursWindows.encode(request)
-        try await transport.sendFrame(try RPCStreamHandler.encodeFrame(payload))
-        try Task.checkCancellation()
-        let responsePayload = try await transport.readFrame()
+        let responsePayload: Data
+        if let progress {
+            try await transport.sendFrame(try RPCStreamHandler.encodeFrame(payload), progress: progress)
+            try Task.checkCancellation()
+            responsePayload = try await transport.readFrame(progress: progress)
+        } else {
+            try await transport.sendFrame(try RPCStreamHandler.encodeFrame(payload))
+            try Task.checkCancellation()
+            responsePayload = try await transport.readFrame()
+        }
         let response = try JSONDecoder.detoursWindows.decode(Response.self, from: responsePayload)
         guard response.id == requestID else {
             throw PowerShellChannelError.responseIDMismatch(expected: requestID, actual: response.id)

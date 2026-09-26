@@ -71,6 +71,7 @@ actor RemoteSessionRPCClient: RemoteRPCClient, RemoteHostSessionTransport {
                 try Self.exchangeOperation(request, worker: worker, progress: identity == nil ? nil : progress)
             }
         } catch {
+            try Task.checkCancellation()
             try progress.check()
             throw error
         }

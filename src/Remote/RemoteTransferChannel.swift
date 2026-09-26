@@ -233,7 +233,7 @@ actor RemoteTransferChannel {
                     return nil
                 }
                 group.addTask {
-                    try await worker.perform { worker in try readAcceptedReply(worker: worker, progress: progress) }
+                    try await worker.perform { try $0.readFrame(progress: progress) }
                 }
                 var response: Data?
                 for try await result in group { if let result { response = result } }
@@ -252,21 +252,9 @@ actor RemoteTransferChannel {
             }
             return receipt
         } catch {
+            try Task.checkCancellation()
             try progress.check()
             throw error
-        }
-    }
-
-    private static func readAcceptedReply(worker: RemoteProcessWorker, progress: RemoteMeasuredProgress) throws -> Data {
-        var frames = RPCStreamHandler()
-        while true {
-            try progress.check()
-            let chunk: Data
-            do {
-                chunk = try worker.read(maximumBytes: 64 * 1024, timeout: .milliseconds(250))
-            } catch RemoteProcessWorkerError.timedOut { continue }
-            guard !chunk.isEmpty else { throw RemoteProcessWorkerError.closed }
-            if let frame = try frames.append(chunk).first { return frame }
         }
     }
 
