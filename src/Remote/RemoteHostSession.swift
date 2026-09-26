@@ -5,6 +5,11 @@ protocol RemoteHostSessionTransport: Sendable {
     func handshake(generation: UInt64, onFailure: @escaping @Sendable (UInt64, SSHConnectionFailureReason) async -> Void) async throws -> OperationHandshake
     func retire(generation: UInt64) async
     func setActivePaneCount(_ count: Int) async
+    func restoreWatches(generation: UInt64) async throws
+}
+
+extension RemoteHostSessionTransport {
+    func restoreWatches(generation: UInt64) async throws {}
 }
 
 enum RemoteHostSessionError: Error, LocalizedError, Sendable {
@@ -166,7 +171,8 @@ actor RemoteHostSession: RemoteConnectionHandle {
         guard !retired, generation == current else { throw RemoteHostSessionError.obsoleteGeneration }
         state = .connecting
         await publish(.connecting, current)
-        let attempt = RemoteHandshakeAttempt(transport: transport, generation: current, deadline: deadline) { [weak self] failed, reason in
+        let attempt = RemoteHandshakeAttempt(transport: transport, generation: current, deadline: deadline,
+            expectedAccount: expectedAccount, expectedEpoch: expectedEpoch) { [weak self] failed, reason in
             await self?.transportFailed(generation: failed, reason: reason)
         }
         self.attempt = attempt
@@ -215,7 +221,8 @@ actor RemoteHostSession: RemoteConnectionHandle {
             default: break
             }
         }
-        let message = error.localizedDescription
+        if case PowerShellChannelError.timeout = error { return .timedOut }
+        let message = (error as? PowerShellChannelError)?.failureReason ?? error.localizedDescription
         let lower = message.lowercased()
         if lower.contains("host key verification failed") || lower.contains("host identification has changed") { return .hostKeyChanged }
         if lower.contains("permission denied (publickey") || lower.contains("authentication failed") { return .authentication(message) }

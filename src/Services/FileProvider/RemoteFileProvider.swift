@@ -34,6 +34,7 @@ actor SSHRemoteRPCClient: RemoteRPCClient {
     private var readerTask: Task<Void, Never>?
     private var readerGeneration: UInt64 = 0
     private var readerStreamGeneration: UInt64?
+    private var failureHandler: (@Sendable (Error) async -> Void)?
 
     init(connection: SSHConnection) {
         self.connection = connection
@@ -46,6 +47,10 @@ actor SSHRemoteRPCClient: RemoteRPCClient {
     func setEventHandler(_ handler: @escaping @Sendable (RPCEnvelope) -> Void) async {
         await startReaderIfNeeded()
         eventHandler = handler
+    }
+
+    func setFailureHandler(_ handler: @escaping @Sendable (Error) async -> Void) {
+        failureHandler = handler
     }
 
     func prepareForReconnect() {
@@ -106,6 +111,7 @@ actor SSHRemoteRPCClient: RemoteRPCClient {
             } catch {
                 if readerGeneration == generation {
                     failAllResponses(error)
+                    await failureHandler?(error)
                 }
                 return
             }

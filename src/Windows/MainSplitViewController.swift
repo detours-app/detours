@@ -85,8 +85,6 @@ final class MainSplitViewController: NSSplitViewController {
     var lastMediaKeyTimestamp: TimeInterval = 0
     var quickNavController: QuickNavController?
     var saveSessionWorkItem: DispatchWorkItem?
-    var remoteConnectTasks: [UUID: Task<RemoteConnectionResources, Error>] = [:]
-    var remoteConnectionResources: [UUID: RemoteConnectionResources] = [:]
     var previousSplitSubviewFrames: [NSRect] = []
     var contentPaneWidthRatio: CGFloat?
     var isSplitResizePolicyActive = false
@@ -229,13 +227,6 @@ final class MainSplitViewController: NSSplitViewController {
             self,
             selector: #selector(handleVolumeUnmount(_:)),
             name: NSWorkspace.didUnmountNotification,
-            object: nil
-        )
-
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleRemoteConnectionStateChange(_:)),
-            name: .sshConnectionStateDidChange,
             object: nil
         )
 

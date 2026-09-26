@@ -5,6 +5,8 @@ actor RemoteHandshakeAttempt {
     private let transport: any RemoteHostSessionTransport
     private let generation: UInt64
     private let deadline: ContinuousClock.Instant
+    private let expectedAccount: OperationAccount?
+    private let expectedEpoch: UUID?
     private let onFailure: @Sendable (UInt64, SSHConnectionFailureReason) async -> Void
     private var continuation: CheckedContinuation<OperationHandshake, Error>?
     private var worker: Task<Void, Never>?
@@ -12,10 +14,13 @@ actor RemoteHandshakeAttempt {
     private var cancelled = false
 
     init(transport: any RemoteHostSessionTransport, generation: UInt64, deadline: ContinuousClock.Instant,
+         expectedAccount: OperationAccount?, expectedEpoch: UUID?,
          onFailure: @escaping @Sendable (UInt64, SSHConnectionFailureReason) async -> Void) {
         self.transport = transport
         self.generation = generation
         self.deadline = deadline
+        self.expectedAccount = expectedAccount
+        self.expectedEpoch = expectedEpoch
         self.onFailure = onFailure
     }
 
@@ -28,6 +33,8 @@ actor RemoteHandshakeAttempt {
                 worker = Task {
                     do {
                         let handshake = try await transport.handshake(generation: generation, onFailure: onFailure)
+                        try handshake.validate(expectedAccount: expectedAccount, expectedEpoch: expectedEpoch)
+                        try await transport.restoreWatches(generation: generation)
                         _ = finish(.success(handshake))
                     } catch { _ = finish(.failure(error)) }
                 }

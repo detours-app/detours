@@ -49,6 +49,8 @@ actor SSHConnection {
     private var inFlightOperationCount = 0
     private var activeWatchCount = 0
     private var disconnectedForIdle = false
+    private var sessionManaged = false
+    private var sessionFailure: (@Sendable (SSHConnectionFailureReason) async -> Void)?
     private var idleDisconnectTask: Task<Void, Never>?
     private let readQueue = DispatchQueue(label: "com.detours.ssh.frame-read", qos: .userInitiated)
 
@@ -134,6 +136,12 @@ actor SSHConnection {
         try await connect()
     }
 
+    func manageBySession(onFailure: @escaping @Sendable (SSHConnectionFailureReason) async -> Void) {
+        sessionManaged = true
+        sessionFailure = onFailure
+        cancelIdleDisconnect()
+    }
+
     func disconnect() {
         cancelIdleDisconnect()
         disconnectedForIdle = false
@@ -147,7 +155,7 @@ actor SSHConnection {
     }
 
     func send(_ envelope: RPCEnvelope) async throws {
-        if disconnectedForIdle || state == .disconnected {
+        if !sessionManaged && (disconnectedForIdle || state == .disconnected) {
             try await connect()
         }
 
@@ -252,6 +260,13 @@ actor SSHConnection {
         guard state != .disconnected else { return }
         streamGeneration += 1
         let reason = SSHConnectionFailureReason.processExited(status)
+        if sessionManaged {
+            let failure = lastStderr.isEmpty ? reason : RemoteHostSession.reason(for: SSHProcessFailure(message: lastStderr))
+            transition(to: .failed(reason: failure))
+            let callback = sessionFailure
+            Task { await callback?(failure) }
+            return
+        }
         if hasIdleBlockers, SSHReconnectPolicy.isRetryable(reason) {
             Task { [weak self] in
                 await self?.reconnect(afterFailure: reason)
@@ -284,7 +299,7 @@ actor SSHConnection {
 
     private func scheduleIdleDisconnectIfNeeded() {
         cancelIdleDisconnect()
-        guard state == .connected, !hasIdleBlockers else { return }
+        guard !sessionManaged, state == .connected, !hasIdleBlockers else { return }
 
         let timeout = idleTimeout
         idleDisconnectTask = Task { [weak self] in
@@ -394,6 +409,7 @@ actor SSHConnection {
     #endif
 
     private func publishStateChange(from oldState: SSHConnectionState, to newState: SSHConnectionState) {
+        guard !sessionManaged else { return }
         Task { @MainActor in
             RemoteConnectionStateStore.shared.setState(newState, for: configuration.hostID, oldState: oldState)
         }
@@ -448,4 +464,9 @@ actor SSHConnection {
         return payload
     }
 
+}
+
+private struct SSHProcessFailure: LocalizedError {
+    let message: String
+    var errorDescription: String? { message }
 }

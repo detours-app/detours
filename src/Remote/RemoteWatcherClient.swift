@@ -83,10 +83,20 @@ actor RemoteWatcherClient {
         _ = try? await rpcClient.send(.unwatch(token: registration.remoteToken))
     }
 
-    func reregisterWatchesAfterReconnect() async {
-        for registration in registrationsByWatch.values {
+    func invalidateRemoteTokens() {
+        registrationsByRemoteToken.removeAll()
+    }
+
+    func reregisterWatchesAfterReconnect(using client: (any RemoteRPCClient)? = nil) async throws {
+        let previous = Array(registrationsByWatch.values)
+        registrationsByRemoteToken.removeAll()
+        for registration in previous {
             guard case .remote(_, let path) = registration.watch.location else { continue }
-            _ = try? await rpcClient.send(.watch(path: RemotePath(path), token: registration.remoteToken))
+            let renewed = Registration(watch: registration.watch, remoteToken: UUID(), onChange: registration.onChange)
+            _ = try await (client ?? rpcClient).send(.watch(path: RemotePath(path), token: renewed.remoteToken))
+            guard registrationsByWatch[registration.watch] != nil else { continue }
+            registrationsByWatch[registration.watch] = renewed
+            registrationsByRemoteToken[renewed.remoteToken] = renewed
         }
     }
 

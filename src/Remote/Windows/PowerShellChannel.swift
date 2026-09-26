@@ -86,6 +86,10 @@ actor PowerShellChannel: RemoteConnectionHandle {
     private var activePaneCount = 0
     private var inFlightOperationCount = 0
     private var idleDisconnectTask: Task<Void, Never>?
+    private weak var session: RemoteHostSession?
+    private var sessionManaged = false
+    private var sessionGeneration: UInt64?
+    private var sessionFailure: (@Sendable (UInt64, SSHConnectionFailureReason) async -> Void)?
 
     // Serializes requests on the single shared oneShot transport: the actor releases its
     // lock at every `await transport.*`, so without this gate a second concurrent `run()`
@@ -122,6 +126,41 @@ actor PowerShellChannel: RemoteConnectionHandle {
     }
 
     func run(_ script: PowerShellScript, operation: String) async throws -> Data {
+        if sessionManaged {
+            guard let session else { throw RemoteHostSessionError.retired }
+            let ready = try await session.ensureReady()
+            let reply = try await runRequest(script, operation: operation, generation: ready.generation)
+            try await session.requireGeneration(ready.generation)
+            return reply
+        }
+        return try await runRequest(script, operation: operation, generation: nil)
+    }
+
+    func bind(session: RemoteHostSession) {
+        self.session = session
+        sessionManaged = true
+        cancelIdleDisconnect()
+    }
+
+    func startSessionGeneration(_ generation: UInt64, onFailure: @escaping @Sendable (UInt64, SSHConnectionFailureReason) async -> Void) {
+        sessionGeneration = generation
+        sessionFailure = onFailure
+    }
+
+    func handshakeRequest(_ script: PowerShellScript, generation: UInt64) async throws -> Data {
+        try await runRequest(script, operation: "OperationHandshake", generation: generation)
+    }
+
+    func retireSessionGeneration(_ generation: UInt64) async {
+        guard sessionGeneration == generation else { return }
+        sessionGeneration = nil
+        sessionFailure = nil
+        isStarted = false
+        await transport.stop()
+        await transport.closeControlConnection()
+    }
+
+    private func runRequest(_ script: PowerShellScript, operation: String, generation: UInt64?) async throws -> Data {
         await acquireRequestSlot()
         beginInFlightOperation()
         defer {
@@ -129,12 +168,22 @@ actor PowerShellChannel: RemoteConnectionHandle {
             releaseRequestSlot()
         }
         do {
-            return try await sendAndReceive(script, operation: operation)
+            try Task.checkCancellation()
+            if sessionManaged, generation == nil || generation != sessionGeneration { throw RemoteHostSessionError.obsoleteGeneration }
+            let reply = try await sendAndReceive(script, operation: operation)
+            if sessionManaged, generation != sessionGeneration { throw RemoteHostSessionError.obsoleteGeneration }
+            return reply
         } catch let error as PowerShellChannelError where Self.isRemoteOperationError(error) {
             // An operation-level error from a responsive host is not a connection drop; surface
             // it to the caller without restarting or publishing a failed state.
             throw error
         } catch {
+            if sessionManaged {
+                if let generation, generation == sessionGeneration {
+                    await sessionFailure?(generation, RemoteHostSession.reason(for: error))
+                }
+                throw error
+            }
             // A transient transport failure (a oneShot ssh that lost a race on the shared
             // master, say) gets one quiet re-establish-and-retry before it is treated as a
             // real drop, so a single hiccup never pauses the file-operation queue.
@@ -171,7 +220,7 @@ actor PowerShellChannel: RemoteConnectionHandle {
         }
         // A complete framed reply means the host connection is live, even if the operation it
         // carried failed.
-        transition(to: .connected)
+        if !sessionManaged { transition(to: .connected) }
         guard response.ok else {
             throw PowerShellChannelError.remoteError(response.error ?? "PowerShell operation failed.")
         }
@@ -216,6 +265,9 @@ actor PowerShellChannel: RemoteConnectionHandle {
         await transport.stop()
         await transport.closeControlConnection()
         transition(to: .failed(reason: .transport("UI test connection dropped")))
+        if let generation = sessionGeneration {
+            await sessionFailure?(generation, .transport("UI test connection dropped"))
+        }
     }
 
     #if DEBUG
@@ -248,7 +300,7 @@ actor PowerShellChannel: RemoteConnectionHandle {
 
     private func scheduleIdleDisconnectIfNeeded() {
         cancelIdleDisconnect()
-        guard isStarted, !hasIdleBlockers else { return }
+        guard !sessionManaged, isStarted, !hasIdleBlockers else { return }
         let timeout = idleTimeout
         idleDisconnectTask = Task { [weak self] in
             do {
@@ -287,7 +339,7 @@ actor PowerShellChannel: RemoteConnectionHandle {
     }
 
     private func publishStateChange(from oldState: SSHConnectionState, to newState: SSHConnectionState) {
-        guard let hostID else { return }
+        guard !sessionManaged, let hostID else { return }
         Task { @MainActor in
             RemoteConnectionStateStore.shared.setState(newState, for: hostID, oldState: oldState)
         }

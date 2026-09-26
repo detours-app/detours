@@ -3,6 +3,30 @@ import XCTest
 
 @MainActor
 final class RemoteConnectionStateStoreTests: XCTestCase {
+    func testSessionOwnerAndGenerationFenceLatePublications() {
+        let store = RemoteConnectionStateStore.shared
+        store.clearForTesting()
+        defer { store.clearForTesting() }
+        let host = UUID()
+        let old = UUID()
+        let current = UUID()
+        store.claim(hostID: host, owner: old)
+        store.setState(.connected, for: host, owner: old, generation: 3)
+        store.claim(hostID: host, owner: current)
+        store.setState(.connected, for: host, owner: old, generation: 4)
+        store.setState(.connected, for: host)
+        store.release(hostID: host, owner: old)
+        XCTAssertEqual(store.state(for: host), .connecting)
+        store.setState(.reconnecting(attempt: 1, nextDelay: 1), for: host, owner: current, generation: 2)
+        store.setState(.connected, for: host, owner: current, generation: 1)
+        XCTAssertEqual(store.state(for: host), .reconnecting(attempt: 1, nextDelay: 1))
+        store.setState(.connected, for: host, owner: current, generation: 3)
+        XCTAssertEqual(store.state(for: host), .connected)
+        store.release(hostID: host, owner: current)
+        store.setState(.connected, for: host, owner: current, generation: 4)
+        XCTAssertNil(store.state(for: host))
+    }
+
     func testSnapshotIncludesStateRecordedBeforeReaderStarts() {
         RemoteConnectionStateStore.shared.clearForTesting()
         defer { RemoteConnectionStateStore.shared.clearForTesting() }

@@ -161,13 +161,6 @@ extension MainSplitViewController {
         }
     }
 
-    @objc func handleRemoteConnectionStateChange(_ notification: Notification) {
-        guard let change = notification.object as? SSHConnectionStateChange else { return }
-        if case .failed = change.newState {
-            remoteConnectionResources.removeValue(forKey: change.hostID)
-        }
-    }
-
     /// Pins the passive 50/50 indicator at the divider (the right pane's leading
     /// edge). The indicator toggles its own visibility from the panes' widths; it
     /// never moves the divider or persists anything.

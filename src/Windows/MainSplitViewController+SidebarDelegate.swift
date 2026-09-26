@@ -196,7 +196,6 @@ extension MainSplitViewController: SidebarDelegate {
         guard alert.runModal() == .alertFirstButtonReturn else { return }
 
         RemoteHostStore.shared.remove(id: host.id)
-        remoteConnectionResources.removeValue(forKey: host.id)
         FileOperationQueue.shared.unregisterRemoteFileProvider(for: host.id)
         leftPane.navigateTabsViewingRemovedRemoteHost(host.id)
         rightPane.navigateTabsViewingRemovedRemoteHost(host.id)
