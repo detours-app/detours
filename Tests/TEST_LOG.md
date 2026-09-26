@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry installed session launch on feature commit | `121fa67` | PASS: signed build and the single installed launch test passed in 6.308 seconds. The runner verified the requested clean commit, recorded zero consent prompts or interruptions and passed cleanup. Removed the obsolete main-only preflight restriction that caused the preceding failure. |
 | Foundry guarded installed launch preflight | `3e1d087` | FAIL: qualification rejected branch fix/remote-operation-reliability because its preflight requires main. Both machines were clean at the same commit. No installed-app test ran; the runner wrote reset/cleanup evidence. C4 remains open pending the branch-guard decision and actual installed launch verification. |
 | Foundry SSH authentication rejection | `abf6dff` | PASS: signed no-install build and 18 selected checks passed in 10.187 seconds, zero failures. A real rejected SSH account stops as authentication failure within the ten-second limit; it does not consume the automatic retry budget. Both successful live host reconnects, session deadlines and existing connection-state regressions passed. |
 | Foundry session-gated readers and reconnect refresh | `9e4905e` | PASS: signed no-install build and 27 focused checks passed in 10.665 seconds, zero failures. Unix/Windows live reconnect, Windows transfer routing, remote transfer framing and all ten listing refresh/recovery regressions passed. Installed launch capture is the remaining C4 boundary check. |
