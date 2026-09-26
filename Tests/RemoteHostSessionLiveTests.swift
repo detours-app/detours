@@ -91,6 +91,10 @@ final class RemoteHostSessionLiveTests: XCTestCase {
             }
             XCTAssertFalse(matches.isEmpty, "Search did not find a visible hosts entry")
             let size = try XCTUnwrap(refreshed.first { $0.name == "hosts" }?.fileSize)
+            let observed = try await client.send(.operation(.lookup(.init(account: second.handshake.account, path: .unix(Data("/etc/hosts".utf8))))))
+            let lookup = try OperationReply.decode(XCTUnwrap(observed.first))
+            guard case .lookup(.found(let observation)) = lookup else { throw RemoteHostSessionError.invalidHandshake }
+            XCTAssertEqual(observation.byteCount, UInt64(size))
             let transfer = RemoteTransferChannel(sshTarget: target, controlDirectory: control, session: session)
             let downloaded = control.appendingPathComponent("hosts-copy")
             try await transfer.download(source: RemotePath("/etc/hosts"), expectedByteCount: size, to: downloaded)

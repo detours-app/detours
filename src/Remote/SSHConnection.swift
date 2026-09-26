@@ -390,6 +390,15 @@ actor SSHConnection {
         ]
     }
 
+    func auxiliaryWorker() throws -> RemoteProcessWorker {
+        try prepareControlDirectory()
+        try hostTrust.prepareKnownHostsFile()
+        let process = processFactory()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
+        process.arguments = sshArguments()
+        return RemoteProcessWorker(process: process)
+    }
+
     func currentStreamGeneration() -> UInt64 {
         streamGeneration
     }

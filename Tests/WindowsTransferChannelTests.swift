@@ -5,14 +5,14 @@ import RemoteOperationSupport
 final class WindowsTransferChannelTests: XCTestCase {
     func testMeasuredProgressExpiresWithoutBytesAndAllowsLongTransfers() throws {
         let start = ContinuousClock.now
-        let stalled = SFTPMeasuredProgress(startedAt: start)
+        let stalled = RemoteMeasuredProgress(startedAt: start)
         stalled.record(0, at: start.advanced(by: .seconds(29)))
         XCTAssertThrowsError(try stalled.check(at: start.advanced(by: .seconds(30))))
-        let progressing = SFTPMeasuredProgress(startedAt: start)
+        let progressing = RemoteMeasuredProgress(startedAt: start)
         for step in 1...20 {
             let now = start.advanced(by: .seconds(step * 25))
             try progressing.check(at: now)
-            progressing.record(Int64(step), at: now)
+            progressing.record(UInt64(step), at: now)
         }
         progressing.record(20, at: start.advanced(by: .seconds(525)))
         progressing.record(19, at: start.advanced(by: .seconds(529)))

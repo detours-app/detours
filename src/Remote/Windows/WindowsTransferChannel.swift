@@ -257,11 +257,13 @@ final class ProcessWindowsSFTPClient: WindowsSFTPClient, @unchecked Sendable {
         }
         #endif
         let worker = RemoteProcessWorker(process: process)
-        let progress = SFTPMeasuredProgress()
+        let progress = RemoteMeasuredProgress()
         let monitor = Task {
             do {
                 while !Task.isCancelled {
-                    progress.record(try await measure())
+                    let bytes = try await measure()
+                    guard bytes >= 0 else { throw CocoaError(.fileReadUnknown) }
+                    progress.record(UInt64(bytes))
                     try await Task.sleep(for: .seconds(5))
                 }
             } catch {
@@ -315,28 +317,4 @@ private extension WindowsTransferChannel {
         """
     )
 
-}
-
-final class SFTPMeasuredProgress: @unchecked Sendable {
-    private let lock = NSLock()
-    private var measuredBytes: Int64 = 0
-    private var advanced: ContinuousClock.Instant
-    private var failure: Error?
-
-    init(startedAt: ContinuousClock.Instant = .now) { advanced = startedAt }
-
-    func record(_ bytes: Int64, at now: ContinuousClock.Instant = .now) {
-        lock.withLock {
-            if bytes > measuredBytes { measuredBytes = bytes; advanced = now }
-        }
-    }
-
-    func fail(_ error: Error) { lock.withLock { failure = error } }
-
-    func check(at now: ContinuousClock.Instant = .now) throws {
-        try lock.withLock {
-            if let failure { throw failure }
-            if advanced.duration(to: now) >= .seconds(30) { throw RemoteProcessWorkerError.timedOut }
-        }
-    }
 }
