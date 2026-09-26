@@ -181,14 +181,16 @@ final class CoordinatorFixture: @unchecked Sendable {
     let source: URL
     let destination: URL
     let bytes = Data("verified remote content".utf8)
-    let account = OperationAccount(hostIdentity: "fixture-host", accountIdentity: "fixture-account")
+    let account: OperationAccount
     let hostID = UUID()
     let store: RemoteOperationStore
     let session: RemoteHostSession
     let boundary: CoordinatorBoundary
     let intent: OperationIntent
 
-    init(loss: CoordinatorBoundary.Kind? = nil, pauseAfterPreparation: Bool = false, pauseAfterCommit: Bool = false) async throws {
+    init(loss: CoordinatorBoundary.Kind? = nil, pauseAfterPreparation: Bool = false, pauseAfterCommit: Bool = false,
+         account: OperationAccount = .init(hostIdentity: "fixture-host", accountIdentity: "fixture-account")) async throws {
+        self.account = account
         root = FileManager.default.temporaryDirectory.appendingPathComponent("Coordinator-" + UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false,
                                                 attributes: [.posixPermissions: 0o700])
