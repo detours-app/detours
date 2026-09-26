@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry installed accepted-session connection | `1fe1cc9` | PASS: guarded connection XCUI passed in 8.794 seconds with no skips, zero consent prompts and successful cleanup. Inspected the exported screenshot: devtest is populated in the left pane and the local fixture remains in the right pane. Run c11-connection-1fe1cc9. |
 | Foundry verified-session queue ownership | `d45c039` | PASS: signed build and all 37 focused checks passed in 1.044 seconds. A legacy disconnect notification during actual preparation neither pauses nor cancels accepted work; publication completes with cancellation still false. |
 | Foundry accepted queue conflicts and moves | `ca5ebe5` | PASS: signed build and all 36 focused checks passed in 1.021 seconds. Keep Both preserves the original and publishes the numbered destination; same-host move confirms source disposition and retains undo registration. |
 | Foundry accepted queue integration | `f5a395e` | PASS: signed build and all 34 queue, provider, batch, coordinator, store and disconnection checks passed in 1.039 seconds. Public copy retains earlier undo after a missing later source; denied/disconnected lookups send no acceptance, Skip preserves the existing file, and a lost commit reply is checked without replay. Resolves the missing test import from the preceding run. |
