@@ -5,9 +5,20 @@ actor WindowsHostSessionTransport: RemoteHostSessionTransport {
     private let channel: PowerShellChannel
     private var generation: UInt64?
     private var retirement: Task<Void, Never>?
+    private var provider: WindowsRemoteProvider?
 
     init(channel: PowerShellChannel) {
         self.channel = channel
+    }
+
+    func bind(provider: WindowsRemoteProvider) {
+        self.provider = provider
+    }
+
+    func restoreWatches(generation: UInt64) async throws {
+        guard self.generation == generation else { throw RemoteHostSessionError.obsoleteGeneration }
+        try await provider?.reregisterWatchesAfterReconnect()
+        guard self.generation == generation else { throw RemoteHostSessionError.obsoleteGeneration }
     }
 
     func handshake(generation: UInt64, onFailure: @escaping @Sendable (UInt64, SSHConnectionFailureReason) async -> Void) async throws -> OperationHandshake {
@@ -36,6 +47,7 @@ actor WindowsHostSessionTransport: RemoteHostSessionTransport {
         let previous = retirement
         let task = Task {
             await previous?.value
+            await provider?.invalidateWatchWorkers()
             await channel.retireSessionGeneration(generation)
         }
         retirement = task

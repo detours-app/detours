@@ -32,6 +32,7 @@ extension MainSplitViewController {
         }
         await channel.bind(session: session)
         let provider = WindowsRemoteProvider(hostID: host.id, sshTarget: host.sshTarget, channel: channel)
+        await transport.bind(provider: provider)
         try await RemoteConnectionRegistry.shared.registerSession(session, owner: owner, windowsChannel: channel,
             onDisconnect: { await provider.stopWatching() }, for: host.id)
         _ = try await session.ensureReady()

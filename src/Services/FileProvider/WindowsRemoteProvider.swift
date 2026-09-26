@@ -140,6 +140,14 @@ actor WindowsRemoteProvider: FileProvider {
         await watchChannel?.stop()
     }
 
+    func invalidateWatchWorkers() async {
+        await watchChannel?.invalidateWorkers()
+    }
+
+    func reregisterWatchesAfterReconnect() async throws {
+        try await watchChannel?.reregisterAfterReconnect()
+    }
+
     func gitStatus(for directory: Location) async -> [Location: GitStatus] {
         guard let windowsPath = try? windowsPath(from: directory),
               let nativePath = windowsPath.nativePath else {
