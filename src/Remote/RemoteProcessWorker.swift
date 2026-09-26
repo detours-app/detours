@@ -30,6 +30,7 @@ final class RemoteProcessWorker: @unchecked Sendable {
     private var stopping = false
     private var inputClosed = false
     private var diagnosticBytes = Data()
+    private var writtenBytes: Int64 = 0
     private let clock = ContinuousClock()
 
     init(process: Process) {
@@ -66,10 +67,11 @@ final class RemoteProcessWorker: @unchecked Sendable {
                         try self.checkCancellation()
                         continuation.resume(returning: result)
                     } catch {
+                        let failure: Error = self.lock.withLock { self.stopping } ? CancellationError() : error
                         self.requestStop()
                         do {
                             try self.waitForShutdown()
-                            continuation.resume(throwing: error)
+                            continuation.resume(throwing: failure)
                         } catch {
                             continuation.resume(throwing: error)
                         }
@@ -125,6 +127,7 @@ final class RemoteProcessWorker: @unchecked Sendable {
 
     func write(_ data: Data, timeout: Duration = .seconds(10)) throws {
         try inputLock.withLock {
+            try checkCancellation()
             guard !inputClosed else { throw RemoteProcessWorkerError.closed }
             let deadline = clock.now.advanced(by: timeout)
             let descriptor = input.fileHandleForWriting.fileDescriptor
@@ -134,7 +137,11 @@ final class RemoteProcessWorker: @unchecked Sendable {
                 while offset < buffer.count {
                     try wait(descriptor, events: Int16(POLLOUT), deadline: deadline)
                     let count = Darwin.write(descriptor, base.advanced(by: offset), buffer.count - offset)
-                    if count > 0 { offset += count; continue }
+                    if count > 0 {
+                        offset += count
+                        lock.withLock { writtenBytes += Int64(count) }
+                        continue
+                    }
                     if count < 0, errno == EINTR || errno == EAGAIN { continue }
                     throw RemoteProcessWorkerError.system(errno)
                 }
@@ -186,6 +193,8 @@ final class RemoteProcessWorker: @unchecked Sendable {
         // swiftlint:disable:next optional_data_string_conversion
         lock.withLock { String(decoding: [UInt8](diagnosticBytes), as: UTF8.self) }
     }
+
+    var writtenByteCount: Int64 { lock.withLock { writtenBytes } }
 
     func finishDiagnostics() {
         _ = diagnosticsFinished.wait(timeout: .now() + 1)

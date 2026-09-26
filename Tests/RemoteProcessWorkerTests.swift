@@ -52,6 +52,12 @@ final class RemoteProcessWorkerTests: XCTestCase {
             }
         }
         await fulfillment(of: [started], timeout: 2)
+        let deadline = ContinuousClock.now.advanced(by: .seconds(1))
+        while worker.writtenByteCount == 0, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(2))
+        }
+        XCTAssertGreaterThan(worker.writtenByteCount, 0)
+        XCTAssertLessThan(worker.writtenByteCount, 1_048_576)
         task.cancel()
         do { try await task.value; XCTFail("Cancelled write returned success") } catch is CancellationError {}
         XCTAssertFalse(worker.process.isRunning)
@@ -66,6 +72,21 @@ final class RemoteProcessWorkerTests: XCTestCase {
             }
             XCTFail("Silent process returned a reply")
         } catch RemoteProcessWorkerError.timedOut {}
+        XCTAssertFalse(worker.process.isRunning)
+    }
+
+    func testCancellationBeforeWriteWinsOverClosedInput() async throws {
+        let worker = makeWorker("printf ready; exec /bin/sleep 30")
+        do {
+            try await worker.perform { worker in
+                try worker.start()
+                _ = try worker.readExactly(5)
+                worker.requestStop()
+                worker.closeInput()
+                try worker.write(Data([1]))
+            }
+            XCTFail("Cancelled worker accepted a write")
+        } catch is CancellationError {}
         XCTAssertFalse(worker.process.isRunning)
     }
 
