@@ -1,4 +1,5 @@
 import Foundation
+import os.log
 
 enum WindowsWatchChannelError: Error, Equatable, LocalizedError {
     case missingChannel
@@ -242,26 +243,33 @@ actor WindowsWatchChannel {
         controlDirectory: URL,
         hostTrust: SSHHostTrust
     ) async {
-        await Task.detached(priority: .utility) {
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-            process.arguments = [
-                "-o", "ControlMaster=auto",
-                "-o", "ControlPath=\(controlDirectory.path)/%C",
-                "-o", "ControlPersist=300",
-            ] + hostTrust.sshArguments + [
-                sshTarget,
-                "powershell.exe",
-                "-NoProfile",
-                "-NonInteractive",
-                "-Command",
-                "Stop-Process -Id \(pid) -Force -ErrorAction SilentlyContinue",
-            ]
-            process.standardOutput = FileHandle.nullDevice
-            process.standardError = FileHandle.nullDevice
-            try? process.run()
-            process.waitUntilExit()
-        }.value
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
+        process.arguments = [
+            "-o", "ControlMaster=auto",
+            "-o", "ControlPath=\(controlDirectory.path)/%C",
+            "-o", "ControlPersist=300",
+        ] + hostTrust.sshArguments + [
+            sshTarget, "powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+            "Stop-Process -Id \(pid) -Force -ErrorAction SilentlyContinue",
+        ]
+        let worker = RemoteProcessWorker(process: process)
+        do {
+            try await worker.perform { worker in
+                try hostTrust.prepareKnownHostsFile()
+                try worker.start()
+                worker.closeInput()
+                let deadline = ContinuousClock.now.advanced(by: .seconds(10))
+                while !(try worker.read(maximumBytes: 4096, timeout: ContinuousClock.now.duration(to: deadline))).isEmpty {}
+                guard try worker.waitForExit(timeout: ContinuousClock.now.duration(to: deadline)) == 0 else {
+                    worker.finishDiagnostics()
+                    throw RemoteTransferError.processFailed(worker.diagnostics)
+                }
+            }
+        } catch {
+            Logger(subsystem: "com.detours", category: "remote-watch")
+                .error("Remote watcher retirement failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     private func forgetEvents(for watchID: UUID) {

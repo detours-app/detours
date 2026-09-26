@@ -86,10 +86,26 @@ final class RemoteHostSessionLiveTests: XCTestCase {
             XCTAssertTrue(refreshed.contains { $0.name == "hosts" })
             let search = RemoteSearchChannel(sshTarget: target, controlDirectory: control, session: session)
             var matches: [RemoteFindMatch] = []
-            for try await batch in search.search(query: Data("detours-server".utf8), cap: 1) {
+            for try await batch in search.search(query: Data("hosts".utf8), cap: 1) {
                 matches.append(contentsOf: batch)
             }
-            XCTAssertFalse(matches.isEmpty, "Search did not find the deployed helper")
+            XCTAssertFalse(matches.isEmpty, "Search did not find a visible hosts entry")
+            let size = try XCTUnwrap(refreshed.first { $0.name == "hosts" }?.size)
+            let transfer = RemoteTransferChannel(sshTarget: target, controlDirectory: control, session: session)
+            let downloaded = control.appendingPathComponent("hosts-copy")
+            try await transfer.download(source: RemotePath("/etc/hosts"), expectedByteCount: size, to: downloaded)
+            let contents = try Data(contentsOf: downloaded)
+            XCTAssertEqual(Int64(contents.count), size)
+            XCTAssertFalse(contents.isEmpty)
+            do {
+                try await transfer.download(source: RemotePath("/etc/hosts"), expectedByteCount: size, to: downloaded)
+                XCTFail("Download replaced an existing destination")
+            } catch let error as CocoaError {
+                XCTAssertEqual(error.code, .fileWriteFileExists)
+            }
+            XCTAssertEqual(try Data(contentsOf: downloaded), contents)
+            let remaining = try FileManager.default.contentsOfDirectory(atPath: control.path)
+            XCTAssertFalse(remaining.contains { $0.hasPrefix(".detours-partial-") })
             await provider.unwatch(watch)
             await session.disconnect()
         } catch {

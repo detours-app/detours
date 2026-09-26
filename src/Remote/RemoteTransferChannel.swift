@@ -122,94 +122,59 @@ actor RemoteTransferChannel {
         return process
     }
 
-    /// Copies a file down from the host.
-    ///
-    /// The body is a blocking read loop plus a wait for the transfer process,
-    /// so it lasts as long as the transfer does. Run on a Swift concurrency
-    /// executor it would hold one of the pool's fixed number of threads for
-    /// minutes on a large file, which is subtracted from everything else the
-    /// app could be doing. A dispatch queue adds threads when they block.
     func download(source: RemotePath, expectedByteCount: Int64, to destination: URL) async throws {
-        let lifetime = try await session?.acquireLifetime(.reader)
-        defer { lifetime?.release() }
-        let ready = try await session?.ensureReady()
-        try Task.checkCancellation()
-        let setup = TransferProcessSetup(
-            arguments: sshArguments(),
-            hostTrust: hostTrust,
-            processFactory: processFactory
-        )
+        let process = processFactory()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
+        process.arguments = sshArguments()
+        let worker = RemoteProcessWorker(process: process)
+        let hostTrust = self.hostTrust
         let handshake = makeHandshake(
-            direction: .download,
-            source: source,
-            destination: RemotePath(destination.path),
-            byteCount: expectedByteCount
+            direction: .download, source: source,
+            destination: RemotePath(destination.path), byteCount: expectedByteCount
         )
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            Self.transferQueue.async {
-                do {
-                    try Self.performDownload(
-                        handshake: handshake,
-                        expectedByteCount: expectedByteCount,
-                        destination: destination,
-                        setup: setup
-                    )
-                    continuation.resume()
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
+        let body: @Sendable (RemoteProcessWorker) throws -> Void = { worker in
+            try hostTrust.prepareKnownHostsFile()
+            try worker.start()
+            try worker.write(RPCStreamHandler.encodeFrame(handshake.binaryEncoded()))
+            worker.closeInput()
+            try Self.receiveDownload(worker: worker, expectedByteCount: expectedByteCount, destination: destination)
         }
-        if let ready { try await session?.requireGeneration(ready.generation) }
+        if let session {
+            try await session.performOwnedWorker(worker, kind: .reader, body: body)
+        } else {
+            try await worker.perform(body)
+        }
     }
 
-    private static func performDownload(
-        handshake: RemoteTransferHandshake,
-        expectedByteCount: Int64,
-        destination: URL,
-        setup: TransferProcessSetup
-    ) throws {
-        let stdin = Pipe()
-        let stdout = Pipe()
-        let stderr = Pipe()
-        let process = try Self.configuredTransferProcess(
-            stdin: stdin, stdout: stdout, stderr: stderr, setup: setup
-        )
-        try process.run()
-
-        try Self.write(
-            RPCStreamHandler.encodeFrame(handshake.binaryEncoded()),
-            to: stdin.fileHandleForWriting, process: process, stderr: stderr
-        )
-        try stdin.fileHandleForWriting.close()
-
-        let partial = Self.partialURL(for: destination)
+    private static func receiveDownload(worker: RemoteProcessWorker, expectedByteCount: Int64, destination: URL) throws {
+        let partial = destination.deletingLastPathComponent()
+            .appendingPathComponent(".detours-partial-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try? FileManager.default.removeItem(at: partial)
-
+        guard FileManager.default.createFile(atPath: partial.path, contents: nil) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
         var written: Int64 = 0
         do {
-            FileManager.default.createFile(atPath: partial.path, contents: nil)
-            let output = stdout.fileHandleForReading
             let handle = try FileHandle(forWritingTo: partial)
             defer { try? handle.close() }
-
             while written < expectedByteCount {
-                let remaining = min(64 * 1024, Int(expectedByteCount - written))
-                let chunk = output.readData(ofLength: remaining)
+                let remaining = Int(min(64 * 1024, expectedByteCount - written))
+                let chunk = try worker.read(maximumBytes: remaining, timeout: .seconds(30))
                 guard !chunk.isEmpty else { break }
                 try handle.write(contentsOf: chunk)
                 written += Int64(chunk.count)
             }
-
-            process.waitUntilExit()
-            if process.terminationStatus != 0 {
-                throw RemoteTransferError.processFailed(Self.stderrText(from: stderr))
+            let extra = try worker.read(maximumBytes: 1, timeout: .seconds(10))
+            guard extra.isEmpty else {
+                throw RemoteTransferError.byteCountMismatch(expected: expectedByteCount, actual: written + Int64(extra.count))
+            }
+            guard try worker.waitForExit() == 0 else {
+                worker.finishDiagnostics()
+                throw RemoteTransferError.processFailed(worker.diagnostics)
             }
             guard written == expectedByteCount else {
                 throw RemoteTransferError.byteCountMismatch(expected: expectedByteCount, actual: written)
             }
-
             try Self.movePartial(partial, to: destination)
         } catch {
             try? FileManager.default.removeItem(at: partial)
