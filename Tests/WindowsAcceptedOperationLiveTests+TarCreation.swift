@@ -67,6 +67,7 @@ extension WindowsAcceptedOperationLiveTests {
             XCTAssertEqual(result["bytes"], "archive bytes")
             XCTAssertEqual(result["hidden"], "hidden bytes")
             XCTAssertEqual(result["empty"], "True")
+            try await exerciseTarExtraction(channel: channel, root: root, format: format)
             let cancelledID = try await accept("cancelled-" + format)
             guard case .receipt(let cancellable) = try await send(.prepareArchive(identity: cancelledID, password: nil)) else {
                 return XCTFail("No cancellable TAR")

@@ -130,6 +130,20 @@ extension WindowsOperationScripts {
                 } finally { Marshal.FreeHGlobal(buffer); }
             }
         }
+        public static void SetDirectoryTime(string path, string volume, string id, long timestamp) {
+            using (SafeFileHandle handle = Open(path, 0x180, 3)) {
+                Observation observed = Observe(handle);
+                if (observed.kind != "directory" || observed.identity.volume != volume || observed.identity.@object != id)
+                    throw new IOException("Archive directory identity changed.");
+                byte[] desired = new byte[40]; Buffer.BlockCopy(BitConverter.GetBytes(timestamp), 0, desired, 16, 8);
+                IntPtr buffer = Marshal.AllocHGlobal(40);
+                try {
+                    Marshal.Copy(desired, 0, buffer, 40); IoStatus result;
+                    int status = NtSetInformationFile(handle, out result, buffer, 40, 4);
+                    if (status != 0) throw new Win32Exception((int)RtlNtStatusToDosError(status));
+                } finally { Marshal.FreeHGlobal(buffer); }
+            }
+        }
         public static FileStream OpenObservedFile(string path, string volume, string id, string version) {
             SafeFileHandle handle = Open(path, 0x80000000, 1);
             try {

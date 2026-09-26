@@ -21,9 +21,10 @@ extension WindowsOperationScripts {
                 $kind = if ($index -lt $parts.Count - 1 -or $directory) { 'directory' } else { 'file' }
                 if ($members.ContainsKey($relative)) {
                     if ($kind -ne 'directory' -or $members[$relative].kind -ne 'directory') { throw 'ZIP entries have conflicting names.' }
+                    if ($index -eq $parts.Count - 1) { $members[$relative].entry = $entry }
                 } else {
                     $members.Add($relative, [pscustomobject]@{ name = $relative; kind = $kind
-                        entry = $(if ($kind -eq 'file') { $entry } else { $null }); sha256 = $null; byteCount = 0 })
+                        entry = $(if ($index -eq $parts.Count - 1) { $entry } else { $null }); sha256 = $null; byteCount = 0 })
                 }
             }
         }

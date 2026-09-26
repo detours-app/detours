@@ -4,6 +4,9 @@ extension WindowsOperationScripts {
     static let archiveHelpers = #"""
     function Prepare-WindowsArchive($Context, $Parameters) {
         $intent = $Context.record.intent
+        if ($intent.action -eq 'archiveExtract' -and $intent.archiveFormat -in @('tarGz', 'tarBz2', 'tarXz')) {
+            return Prepare-WindowsTarExtraction $Context $Parameters
+        }
         if ($intent.action -eq 'archiveExtract') { return Prepare-WindowsZipExtraction $Context $Parameters }
         if ($intent.action -eq 'archiveCreate' -and $intent.archiveFormat -in @('tarGz', 'tarBz2', 'tarXz')) {
             return Prepare-WindowsTarArchive $Context $Parameters

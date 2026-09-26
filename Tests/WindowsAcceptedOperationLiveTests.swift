@@ -331,6 +331,8 @@ final class WindowsAcceptedOperationLiveTests: XCTestCase {
     \#(WindowsArchiveScripts.externalToolHelpers)
     \#(WindowsOperationScripts.archiveProcessHelpers)
     \#(WindowsOperationScripts.tarCreationHelpers)
+    \#(WindowsOperationScripts.tarReaderHelpers)
+    \#(WindowsOperationScripts.tarExtractionHelpers)
     $nativeConfirmedDelete = ${function:Remove-WindowsConfirmedEntry}
     function Remove-WindowsConfirmedEntry($Context, [string]$Path, $Expected) {
         if ($Arguments.trashFailure -eq 'deleteLaterChild' -and $Path.EndsWith('a.txt')) { throw 'Injected later-child deletion refusal.' }
