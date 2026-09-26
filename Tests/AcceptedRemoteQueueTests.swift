@@ -96,6 +96,41 @@ final class AcceptedRemoteQueueTests: XCTestCase {
         await fixture.session.disconnect()
     }
 
+    func testKeepBothRetainsOriginalAndCommitsNumberedDestination() async throws {
+        let fixture = try await CoordinatorFixture()
+        defer { fixture.cleanup() }
+        let queue = try await configure(fixture)
+        let destination = try destination(fixture)
+        let directory = URL(fileURLWithPath: destination.path)
+        try Data("original".utf8).write(to: directory.appendingPathComponent("source"))
+        queue.conflictChoiceOverrideForTesting = .keepBoth
+        defer { queue.conflictChoiceOverrideForTesting = nil }
+        let copied = try await queue.copy(items: [source(fixture)], to: destination)
+        XCTAssertEqual(copied, [destination.appendingPathComponent("source 2")])
+        XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("source")), Data("original".utf8))
+        XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("source 2")), fixture.bytes)
+        await fixture.session.disconnect()
+    }
+
+    func testMoveUsesConfirmedSourceDispositionAndRetainsUndo() async throws {
+        let fixture = try await CoordinatorFixture()
+        defer { fixture.cleanup() }
+        let queue = try await configure(fixture)
+        let destination = try destination(fixture)
+        let undo = UndoManager()
+        undo.groupsByEvent = false
+        undo.beginUndoGrouping()
+        let moved = try await queue.move(items: [source(fixture)], to: destination, undoManager: undo)
+        undo.endUndoGrouping()
+        XCTAssertEqual(moved, [destination.appendingPathComponent("source")])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.source.path))
+        XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: destination.path).appendingPathComponent("source")), fixture.bytes)
+        let result = try XCTUnwrap(queue.remoteOperationResults.values.first)
+        XCTAssertEqual(result.items.first?.result.receipt?.sourceDisposition, .confirmed)
+        XCTAssertTrue(undo.canUndo)
+        await fixture.session.disconnect()
+    }
+
     private func configure(_ fixture: CoordinatorFixture) async throws -> FileOperationQueue {
         let queue = FileOperationQueue.shared
         let provider = RemoteFileProvider(hostID: fixture.hostID, rpcClient: AcceptedProviderRPC(service: fixture.boundary.service),
