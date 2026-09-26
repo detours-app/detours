@@ -4,6 +4,7 @@ extension WindowsOperationScripts {
     static let archiveHelpers = #"""
     function Prepare-WindowsArchive($Context, $Parameters) {
         $intent = $Context.record.intent
+        if ($intent.action -eq 'archiveExtract') { return Prepare-WindowsZipExtraction $Context $Parameters }
         if ($intent.action -ne 'archiveCreate' -or $intent.archiveFormat -ne 'zip') { throw 'Accepted Windows archive format is not implemented.' }
         if ($intent.archiveEncrypted -ne $false -or -not [string]::IsNullOrEmpty($Parameters.password)) {
             throw 'Password-protected archives are not supported on Windows remote machines.'

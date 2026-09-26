@@ -325,6 +325,8 @@ final class WindowsAcceptedOperationLiveTests: XCTestCase {
     \#(WindowsOperationScripts.treeProofHelpers)
     \#(WindowsOperationScripts.treeCopyHelpers)
     \#(WindowsOperationScripts.archiveHelpers)
+    \#(WindowsOperationScripts.zipPlanHelpers)
+    \#(WindowsOperationScripts.zipExtractionHelpers)
     $nativeZipFile = ${function:Add-WindowsAcceptedZipFile}
     function Add-WindowsAcceptedZipFile($Context, $Archive, [string]$Name, $Member) {
         & $nativeZipFile $Context $Archive $Name $Member
