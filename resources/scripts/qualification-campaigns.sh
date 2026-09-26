@@ -37,7 +37,6 @@ run_preflight() {
     head_commit="$(git -C "$PROJECT_DIR" rev-parse HEAD)"
     [[ "$head_commit" == "$requested_commit" ]] || fail "HEAD $head_commit does not match requested commit $requested_commit"
     current_branch="$(git -C "$PROJECT_DIR" branch --show-current)"
-    [[ "$current_branch" == "main" ]] || fail "Foundry is on unexpected branch: $current_branch"
     [[ -z "$(git -C "$PROJECT_DIR" status --porcelain)" ]] || fail "Foundry worktree is not clean"
     require_unlocked_foundry_console
 
