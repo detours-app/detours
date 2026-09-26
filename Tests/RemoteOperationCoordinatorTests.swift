@@ -196,7 +196,7 @@ final class CoordinatorFixture: @unchecked Sendable {
         destination = root.appendingPathComponent("destination")
         try bytes.write(to: source)
         store = try RemoteOperationStore(root: root.appendingPathComponent("client"))
-        let service = try await ServerOperationService(root: root.appendingPathComponent("host"), account: account)
+        let service = try await ServerOperationService(root: root.appendingPathComponent("host"), account: account, homeDirectory: root)
         session = RemoteHostSession(transport: CoordinatorTransport(service: service), idleGrace: .milliseconds(30), publish: { _, _ in })
         let operation = UUID()
         try store.save(.init(operation: operation))

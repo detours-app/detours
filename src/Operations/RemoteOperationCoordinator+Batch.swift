@@ -10,6 +10,7 @@ extension RemoteOperationCoordinator {
         if previous.items.contains(where: { !$0.sent.isEmpty }) {
             guard previous.record.intents == plan.map(\.intent),
                   previous.items.map(\.hostID) == plan.map(\.hostID),
+                  previous.items.map({ $0.requiresVerified ?? [] }) == plan.map(\.requiresVerified),
                   previous.items.map(\.preflightFailure) == plan.map(\.preflightFailure) else {
                 throw OperationContractError.intentMismatch
             }
@@ -27,6 +28,11 @@ extension RemoteOperationCoordinator {
             }
             if planned.preflightFailure == .disconnected { break }
             if planned.preflightFailure != nil { continue }
+            guard planned.requiresVerified.allSatisfy({ dependency in
+                guard let item = saved.items.first(where: { $0.identity.id == dependency }),
+                      item.outcome == .committed, let receipt = item.result.receipt else { return false }
+                return receipt.contentVerified && !receipt.effects.isEmpty && !item.result.contactLost
+            }) else { continue }
             let result = try await perform(planned.intent, hostID: planned.hostID, work: planned.work)
             if result.outcome == .unknown {
                 // A request error may have a conclusive failed-unchanged host receipt. Only that
@@ -45,6 +51,11 @@ extension RemoteOperationCoordinator {
     }
 
     private func persistPlan(_ plan: [PlannedItem], operation: UUID) async throws {
+        var preceding: Set<OperationItemID> = []
+        for planned in plan {
+            guard planned.requiresVerified.allSatisfy({ preceding.contains($0) }),
+                  preceding.insert(planned.intent.id).inserted else { throw OperationContractError.invalidReceipt }
+        }
         for planned in plan {
             guard planned.intent.id.operation == operation else { throw OperationContractError.identityMismatch }
             try await recordPlannedItem(planned)

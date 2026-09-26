@@ -19,6 +19,7 @@ final class RemoteOperationStore: @unchecked Sendable {
         var pending: Step?
         var hostAccepted = false
         var preflightFailure: PreflightFailure?
+        var requiresVerified: [OperationItemID]?
 
         var outcome: OperationOutcome {
             if let preflightFailure { return preflightFailure == .disconnected ? .notStarted : .failedUnchanged }
@@ -164,7 +165,14 @@ final class RemoteOperationStore: @unchecked Sendable {
             throw StoreError.unsafeRecord
         }
         for item in snapshot.items {
+            let dependencies = item.requiresVerified ?? []
             guard item.pending.map({ item.sent.contains($0) }) ?? true,
+                  Set(dependencies).count == dependencies.count,
+                  dependencies.allSatisfy({ dependency in
+                      guard let earlier = intents.firstIndex(where: { $0.id == dependency }),
+                            let current = intents.firstIndex(where: { $0.id == item.identity.id }) else { return false }
+                      return earlier < current
+                  }),
                   !item.hostAccepted || item.sent.contains(.accept),
                   item.preflightFailure == nil || (item.sent.isEmpty && !item.result.submitted && item.result.receipt == nil),
                   !snapshot.record.cancellationRequested || item.result.cancellationRequested else {
@@ -181,6 +189,7 @@ final class RemoteOperationStore: @unchecked Sendable {
         for (old, new) in zip(previous.items, next.items) {
             guard old.hostID == new.hostID, old.result.intent == new.result.intent,
                   old.preflightFailure == new.preflightFailure,
+                  old.requiresVerified == new.requiresVerified,
                   old.identity == new.identity, old.sent.isSubset(of: new.sent),
                   !old.hostAccepted || new.hostAccepted,
                   !old.result.submitted || new.result.submitted,

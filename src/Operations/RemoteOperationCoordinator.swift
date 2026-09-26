@@ -21,6 +21,7 @@ actor RemoteOperationCoordinator {
         let hostID: UUID
         let work: Work
         var preflightFailure: RemoteOperationStore.PreflightFailure?
+        var requiresVerified: [OperationItemID] = []
     }
 
     private let store: RemoteOperationStore
@@ -60,6 +61,7 @@ actor RemoteOperationCoordinator {
     func recordPlannedItem(_ planned: PlannedItem) async throws {
         if let existing = try itemIfPresent(planned.intent.id) {
             guard existing.hostID == planned.hostID, existing.result.intent == planned.intent,
+                  (existing.requiresVerified ?? []) == planned.requiresVerified,
                   existing.preflightFailure == planned.preflightFailure else {
                 throw OperationContractError.intentMismatch
             }
@@ -75,7 +77,8 @@ actor RemoteOperationCoordinator {
         let result = OperationOutcomeReducer(intent: planned.intent, account: ready.handshake.account,
                                              epoch: ready.handshake.epoch,
                                              intentDigest: try OperationContentProof.data(planned.intent.canonicalData()).sha256)
-        snapshot.items.append(.init(hostID: planned.hostID, result: result, preflightFailure: planned.preflightFailure))
+        snapshot.items.append(.init(hostID: planned.hostID, result: result, preflightFailure: planned.preflightFailure,
+            requiresVerified: planned.requiresVerified.isEmpty ? nil : planned.requiresVerified))
         try store.save(snapshot)
     }
 
@@ -97,6 +100,12 @@ actor RemoteOperationCoordinator {
             guard previous.hostID == hostID, previous.result.intent == intent else {
                 throw OperationContractError.intentMismatch
             }
+            let saved = try snapshot(intent.id.operation)
+            guard (previous.requiresVerified ?? []).allSatisfy({ dependency in
+                guard let item = saved.items.first(where: { $0.identity.id == dependency }),
+                      item.outcome == .committed, let receipt = item.result.receipt else { return false }
+                return receipt.contentVerified && !receipt.effects.isEmpty && !item.result.contactLost
+            }) else { return previous.result }
             if previous.pending != nil {
                 var snapshot = try store.load(intent.id.operation)
                 let position = try index(intent.id, in: snapshot)
