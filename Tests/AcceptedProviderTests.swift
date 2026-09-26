@@ -44,18 +44,26 @@ final class AcceptedProviderTests: XCTestCase {
         defer { cleanupTempDirectory(root) }
         let service = try await ServerOperationService(root: root.appendingPathComponent("journal"),
             account: OperationAccount(hostIdentity: "host", accountIdentity: "account"))
-        let unix: any FileProvider = RemoteFileProvider(hostID: UUID(), rpcClient: AcceptedProviderRPC(service: service),
-                                                       transferChannel: RemoteTransferChannel(sshTarget: "unused"))
+        let concreteUnix = RemoteFileProvider(hostID: UUID(), rpcClient: AcceptedProviderRPC(service: service),
+                                              transferChannel: RemoteTransferChannel(sshTarget: "unused"))
+        let unix: any FileProvider = concreteUnix
         let bytes = Data([47, 104, 111, 109, 101, 47, 255, 254])
         let displayed = try await unix.displayLocation(.unix(bytes))
         let roundTrip = try await unix.operationPath(displayed)
         XCTAssertEqual(roundTrip, .unix(bytes))
+        let concreteUnixLocation = try await concreteUnix.displayLocation(.unix(bytes))
+        let concreteUnixPath = try await concreteUnix.operationPath(concreteUnixLocation)
+        XCTAssertEqual(concreteUnixPath, .unix(bytes))
         let channel = PowerShellChannel(hostID: UUID(), sshTarget: "unused")
-        let windows: any FileProvider = WindowsRemoteProvider(hostID: UUID(), sshTarget: "unused", channel: channel)
+        let concreteWindows = WindowsRemoteProvider(hostID: UUID(), sshTarget: "unused", channel: channel)
+        let windows: any FileProvider = concreteWindows
         let native = #"C:\Users\Example\Unicode ü.txt"#
         let windowsLocation = try await windows.displayLocation(.windows(native))
         let windowsRoundTrip = try await windows.operationPath(windowsLocation)
         XCTAssertEqual(windowsRoundTrip, .windows(native))
+        let concreteWindowsLocation = try await concreteWindows.displayLocation(.windows(native))
+        let concreteWindowsPath = try await concreteWindows.operationPath(concreteWindowsLocation)
+        XCTAssertEqual(concreteWindowsPath, .windows(native))
         await channel.disconnect()
     }
 
@@ -73,6 +81,18 @@ final class AcceptedProviderTests: XCTestCase {
             XCTAssertEqual(observed.location.account, fixture.account)
         }
         await fixture.session.disconnect()
+    }
+
+    @MainActor
+    func testCrossPlatformDestinationNamesPreserveUnicodeAndRejectUnrepresentableNames() throws {
+        let windows = try FileOperationQueue.targetPath(source: .unix(Data("/home/é space.txt".utf8)),
+            directory: .windows(#"C:\Target"#), index: 2)
+        XCTAssertEqual(windows, .windows(#"C:\Target\é space 2.txt"#))
+        let unix = try FileOperationQueue.targetPath(source: .windows(#"C:\Source\é space.txt"#), directory: .unix(Data("/target".utf8)))
+        XCTAssertEqual(unix, .unix(Data("/target/é space.txt".utf8)))
+        for name in [Data([47, 255]), Data("/source/child\\escape".utf8), Data("/source/child:name".utf8)] {
+            XCTAssertThrowsError(try FileOperationQueue.targetPath(source: .unix(name), directory: .windows(#"C:\Target"#)))
+        }
     }
 
     func testDestinationCreatedAfterMissingLookupCannotBeOverwritten() async throws {

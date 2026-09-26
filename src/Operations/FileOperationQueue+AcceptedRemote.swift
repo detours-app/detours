@@ -128,7 +128,14 @@ extension FileOperationQueue {
             let suffix = (original as NSString).pathExtension
             let numbered = index.map { suffix.isEmpty ? "\(original) \($0)" : "\(stem) \($0).\(suffix)" } ?? original
             return .windows(directory + (directory.hasSuffix("\\") ? "" : "\\") + numbered)
-        default: throw OperationContractError.identityMismatch
+        case (.unix(let source), .windows):
+            guard let bytes = source.split(separator: 47).last,
+                  let name = String(data: Data(bytes), encoding: .utf8),
+                  !name.contains(where: { "\\/:*?\"<>|".contains($0) }) else { throw OperationFilesystemError.invalidPath }
+            return try targetPath(source: .windows(name), directory: directory, index: index)
+        case (.windows(let source), .unix):
+            guard let name = source.split(separator: "\\").last else { throw OperationFilesystemError.invalidPath }
+            return try targetPath(source: .unix(Data(name.utf8)), directory: directory, index: index)
         }
     }
 }

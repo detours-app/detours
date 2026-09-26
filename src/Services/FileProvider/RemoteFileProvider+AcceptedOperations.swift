@@ -22,11 +22,11 @@ extension RemoteFileProvider {
         return try await transferChannel.prepareAcceptedUpload(source: localURL, identity: identity, rpcClient: rpcClient)
     }
 
-    func operationPath(_ location: Location) throws -> OperationLocation.Path {
+    func operationPath(_ location: Location) async throws -> OperationLocation.Path {
         .unix(try remotePath(from: location).bytes)
     }
 
-    func displayLocation(_ path: OperationLocation.Path) throws -> Location {
+    func displayLocation(_ path: OperationLocation.Path) async throws -> Location {
         guard case .unix(let bytes) = path else { throw OperationContractError.identityMismatch }
         let remote = RemotePath(bytes: bytes)
         let location = Location.remote(hostID: hostID, path: remote.lossyDisplayString)
@@ -40,13 +40,13 @@ extension WindowsRemoteProvider {
         try await prepareAcceptedUpload(localURL, identity: identity, sftpAvailable: true)
     }
 
-    func operationPath(_ location: Location) throws -> OperationLocation.Path {
+    func operationPath(_ location: Location) async throws -> OperationLocation.Path {
         let path = try WindowsPath(location: location, hostID: hostID)
         guard let native = path.nativePath else { throw WindowsPathError.nativePathRequired(path.remotePath) }
         return .windows(native)
     }
 
-    func displayLocation(_ path: OperationLocation.Path) throws -> Location {
+    func displayLocation(_ path: OperationLocation.Path) async throws -> Location {
         guard case .windows(let native) = path else { throw OperationContractError.identityMismatch }
         return .remote(hostID: hostID, path: try WindowsPath.remotePath(fromNative: native))
     }
