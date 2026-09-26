@@ -113,6 +113,10 @@ final class QualificationConnectionUITests: BaseUITest {
             connected.connectionStates.values.contains("connected"),
             "Remote target did not connect: \(qualificationRemoteTarget)"
         )
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "Connected remote pane and preserved local pane"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     private func relaunchQualificationApp() throws {
