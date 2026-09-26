@@ -4,6 +4,41 @@ import XCTest
 @testable import Detours
 
 extension WindowsAcceptedOperationLiveTests {
+    func testAcceptedSevenZipCreationAndExtractionMatchExistingLayout() async throws {
+        let control = URL(fileURLWithPath: "/tmp").appendingPathComponent("z-" + UUID().uuidString.prefix(6))
+        try FileManager.default.createDirectory(at: control, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        defer { XCTAssertNoThrow(try FileManager.default.removeItem(at: control)) }
+        let channel = PowerShellChannel(hostID: UUID(), sshTarget: "detours-windows", controlDirectory: control)
+        let setup = PowerShellScript(source: PowerShellScript.prelude(operationBody: """
+            \(WindowsOperationScripts.filesystemHelpers)
+            $root = Join-Path ([System.IO.Path]::GetTempPath()) ('DetoursAcceptedSeven-' + [guid]::NewGuid().ToString('D'))
+            [DetoursOperationFiles]::CreatePrivateDirectory($root) | Out-Null
+            [System.IO.Directory]::CreateDirectory((Join-Path $root 'folder/empty')) | Out-Null
+            [System.IO.File]::WriteAllText((Join-Path $root 'folder/data.txt'), 'archive bytes')
+            [System.IO.File]::WriteAllText((Join-Path $root 'selected.txt'), 'second selection')
+            [System.IO.File]::WriteAllText((Join-Path $root 'folder/é hidden.txt'), 'hidden bytes')
+            [System.IO.File]::SetAttributes((Join-Path $root 'folder/é hidden.txt'), [System.IO.FileAttributes]::Hidden)
+            $root
+            """))
+        let root = try JSONDecoder().decode(String.self, from: await channel.run(setup, operation: "AcceptedSevenZipFixture"))
+        do {
+            try await exerciseSevenZipCreation(channel: channel, root: root)
+            try await cleanup(channel: channel, root: root)
+            await channel.disconnect()
+        } catch {
+            do { try await cleanup(channel: channel, root: root) } catch { XCTFail("7z fixture cleanup failed: \(error)") }
+            await channel.disconnect()
+            throw error
+        }
+    }
+
+    static func sevenZipFixtureScript(_ source: String) -> String {
+        source.replacingOccurrences(of: "param($Arguments)", with: """
+            param($Arguments)
+            $env:PATH = (Join-Path $Arguments.root 'tools') + ';' + $env:PATH
+            """)
+    }
+
     func exerciseSevenZipCreation(channel: PowerShellChannel, root: String) async throws {
         let tools = try XCTUnwrap(ProcessInfo.processInfo.environment["DETOURS_7ZIP_FIXTURE"], "7z fixture path must be supplied on Foundry")
         for name in ["7z.exe", "7z.dll"] {
@@ -19,19 +54,18 @@ extension WindowsAcceptedOperationLiveTests {
         }
         let setup = try PowerShellScript(source: """
             param($Arguments)
-            $env:PATH = (Join-Path $Arguments.root 'tools') + ';' + $env:PATH
             [System.IO.File]::WriteAllBytes((Join-Path $Arguments.root 'folder/zero.bin'), [byte[]]::new(0))
             $true
             """, arguments: ["root": root])
         _ = try await channel.run(setup, operation: "SevenZipFixtureSources")
-        struct LegacyArguments: Encodable { let items: [String]; let archiveName: String; let format: String }
-        let legacy = try PowerShellScript(source: WindowsArchiveScripts.externalCreate,
-            arguments: LegacyArguments(items: [root + "\\folder", root + "\\selected.txt"], archiveName: "legacy-seven", format: "sevenZ"))
+        struct LegacyArguments: Encodable { let root: String; let items: [String]; let archiveName: String; let format: String }
+        let legacy = try PowerShellScript(source: Self.sevenZipFixtureScript(WindowsArchiveScripts.externalCreate),
+            arguments: LegacyArguments(root: root, items: [root + "\\folder", root + "\\selected.txt"], archiveName: "legacy-seven", format: "sevenZ"))
         _ = try await channel.run(legacy, operation: "LegacySevenZipFixture")
         let account = OperationAccount(hostIdentity: "accepted-fixture", accountIdentity: "accepted-fixture-user")
         func location(_ name: String) -> OperationLocation { .init(account: account, path: .windows(root + "\\" + name)) }
         func send(_ request: OperationRequest) async throws -> OperationReply {
-            let script = try PowerShellScript(source: PowerShellScript.prelude(operationBody: Self.requestScript),
+            let script = try PowerShellScript(source: PowerShellScript.prelude(operationBody: Self.sevenZipFixtureScript(Self.requestScript)),
                 arguments: Arguments(root: root, account: account, operation: WindowsOperationArguments(request), trashFailure: nil))
             return try OperationReply.decode(await channel.run(script, operation: "AcceptedSevenZipCreation"))
         }
@@ -59,6 +93,7 @@ extension WindowsAcceptedOperationLiveTests {
         XCTAssertEqual(duplicate, .receipt(committed))
         let verify = try PowerShellScript(source: PowerShellScript.prelude(operationBody: """
             param($Arguments)
+            $env:PATH = (Join-Path $Arguments.root 'tools') + ';' + $env:PATH
             \(WindowsOperationScripts.filesystemHelpers)
             \(WindowsArchiveScripts.externalToolHelpers)
             $tool = Resolve-ArchiveTool @('7z.exe', '7z')
@@ -84,5 +119,6 @@ extension WindowsAcceptedOperationLiveTests {
         guard case .receipt(let cancelled) = try await send(.commit(cancelledID)) else { return XCTFail("No cancelled 7z") }
         XCTAssertEqual(cancelled.outcome, .failedUnchanged, cancelled.failure ?? "")
         XCTAssertTrue(cancelled.recovery.isEmpty)
+        try await exerciseSevenZipExtraction(channel: channel, root: root)
     }
 }

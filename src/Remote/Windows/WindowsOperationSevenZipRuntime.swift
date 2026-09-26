@@ -6,6 +6,7 @@ extension WindowsOperationScripts {
     Add-Type -TypeDefinition @'
     \#(sevenZipInterfaces)
     \#(sevenZipStreams)
+    \#(sevenZipReader)
     public sealed class DetoursSevenZipLibrary : IDisposable {
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         private static extern IntPtr LoadLibraryExW(string path, IntPtr file, uint flags);
@@ -45,6 +46,16 @@ extension WindowsOperationScripts {
                     cancellation.Check();
                 }
             } finally { Marshal.FinalReleaseComObject(archive); }
+        }
+        public DetoursSevenZipArchive OpenArchive(Stream input, string cancellationPath) {
+            Guid format = new Guid("23170F69-40C1-278A-1000-000110070000");
+            Guid contract = typeof(IDetoursSevenZipReader).GUID;
+            IntPtr pointer;
+            Marshal.ThrowExceptionForHR(create(ref format, ref contract, out pointer));
+            if (pointer == IntPtr.Zero) throw new IOException("The installed 7z library cannot read this archive format.");
+            object archive;
+            try { archive = Marshal.GetObjectForIUnknown(pointer); } finally { Marshal.Release(pointer); }
+            return new DetoursSevenZipArchive(archive, input, cancellationPath);
         }
         public void Dispose() {
             if (library != IntPtr.Zero) {
