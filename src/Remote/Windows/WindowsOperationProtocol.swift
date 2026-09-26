@@ -53,6 +53,7 @@ extension WindowsOperationScripts {
     \#(archiveHelpers)
     \#(zipPlanHelpers)
     \#(zipExtractionHelpers)
+    \#(deletionHelpers)
     $profile = [Environment]::GetFolderPath('UserProfile')
     if ([string]::IsNullOrWhiteSpace($profile)) { throw 'Windows user profile is unavailable.' }
     $machine = [Microsoft.Win32.Registry]::GetValue('HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Cryptography', 'MachineGuid', $null)
@@ -160,7 +161,7 @@ extension WindowsOperationScripts {
                 if ($digest -cne $identity.intentDigest) { throw 'Operation intent digest mismatch.' }
                 $intent = [System.Text.Encoding]::UTF8.GetString($bytes) | ConvertFrom-Json
                 if ((Get-OperationKey $intent.id) -cne $key) { throw 'Operation item identity mismatch.' }
-                if ($intent.action -notin @('copy', 'editorUpload', 'rename', 'move', 'createFolder', 'trash', 'restore', 'archiveCreate', 'archiveExtract')) {
+                if ($intent.action -notin @('copy', 'editorUpload', 'rename', 'move', 'createFolder', 'trash', 'restore', 'archiveCreate', 'archiveExtract', 'permanentDelete')) {
                     throw 'This Windows operation action is not implemented.'
                 }
                 return @{ accepted = @{ _0 = (Accept-Operation $Root $intent $digest $Account $epoch $ownership) } }

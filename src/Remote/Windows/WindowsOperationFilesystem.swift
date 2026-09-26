@@ -152,23 +152,34 @@ extension WindowsOperationScripts {
                 Observation observed = Observe(handle);
                 if (observed.identity.volume != volume || observed.identity.@object != id)
                     throw new IOException("Operation cleanup object changed.");
-                byte[] basic = Info(handle, 0, 40);
-                uint attributes = BitConverter.ToUInt32(basic, 32);
-                IntPtr buffer = Marshal.AllocHGlobal(40);
-                try {
-                    IoStatus result;
-                    if ((attributes & 1) != 0) {
-                        Marshal.Copy(new byte[40], 0, buffer, 40);
-                        attributes &= ~1u;
-                        Marshal.WriteInt32(buffer, 32, (int)(attributes == 0 ? 0x80 : attributes));
-                        int update = NtSetInformationFile(handle, out result, buffer, 40, 4);
-                        if (update != 0) throw new Win32Exception((int)RtlNtStatusToDosError(update));
-                    }
-                    Marshal.WriteByte(buffer, 1);
-                    int status = NtSetInformationFile(handle, out result, buffer, 1, 13);
-                    if (status != 0) throw new Win32Exception((int)RtlNtStatusToDosError(status));
-                } finally { Marshal.FreeHGlobal(buffer); }
+                DeleteHandle(handle);
             }
+        }
+        public static void DeleteConfirmed(string path, string volume, string id, string kind, string version) {
+            using (SafeFileHandle handle = Open(path, 0x10180, 0)) {
+                Observation observed = Observe(handle);
+                if (observed.identity.volume != volume || observed.identity.@object != id || observed.kind != kind ||
+                    (kind != "directory" && observed.version != version)) throw new IOException("Confirmed deletion object changed.");
+                DeleteHandle(handle);
+            }
+        }
+        private static void DeleteHandle(SafeFileHandle handle) {
+            byte[] basic = Info(handle, 0, 40);
+            uint attributes = BitConverter.ToUInt32(basic, 32);
+            IntPtr buffer = Marshal.AllocHGlobal(40);
+            try {
+                IoStatus result;
+                if ((attributes & 1) != 0) {
+                    Marshal.Copy(new byte[40], 0, buffer, 40);
+                    attributes &= ~1u;
+                    Marshal.WriteInt32(buffer, 32, (int)(attributes == 0 ? 0x80 : attributes));
+                    int update = NtSetInformationFile(handle, out result, buffer, 40, 4);
+                    if (update != 0) throw new Win32Exception((int)RtlNtStatusToDosError(update));
+                }
+                Marshal.WriteByte(buffer, 1);
+                int status = NtSetInformationFile(handle, out result, buffer, 1, 13);
+                if (status != 0) throw new Win32Exception((int)RtlNtStatusToDosError(status));
+            } finally { Marshal.FreeHGlobal(buffer); }
         }
         public static Observation CreateDirectoryExclusive(string path) {
             SecurityAttributes attributes = new SecurityAttributes {

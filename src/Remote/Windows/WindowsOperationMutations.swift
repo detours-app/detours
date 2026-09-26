@@ -99,6 +99,7 @@ extension WindowsOperationScripts {
     function Resolve-WindowsOperation($Context) {
         $previous = $Context.record.receipt
         if ($null -eq $previous -or $previous.phase -in @('terminal', 'readyToCommit')) { return }
+        if ($Context.record.intent.action -eq 'permanentDelete') { Resolve-WindowsDeletion $Context; return }
         if ($Context.record.windowsIngressReady -and -not $Context.record.windowsIngressSealing) { return }
         $receipt = New-WindowsReceipt $Context 'terminal' 'unknown'
         $receipt.effects = @($previous.effects)
@@ -286,6 +287,7 @@ extension WindowsOperationScripts {
             Assert-WindowsOperationActive $Context
             if ($Kind -in @('prepareUpload', 'prepareCopy')) { return Prepare-WindowsPayload $Context $Kind $Parameters }
             if ($Kind -eq 'prepareArchive') { return Prepare-WindowsArchive $Context $Parameters }
+            if ($Kind -eq 'execute' -and $Context.record.intent.action -eq 'permanentDelete') { return Invoke-WindowsDeletion $Context }
             if ($Kind -eq 'execute' -and $Context.record.intent.action -eq 'trash') { return Invoke-WindowsTrash $Context }
             Commit-WindowsMutation $Context $Kind
         } catch {

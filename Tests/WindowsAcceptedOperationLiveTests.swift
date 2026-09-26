@@ -327,6 +327,12 @@ final class WindowsAcceptedOperationLiveTests: XCTestCase {
     \#(WindowsOperationScripts.archiveHelpers)
     \#(WindowsOperationScripts.zipPlanHelpers)
     \#(WindowsOperationScripts.zipExtractionHelpers)
+    \#(WindowsOperationScripts.deletionHelpers)
+    $nativeConfirmedDelete = ${function:Remove-WindowsConfirmedEntry}
+    function Remove-WindowsConfirmedEntry($Context, [string]$Path, $Expected) {
+        if ($Arguments.trashFailure -eq 'deleteLaterChild' -and $Path.EndsWith('a.txt')) { throw 'Injected later-child deletion refusal.' }
+        & $nativeConfirmedDelete $Context $Path $Expected
+    }
     $nativeZipFile = ${function:Add-WindowsAcceptedZipFile}
     function Add-WindowsAcceptedZipFile($Context, $Archive, [string]$Name, $Member) {
         & $nativeZipFile $Context $Archive $Name $Member
