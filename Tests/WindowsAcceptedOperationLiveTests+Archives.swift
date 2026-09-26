@@ -87,6 +87,7 @@ extension WindowsAcceptedOperationLiveTests {
         XCTAssertEqual(contents["empty"], "True")
 
         try await exerciseZipExtraction(channel: channel, root: root)
+        try await exerciseTarCreation(channel: channel, root: root)
 
         let cancelledID = try await accept("cancelled.zip")
         guard case .receipt(let cancelReady) = try await send(.prepareArchive(identity: cancelledID, password: nil)) else { return XCTFail("No cancel ZIP") }
