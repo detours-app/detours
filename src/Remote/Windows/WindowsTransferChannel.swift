@@ -65,14 +65,17 @@ actor WindowsTransferChannel {
     }
 
     func download(remotePath: String, expectedByteCount: Int64, to localURL: URL) async throws {
+        let generation = try await powerShellChannel.readyForAuxiliaryRequest()
         do {
             try await downloadViaSFTP(remotePath: remotePath, expectedByteCount: expectedByteCount, to: localURL)
         } catch {
+            try await powerShellChannel.validateAuxiliaryRequest(generation: generation)
             guard expectedByteCount <= fallbackThreshold else {
                 throw WindowsTransferError.unsupportedLargeTransferWithoutSFTP(byteCount: expectedByteCount)
             }
             try await downloadViaPowerShell(remotePath: remotePath, expectedByteCount: expectedByteCount, to: localURL)
         }
+        try await powerShellChannel.validateAuxiliaryRequest(generation: generation)
     }
 
     private func downloadViaSFTP(remotePath: String, expectedByteCount: Int64, to localURL: URL) async throws {
@@ -96,6 +99,7 @@ actor WindowsTransferChannel {
     }
 
     func prepareAcceptedUpload(localURL: URL, identity: OperationRequestIdentity, sftpAvailable: Bool) async throws -> OperationReceipt {
+        let generation = try await powerShellChannel.readyForAuxiliaryRequest()
         if !sftpAvailable {
             let values = try localURL.resourceValues(forKeys: [.fileSizeKey])
             guard let size = values.fileSize else { throw WindowsTransferError.invalidAcceptedUpload }
@@ -115,6 +119,7 @@ actor WindowsTransferChannel {
             throw WindowsTransferError.invalidAcceptedUpload
         }
         try await sftpClient.upload(localURL: localURL, remotePath: ingress)
+        try await powerShellChannel.validateAuxiliaryRequest(generation: generation)
         return try await acceptedReceipt(.init(ingress: .sealIngress(identity)), identity: identity)
     }
 

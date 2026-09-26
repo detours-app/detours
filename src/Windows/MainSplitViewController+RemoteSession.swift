@@ -56,8 +56,8 @@ extension MainSplitViewController {
         await client.bind(session: session, watcher: watcher)
         await rawClient.setEventHandler { [weak watcher] envelope in Task { await watcher?.receive(envelope) } }
         let provider = RemoteFileProvider(hostID: host.id, rpcClient: client,
-            transferChannel: RemoteTransferChannel(sshTarget: host.sshTarget), watcherClient: watcher,
-            searchChannel: RemoteSearchChannel(sshTarget: host.sshTarget))
+            transferChannel: RemoteTransferChannel(sshTarget: host.sshTarget, session: session), watcherClient: watcher,
+            searchChannel: RemoteSearchChannel(sshTarget: host.sshTarget, session: session))
         try await RemoteConnectionRegistry.shared.registerSession(session, owner: owner, for: host.id)
         _ = try await session.ensureReady()
         let initialPath = try await remoteHomeDirectory(sshTarget: host.sshTarget)

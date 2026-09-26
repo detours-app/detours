@@ -75,6 +75,7 @@ actor RemoteTransferChannel {
     private let controlDirectory: URL
     private let hostTrust: SSHHostTrust
     private let processFactory: @Sendable () -> Process
+    private let session: RemoteHostSession?
 
     init(
         sshTarget: String,
@@ -82,6 +83,7 @@ actor RemoteTransferChannel {
         controlDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".detours/ssh", isDirectory: true),
         hostTrust: SSHHostTrust = SSHHostTrust(),
+        session: RemoteHostSession? = nil,
         processFactory: @escaping @Sendable () -> Process = { Process() }
     ) {
         self.sshTarget = sshTarget
@@ -89,6 +91,7 @@ actor RemoteTransferChannel {
         self.controlDirectory = controlDirectory
         self.hostTrust = hostTrust
         self.processFactory = processFactory
+        self.session = session
         _ = BrokenPipe.ignored
     }
 
@@ -127,6 +130,8 @@ actor RemoteTransferChannel {
     /// minutes on a large file, which is subtracted from everything else the
     /// app could be doing. A dispatch queue adds threads when they block.
     func download(source: RemotePath, expectedByteCount: Int64, to destination: URL) async throws {
+        let ready = try await session?.ensureReady()
+        try Task.checkCancellation()
         let setup = TransferProcessSetup(
             arguments: sshArguments(),
             hostTrust: hostTrust,
@@ -153,6 +158,7 @@ actor RemoteTransferChannel {
                 }
             }
         }
+        if let ready { try await session?.requireGeneration(ready.generation) }
     }
 
     private static func performDownload(

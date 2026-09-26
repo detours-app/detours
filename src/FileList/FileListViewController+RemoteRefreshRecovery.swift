@@ -38,10 +38,8 @@ extension FileListViewController {
         let epoch = refreshScheduler.epoch
         remoteRefreshRecoveryTasks[root] = Task { @MainActor [weak self] in
             guard let self else { return }
-            if providerWatches[root] == nil {
-                startWatching(root, provider: provider)
-                await directoryWatchTask?.value
-            }
+            startWatching(root, provider: provider)
+            await directoryWatchTask?.value
             for directory in directories {
                 guard !Task.isCancelled, !isShutDown, refreshScheduler.epoch == epoch else { return }
                 if directory != root {

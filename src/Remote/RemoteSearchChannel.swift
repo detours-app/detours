@@ -9,22 +9,43 @@ actor RemoteSearchChannel {
     private let remoteCommand: String
     private let controlDirectory: URL
     private let hostTrust: SSHHostTrust
+    private let session: RemoteHostSession?
 
     init(
         sshTarget: String,
         remoteCommand: String = "~/.detours-server/detours-server",
         controlDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".detours/ssh", isDirectory: true),
-        hostTrust: SSHHostTrust = SSHHostTrust()
+        hostTrust: SSHHostTrust = SSHHostTrust(),
+        session: RemoteHostSession? = nil
     ) {
         self.sshTarget = sshTarget
         self.remoteCommand = remoteCommand
         self.controlDirectory = controlDirectory
         self.hostTrust = hostTrust
+        self.session = session
         _ = BrokenPipe.ignored
     }
 
     nonisolated func search(query: Data, cap: Int64) -> AsyncThrowingStream<[RemoteFindMatch], Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let ready = try await session?.ensureReady()
+                    try Task.checkCancellation()
+                    for try await matches in searchVerifiedConnection(query: query, cap: cap) {
+                        try Task.checkCancellation()
+                        if let ready { try await session?.requireGeneration(ready.generation) }
+                        continuation.yield(matches)
+                    }
+                    continuation.finish()
+                } catch { continuation.finish(throwing: error) }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    nonisolated private func searchVerifiedConnection(query: Data, cap: Int64) -> AsyncThrowingStream<[RemoteFindMatch], Error> {
         let arguments = sshArguments()
         let hostTrust = self.hostTrust
         return AsyncThrowingStream { continuation in

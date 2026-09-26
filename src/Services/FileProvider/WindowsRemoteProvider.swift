@@ -116,6 +116,7 @@ actor WindowsRemoteProvider: FileProvider {
     }
 
     func watch(_ location: Location, onChange: @escaping @Sendable (Location) -> Void) async throws -> FileProviderWatch {
+        let generation = try await channel.readyForAuxiliaryRequest()
         let windowsPath = try windowsPath(from: location)
         if windowsPath.isSyntheticRoot {
             return FileProviderWatch(id: UUID(), location: location)
@@ -123,11 +124,18 @@ actor WindowsRemoteProvider: FileProvider {
         guard let watchChannel else {
             throw WindowsWatchChannelError.missingChannel
         }
-        return try await watchChannel.watch(
+        let watch = try await watchChannel.watch(
             location,
             nativePath: try nativePath(from: windowsPath),
             onChange: onChange
         )
+        do {
+            try await channel.validateAuxiliaryRequest(generation: generation)
+            return watch
+        } catch {
+            await watchChannel.unwatch(watch)
+            throw error
+        }
     }
 
     func unwatch(_ watch: FileProviderWatch) async {

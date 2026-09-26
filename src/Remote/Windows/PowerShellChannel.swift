@@ -142,6 +142,19 @@ actor PowerShellChannel: RemoteConnectionHandle {
         cancelIdleDisconnect()
     }
 
+    func readyForAuxiliaryRequest() async throws -> UInt64? {
+        guard sessionManaged else { return nil }
+        guard let session else { throw RemoteHostSessionError.retired }
+        return try await session.ensureReady().generation
+    }
+
+    func validateAuxiliaryRequest(generation: UInt64?) async throws {
+        try Task.checkCancellation()
+        guard sessionManaged else { return }
+        guard let session, let generation else { throw RemoteHostSessionError.retired }
+        try await session.requireGeneration(generation)
+    }
+
     func startSessionGeneration(_ generation: UInt64, onFailure: @escaping @Sendable (UInt64, SSHConnectionFailureReason) async -> Void) {
         sessionGeneration = generation
         sessionFailure = onFailure
