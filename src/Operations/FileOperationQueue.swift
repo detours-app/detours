@@ -213,7 +213,7 @@ final class FileOperationQueue {
         guard let sourceURLs = localURLs(from: items), case .local(let destinationURL) = destination else {
             let hostIDs = remoteHostIDs(from: items, destination: destination)
             return try await enqueue(remoteHosts: hostIDs) {
-                if self.isSingleRemoteHostOperation(items: items, destination: destination) {
+                if case .remote = destination, self.remoteGroups(from: items) != nil {
                     return try await self.performRemoteCopy(items: items, to: destination, undoManager: undoManager)
                 }
                 return try await self.performProviderTransfer(items: items, to: destination, isMove: false, undoManager: undoManager)
@@ -247,7 +247,7 @@ final class FileOperationQueue {
         guard let sourceURLs = localURLs(from: items), case .local(let destinationURL) = destination else {
             let hostIDs = remoteHostIDs(from: items, destination: destination)
             return try await enqueue(remoteHosts: hostIDs) {
-                if self.isSingleRemoteHostOperation(items: items, destination: destination) {
+                if case .remote = destination, self.remoteGroups(from: items) != nil {
                     return try await self.performRemoteMove(items: items, to: destination, undoManager: undoManager)
                 }
                 return try await self.performProviderTransfer(items: items, to: destination, isMove: true, undoManager: undoManager)

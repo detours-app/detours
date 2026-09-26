@@ -39,24 +39,32 @@ extension FileOperationQueue {
     private func planAndPerformRemoteTransfer(items: [Location], to destination: Location,
                                               isMove: Bool) async throws -> RemoteOperationStore.Snapshot {
         guard case .remote(let hostID, _) = destination,
-              items.allSatisfy({ if case .remote(let sourceHost, _) = $0 { return sourceHost == hostID }; return false }) else {
-            throw FileProviderError.unsupportedOperation("This transfer requires one verified remote host.")
+              items.allSatisfy({ if case .remote = $0 { return true }; return false }) else {
+            throw FileProviderError.unsupportedOperation("This transfer requires verified remote hosts.")
         }
         let provider = try remoteProvider(for: hostID)
         let coordinator = try operationCoordinator()
         let operation = try await coordinator.create()
         var plan = RemoteTransferPlan(hostID: hostID, operation: operation, mergeDirectories: isWindowsDestination(destination))
         let directory = try await provider.operationPath(destination)
-        for source in items {
-            try await planRemoteItem(source, directory: directory, isMove: isMove, plan: &plan)
-        }
-        try checkCancelled()
+        let staging = FileManager.default.temporaryDirectory.appendingPathComponent("detours-transfer-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         do {
+            for source in items {
+                if case .remote(let sourceHost, _) = source, sourceHost == hostID {
+                    try await planRemoteItem(source, directory: directory, isMove: isMove, plan: &plan)
+                } else {
+                    try await planCrossHostFile(source, directory: directory, isMove: isMove, stagingDirectory: staging, plan: &plan)
+                }
+            }
+            try checkCancelled()
             let result = try await coordinator.performBatch(plan.items, operation: operation, selections: plan.selections)
             remoteOperationResults[operation] = result
+            try FileManager.default.removeItem(at: staging)
             return result
         } catch {
             remoteOperationResults[operation] = try await coordinator.snapshot(operation)
+            if FileManager.default.fileExists(atPath: staging.path) { try FileManager.default.removeItem(at: staging) }
             throw error
         }
     }
@@ -69,7 +77,10 @@ extension FileOperationQueue {
                   receipt.effects.contains(where: { $0.location == destination }) else { continue }
             let location = sources ? item.result.intent.sources.first : destination
             guard let location else { continue }
-            let provider = try remoteProvider(for: item.hostID)
+            guard let owningItem = result.items.first(where: { $0.result.account == location.account }) else {
+                throw OperationContractError.identityMismatch
+            }
+            let provider = try remoteProvider(for: owningItem.hostID)
             locations.append(try await provider.displayLocation(location.path))
         }
         return locations

@@ -20,6 +20,10 @@ final class AcceptedCrossHostFileTests: XCTestCase {
         try await run(.success)
     }
 
+    func testPublicQueueMoveAcrossHostsUsesRecordedUploadAndSourceTrash() async throws {
+        try await run(.queueSuccess)
+    }
+
     func testChangedStagedBytesCannotPublishOrTrashSource() async throws {
         try await run(.changedPayload)
     }
@@ -32,7 +36,7 @@ final class AcceptedCrossHostFileTests: XCTestCase {
         try await run(.lostTrashReply)
     }
 
-    private enum Scenario: Sendable { case success, changedPayload, changedSource, lostTrashReply }
+    private enum Scenario: Sendable { case success, queueSuccess, changedPayload, changedSource, lostTrashReply }
 
     private func run(_ scenario: Scenario) async throws {
         let source = try await CoordinatorFixture(account: .init(hostIdentity: "source-host", accountIdentity: "source-account"))
@@ -58,6 +62,21 @@ final class AcceptedCrossHostFileTests: XCTestCase {
         let staging = source.root.appendingPathComponent("staging")
         try FileManager.default.createDirectory(at: targetDirectory, withIntermediateDirectories: false)
         try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: false)
+        if scenario == .queueSuccess {
+            let moved = try await queue.move(items: [.remote(hostID: source.hostID, path: source.source.path)],
+                to: .remote(hostID: destination.hostID, path: targetDirectory.path))
+            XCTAssertEqual(moved, [.remote(hostID: destination.hostID, path: targetDirectory.appendingPathComponent("source").path)])
+            let saved = try XCTUnwrap(queue.remoteOperationResults.values.first)
+            XCTAssertEqual(saved.items.map(\.outcome), [.committed, .committed])
+            XCTAssertEqual(saved.items.map(\.hostID), [destination.hostID, source.hostID])
+            let originals = try await queue.acceptedLocations(saved, sources: true)
+            XCTAssertEqual(originals, [.remote(hostID: source.hostID, path: source.source.path)])
+            XCTAssertEqual(try Data(contentsOf: targetDirectory.appendingPathComponent("source")), source.bytes)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: source.source.path))
+            await source.session.disconnect()
+            await destination.session.disconnect()
+            return
+        }
         try await queue.planCrossHostFile(.remote(hostID: source.hostID, path: source.source.path),
             directory: .unix(Data(targetDirectory.path.utf8)), isMove: true, stagingDirectory: staging, plan: &plan)
         XCTAssertEqual(plan.items.map(\.hostID), [destination.hostID, source.hostID])
@@ -70,7 +89,7 @@ final class AcceptedCrossHostFileTests: XCTestCase {
         let result = try await coordinator.performBatch(plan.items, operation: operation, selections: plan.selections)
         let target = targetDirectory.appendingPathComponent("source")
         switch scenario {
-        case .success:
+        case .success, .queueSuccess:
             XCTAssertEqual(result.items.map(\.outcome), [.committed, .committed])
             XCTAssertEqual(try Data(contentsOf: target), source.bytes)
             XCTAssertFalse(FileManager.default.fileExists(atPath: source.source.path))
