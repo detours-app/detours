@@ -25,6 +25,11 @@ actor SSHRemoteRPCClient: RemoteRPCClient {
     private struct PendingResponse {
         var assembler = RPCResponseAssembler()
         let continuation: CheckedContinuation<[Data], Error>
+        var sender: Task<Void, Never>?
+        var deadline: Task<Void, Never>?
+        var progress: RemoteMeasuredProgress?
+        var countsFindMatches = false
+        var measured: UInt64 = 0
     }
 
     private let connection: SSHConnection
@@ -62,6 +67,7 @@ actor SSHRemoteRPCClient: RemoteRPCClient {
     }
 
     func send(_ message: RPCMessage) async throws -> [Data] {
+        try Task.checkCancellation()
         let started = RemoteTimingLog.start()
         defer { RemoteTimingLog.mark("rpc", since: started, "type=\(message.messageType)") }
         let requestID = nextRequestID
@@ -78,9 +84,18 @@ actor SSHRemoteRPCClient: RemoteRPCClient {
 
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
-                pendingResponses[requestID] = PendingResponse(continuation: continuation)
-                Task {
+                guard !Task.isCancelled else { continuation.resume(throwing: CancellationError()); return }
+                let progress: RemoteMeasuredProgress?
+                switch message {
+                case .download, .find, .folderSize, .gitStatus: progress = RemoteMeasuredProgress()
+                default: progress = nil
+                }
+                var pending = PendingResponse(continuation: continuation, progress: progress)
+                if case .find = message { pending.countsFindMatches = true }
+                pendingResponses[requestID] = pending
+                let sender = Task {
                     do {
+                        try Task.checkCancellation()
                         try await connection.send(envelope)
                         RemoteTimingLog.mark("rpc written", since: started, "type=\(message.messageType)")
                         await self.startReaderIfNeeded()
@@ -88,6 +103,20 @@ actor SSHRemoteRPCClient: RemoteRPCClient {
                     } catch {
                         self.failResponse(id: requestID, error: error)
                     }
+                }
+                pendingResponses[requestID]?.sender = sender
+                pendingResponses[requestID]?.deadline = Task {
+                    do {
+                        if let progress {
+                            while !Task.isCancelled {
+                                try await Task.sleep(for: .milliseconds(250))
+                                try progress.check()
+                            }
+                        } else {
+                            try await Task.sleep(for: .seconds(10))
+                            self.failResponse(id: requestID, error: RemoteProcessWorkerError.timedOut)
+                        }
+                    } catch is CancellationError {} catch { self.failResponse(id: requestID, error: error) }
                 }
             }
         } onCancel: {
@@ -143,29 +172,46 @@ actor SSHRemoteRPCClient: RemoteRPCClient {
 
         guard var pending = pendingResponses[envelope.id] else { return }
         if envelope.kind == .error {
-            pendingResponses.removeValue(forKey: envelope.id)?
-                .continuation
-                .resume(throwing: Self.decodeError(envelope.payload))
+            completeResponse(id: envelope.id, result: .failure(Self.decodeError(envelope.payload)))
             return
         }
 
+        if let progress = pending.progress, envelope.kind == .response {
+            let measured: UInt64
+            if pending.countsFindMatches {
+                do { measured = UInt64(try RemoteFindCodec.decode(envelope.payload).count) } catch {
+                    completeResponse(id: envelope.id, result: .failure(error))
+                    return
+                }
+            } else { measured = UInt64(envelope.payload.count) }
+            pending.measured += measured
+            progress.record(pending.measured)
+        }
+
         if let assembled = pending.assembler.receive(envelope) {
-            pendingResponses.removeValue(forKey: envelope.id)?
-                .continuation
-                .resume(returning: assembled.chunks)
+            completeResponse(id: envelope.id, result: .success(assembled.chunks))
         } else {
             pendingResponses[envelope.id] = pending
         }
     }
 
+    private func completeResponse(id: UInt64, result: Result<[Data], Error>) {
+        guard let response = pendingResponses.removeValue(forKey: id) else { return }
+        response.deadline?.cancel()
+        response.continuation.resume(with: result)
+    }
+
     private func failResponse(id: UInt64, error: Error) {
-        pendingResponses.removeValue(forKey: id)?.continuation.resume(throwing: error)
+        pendingResponses[id]?.sender?.cancel()
+        completeResponse(id: id, result: .failure(error))
     }
 
     private func failAllResponses(_ error: Error) {
         let responses = pendingResponses
         pendingResponses.removeAll()
         for response in responses.values {
+            response.deadline?.cancel()
+            response.sender?.cancel()
             response.continuation.resume(throwing: error)
         }
     }

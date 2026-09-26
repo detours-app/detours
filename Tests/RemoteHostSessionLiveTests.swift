@@ -4,6 +4,27 @@ import XCTest
 @testable import Detours
 
 final class RemoteHostSessionLiveTests: XCTestCase {
+    func testPersistentControlRequestHasTenSecondDeadline() async throws {
+        let control = try makeControlDirectory()
+        defer { try? FileManager.default.removeItem(at: control) }
+        let connection = SSHConnection(configuration: .init(hostID: UUID(), sshTarget: "devtest", remoteCommand: "/bin/sleep 60"),
+            controlDirectory: control)
+        let client = SSHRemoteRPCClient(connection: connection)
+        try await connection.connect()
+        let started = ContinuousClock.now
+        do {
+            _ = try await client.send(.protocolVersion(1))
+            XCTFail("Silent control peer returned a reply")
+        } catch RemoteProcessWorkerError.timedOut {
+            XCTAssertGreaterThanOrEqual(started.duration(to: .now), .seconds(10))
+            XCTAssertLessThan(started.duration(to: .now), .seconds(12))
+        } catch {
+            await connection.disconnect()
+            throw error
+        }
+        await connection.disconnect()
+    }
+
     func testWindowsRequestCancellationKeepsVerifiedSessionUsable() async throws {
         let control = try makeControlDirectory()
         defer { try? FileManager.default.removeItem(at: control) }

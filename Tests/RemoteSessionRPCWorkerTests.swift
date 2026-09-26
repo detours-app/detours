@@ -4,6 +4,18 @@ import XCTest
 @testable import Detours
 
 final class RemoteSessionRPCWorkerTests: XCTestCase {
+    func testAlreadyCancelledPersistentRequestDoesNotReachConnection() async throws {
+        let connection = SSHConnection(configuration: .init(hostID: UUID(), sshTarget: "unused"))
+        let client = SSHRemoteRPCClient(connection: connection)
+        let request = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await client.send(.protocolVersion(1))
+        }
+        do { _ = try await request.value; XCTFail("Cancelled request reached the connection") } catch is CancellationError {}
+        let state = await connection.state
+        XCTAssertEqual(state, .disconnected)
+    }
+
     func testOperationWorkerReadsFramedReplyAndExits() async throws {
         let directory = try createTempDirectory()
         defer { cleanupTempDirectory(directory) }
