@@ -323,6 +323,12 @@ final class WindowsAcceptedOperationLiveTests: XCTestCase {
     \#(WindowsOperationScripts.replacementHelpers)
     \#(WindowsOperationScripts.backupHandoffHelpers)
     \#(WindowsOperationScripts.treeProofHelpers)
+    \#(WindowsOperationScripts.treeCopyHelpers)
+    $nativeTreeCopy = ${function:Copy-WindowsTreeFile}
+    function Copy-WindowsTreeFile($Context, [string]$Source, [string]$Target, [string]$Name, $Expected) {
+        if ($Arguments.trashFailure -eq 'treeCopyFailed' -and $Name.EndsWith('/z.txt')) { throw 'Injected later child read failure.' }
+        & $nativeTreeCopy $Context $Source $Target $Name $Expected
+    }
     $nativeTreeProof = ${function:Get-WindowsTreeProof}
     function Get-WindowsTreeProof([string]$Path) {
         $probe = [System.IO.FileStream]::new((Join-Path (Join-Path $Arguments.root 'journal') 'commit.lock'), 'OpenOrCreate', 'ReadWrite', 'None')

@@ -103,6 +103,24 @@ extension WindowsOperationScripts {
             using (SafeFileHandle handle = Open(path, 0x80, 7)) { return Observe(handle); }
         }
         public static Observation ObserveStream(FileStream stream) { return Observe(stream.SafeFileHandle); }
+        public static SafeFileHandle PinDirectory(string path, string volume, string id) {
+            SafeFileHandle handle = Open(path, 0x81, 3);
+            try {
+                Observation current = Observe(handle);
+                if (current.kind != "directory" || current.identity.volume != volume || current.identity.@object != id)
+                    throw new IOException("Operation directory changed.");
+                return handle;
+            } catch { handle.Dispose(); throw; }
+        }
+        public static FileStream OpenObservedFile(string path, string volume, string id, string version) {
+            SafeFileHandle handle = Open(path, 0x80000000, 1);
+            try {
+                Observation current = Observe(handle);
+                Require(current, volume, id, version);
+                if (current.kind != "file") throw new IOException("Operation source is not a regular file.");
+                return new FileStream(handle, FileAccess.Read, 65536, false);
+            } catch { handle.Dispose(); throw; }
+        }
         public static FileStream CreateNewFile(string path) {
             SafeFileHandle handle = CreateFileW(path, 0xC0000000, 7, IntPtr.Zero, 1, 0x00200000, IntPtr.Zero);
             if (handle.IsInvalid) {

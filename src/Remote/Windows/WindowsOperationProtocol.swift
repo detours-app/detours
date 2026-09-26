@@ -49,6 +49,7 @@ extension WindowsOperationScripts {
     \#(replacementHelpers)
     \#(backupHandoffHelpers)
     \#(treeProofHelpers)
+    \#(treeCopyHelpers)
     $profile = [Environment]::GetFolderPath('UserProfile')
     if ([string]::IsNullOrWhiteSpace($profile)) { throw 'Windows user profile is unavailable.' }
     $machine = [Microsoft.Win32.Registry]::GetValue('HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Cryptography', 'MachineGuid', $null)

@@ -64,7 +64,7 @@ extension WindowsOperationScripts {
         if ($Kind -eq 'commit') {
             if ($Context.record.receipt.phase -ne 'readyToCommit') { throw 'Replacement payload is not ready.' }
             $prepared = $Context.record.receipt.preparedPayload
-            Assert-WindowsObservation (Get-WindowsContentProof (Get-OperationPath $prepared.location $Context.account)) $prepared.observation
+            Assert-WindowsObservation (Get-WindowsPreparedObservation $Context (Get-OperationPath $prepared.location $Context.account)) $prepared.observation
         } elseif ($Kind -eq 'execute' -and $intent.action -in @('rename', 'move')) {
             if (@($intent.sources).Count -ne 1 -or @($intent.sourceObservations).Count -ne 1) { throw 'Invalid replacement source.' }
             $source = Get-OperationPath $intent.sources[0] $Context.account

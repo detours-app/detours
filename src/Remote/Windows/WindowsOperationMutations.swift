@@ -90,18 +90,7 @@ extension WindowsOperationScripts {
         if ($root.identity.volume -cne $owned.volume -or $root.identity.object -cne $owned.object -or $root.kind -ne 'directory') {
             throw 'Operation workspace changed.'
         }
-        $names = @($Context.record.workspace.objects | ForEach-Object { [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($_.name)) })
-        foreach ($entry in [System.IO.Directory]::GetFileSystemEntries($path)) {
-            if ([System.IO.Path]::GetFileName($entry) -cnotin $names) { throw 'Operation workspace contains an unrecorded object.' }
-        }
-        foreach ($entry in $Context.record.workspace.objects) {
-            $name = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($entry.name))
-            if ($name -ne [System.IO.Path]::GetFileName($name)) { throw 'Invalid owned operation name.' }
-            $child = Join-Path $path $name
-            $lookup = Get-WindowsOperationLookup $child
-            if ($lookup.ContainsKey('missing')) { continue }
-            [DetoursOperationFiles]::RemoveOwned($child, $entry.identity.volume, $entry.identity.object)
-        }
+        Remove-WindowsOwnedDescendants $Context $path '' $owned
         [DetoursOperationFiles]::RemoveOwned($path, $owned.volume, $owned.object)
         $Context.record.workspace = $null
         $Context.record.windowsWorkspacePath = $null
@@ -164,6 +153,7 @@ extension WindowsOperationScripts {
         } else {
             if ($intent.action -ne 'copy' -or @($intent.sources).Count -ne 1 -or @($intent.sourceObservations).Count -ne 1) { throw 'Invalid accepted copy.' }
             $source = Get-OperationPath $intent.sources[0] $Context.account
+            if ($intent.sourceObservations[0].kind -ne 'file') { return Prepare-WindowsTreePayload $Context $source $destination }
             $before = (Get-WindowsContentProof $source)
             Assert-WindowsObservation $before $intent.sourceObservations[0]
             $proof = @{ byteCount = $before.byteCount; sha256 = $before.sha256 }
@@ -207,7 +197,8 @@ extension WindowsOperationScripts {
             if ($Context.record.receipt.phase -ne 'readyToCommit' -and -not $Replacing) { throw 'Operation payload is not ready to commit.' }
             $payload = $Context.record.receipt.preparedPayload
             $source = Get-OperationPath $payload.location $Context.account
-            Assert-WindowsObservation ((Get-WindowsContentProof $source)) $payload.observation
+            Assert-WindowsObservation (Get-WindowsPreparedObservation $Context $source) $payload.observation
+            $sourceManifest = $Context.record.payloadManifest
         } elseif ($intent.action -in @('rename', 'move', 'restore')) {
             if (@($intent.sources).Count -ne 1 -or @($intent.sourceObservations).Count -ne 1) { throw 'Invalid accepted native move.' }
             $source = Get-OperationPath $intent.sources[0] $Context.account
