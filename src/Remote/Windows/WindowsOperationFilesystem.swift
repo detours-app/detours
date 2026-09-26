@@ -55,6 +55,34 @@ extension WindowsOperationScripts {
                 return Observe(path);
             }
         }
+        public static Observation SetArchiveJunction(string path, string volume, string id, string target) {
+            string full = Path.GetFullPath(target);
+            if (full.StartsWith("\\", StringComparison.Ordinal)) throw new IOException("Archive junction requires a local target.");
+            byte[] substitute = Encoding.Unicode.GetBytes(@"\??\" + full);
+            byte[] display = Encoding.Unicode.GetBytes(full);
+            int length = checked(20 + substitute.Length + display.Length);
+            if (length > 16384) throw new IOException("Archive junction target is too long.");
+            byte[] bytes = new byte[length];
+            Buffer.BlockCopy(BitConverter.GetBytes(0xA0000003u), 0, bytes, 0, 4);
+            Buffer.BlockCopy(BitConverter.GetBytes((ushort)(length - 8)), 0, bytes, 4, 2);
+            Buffer.BlockCopy(BitConverter.GetBytes((ushort)substitute.Length), 0, bytes, 10, 2);
+            Buffer.BlockCopy(BitConverter.GetBytes((ushort)(substitute.Length + 2)), 0, bytes, 12, 2);
+            Buffer.BlockCopy(BitConverter.GetBytes((ushort)display.Length), 0, bytes, 14, 2);
+            Buffer.BlockCopy(substitute, 0, bytes, 16, substitute.Length);
+            Buffer.BlockCopy(display, 0, bytes, 18 + substitute.Length, display.Length);
+            using (SafeFileHandle handle = Open(path, 0x40000080, 3)) {
+                Observation observed = Observe(handle);
+                if (observed.identity.volume != volume || observed.identity.@object != id || observed.kind != "directory")
+                    throw new IOException("Archive junction placeholder changed.");
+                IntPtr data = Marshal.AllocHGlobal(length);
+                try {
+                    Marshal.Copy(bytes, 0, data, length); uint returned;
+                    if (!DeviceIoControl(handle, 0x000900A4, data, (uint)length, null, 0, out returned, IntPtr.Zero))
+                        throw new Win32Exception(Marshal.GetLastWin32Error());
+                    return Observe(handle);
+                } finally { Marshal.FreeHGlobal(data); }
+            }
+        }
         private static SafeFileHandle Open(string path, uint access, uint share) {
             SafeFileHandle handle = CreateFileW(path, access, share, IntPtr.Zero, 3, 0x02200000, IntPtr.Zero);
             if (handle.IsInvalid) {

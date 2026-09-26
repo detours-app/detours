@@ -120,6 +120,7 @@ extension WindowsAcceptedOperationLiveTests {
         XCTAssertEqual(cancelled.outcome, .failedUnchanged, cancelled.failure ?? "")
         XCTAssertTrue(cancelled.recovery.isEmpty)
         try await exerciseSevenZipExtraction(channel: channel, root: root)
+        try await exerciseSevenZipJunctionFixture(channel: channel, root: root)
         try await exerciseSevenZipSymbolicLinkRefusal(channel: channel, root: root)
     }
 }
