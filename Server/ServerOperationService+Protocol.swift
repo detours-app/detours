@@ -66,6 +66,20 @@ extension ServerOperationService {
                 default: throw OperationFilesystemError.system(code)
                 }
             } catch OperationFilesystemError.unsupported { return .lookup(.unsupported) }
+        case .sourceManifest(let location):
+            try journal.validateEpoch()
+            guard location.account == journal.account else { return .incompatible(.accountMismatch) }
+            do {
+                let resolved = try resolve(location)
+                return .manifest(.found(try resolved.directory.manifest(resolved.name) { _ in try Task.checkCancellation() }))
+            } catch OperationFilesystemError.system(let code) {
+                switch code {
+                case ENOENT: return .manifest(.missing)
+                case EACCES, EPERM: return .manifest(.denied)
+                case ENOTCONN: return .manifest(.disconnected)
+                default: throw OperationFilesystemError.system(code)
+                }
+            } catch OperationFilesystemError.unsupported { return .manifest(.unsupported) }
         case .accept(let identity, let intent):
             return .accepted(try await accept(identity, intent: intent))
         case .prepareUpload(let identity, let contents):

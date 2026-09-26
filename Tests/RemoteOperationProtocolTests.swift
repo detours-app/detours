@@ -13,7 +13,8 @@ final class RemoteOperationProtocolTests: XCTestCase {
         let intent = OperationIntent(id: id, action: .copy, sources: [location], destination: nil,
                                      sourceObservations: [], conflict: .createNew)
         let requests: [OperationRequest] = [
-            .handshake, .lookup(location), .sourceProof(location), .accept(identity: identity, intent: intent), .status(identity),
+            .handshake, .lookup(location), .sourceProof(location), .sourceManifest(location),
+            .accept(identity: identity, intent: intent), .status(identity),
             .prepareUpload(identity: identity, contents: Data([0, 255])), .commit(identity), .execute(identity),
             .prepareCopy(identity), .prepareArchive(identity: identity, password: "transient fixture secret"),
             .cancel(identity), .acknowledge(identity: identity, retainingUndo: true),
@@ -67,6 +68,7 @@ final class RemoteOperationProtocolTests: XCTestCase {
         let replies: [OperationReply] = [
             .receipt(receipt), .cancellationRecorded(identity), .acknowledged(identity),
             .lookup(.missing), .lookup(.denied), .lookup(.disconnected), .lookup(.unsupported),
+            .manifest(.missing), .manifest(.denied), .manifest(.disconnected), .manifest(.unsupported),
             .incompatible(.protocolVersion(expected: 2, actual: 1)),
             .incompatible(.journalSchema(expected: 1, actual: 2)),
             .incompatible(.missingCapabilities([.nonReplacingCommit])),

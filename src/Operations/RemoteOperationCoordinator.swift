@@ -69,6 +69,20 @@ actor RemoteOperationCoordinator {
         }
     }
 
+    func sourceManifest(_ path: OperationLocation.Path, hostID: UUID) async throws
+        -> (location: OperationLocation, result: OperationLookup<OperationManifest>) {
+        let endpoint = try await resolve(hostID)
+        let lifetime = try await endpoint.session.acquireLifetime(.reader)
+        defer { lifetime.release() }
+        let ready = try await endpoint.session.ensureReady()
+        let location = OperationLocation(account: ready.handshake.account, path: path)
+        switch try await endpoint.request(.sourceManifest(location)) {
+        case .manifest(let result): return (location, result)
+        case .incompatible(let error): throw error
+        default: throw OperationContractError.invalidReceipt
+        }
+    }
+
     func recordPlannedItem(_ planned: PlannedItem) async throws {
         if let existing = try itemIfPresent(planned.intent.id) {
             guard existing.hostID == planned.hostID, existing.result.intent == planned.intent,

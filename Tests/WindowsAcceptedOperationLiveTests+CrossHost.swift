@@ -86,12 +86,21 @@ extension WindowsAcceptedOperationLiveTests {
             """), arguments: ["root": root])
         let actual = try JSONDecoder().decode(String.self, from: await channel.run(inspect, operation: "InspectCrossHostBytes"))
         XCTAssertEqual(Data(base64Encoded: actual), unix.bytes)
+        let windowsAccount = OperationAccount(hostIdentity: "windows-roundtrip", accountIdentity: "windows-account")
+        let manifestReply = try await windows.request(.sourceManifest(.init(account: windowsAccount, path: .windows(root + "\\target"))))
+        guard case .manifest(.found(let manifest)) = manifestReply else { return XCTFail("Missing live Windows source manifest") }
+        XCTAssertEqual(manifest.entries.map(\.relativePath), [Data(), Data("source".utf8)])
+        XCTAssertEqual(manifest.entries[0].observation.kind, .directory)
+        XCTAssertEqual(manifest.entries[1].observation.sha256, try OperationContentProof.data(unix.bytes).sha256)
+        XCTAssertEqual(try OperationReply.decode(manifestReply.encoded()), manifestReply)
+        let foreign = try await windows.request(.sourceManifest(.init(account: unix.account, path: .windows(root + "\\target"))))
+        XCTAssertEqual(foreign, .incompatible(.accountMismatch))
         let returnDirectory = unix.root.appendingPathComponent("returned")
         try FileManager.default.createDirectory(at: returnDirectory, withIntermediateDirectories: false)
         let returned = try await queue.move(items: first, to: .remote(hostID: unix.hostID, path: returnDirectory.path))
         XCTAssertEqual(returned, [.remote(hostID: unix.hostID, path: returnDirectory.appendingPathComponent("source").path)])
         XCTAssertEqual(try Data(contentsOf: returnDirectory.appendingPathComponent("source")), unix.bytes)
-        let missing = try await windows.request(.lookup(.init(account: .init(hostIdentity: "windows-roundtrip", accountIdentity: "windows-account"),
+        let missing = try await windows.request(.lookup(.init(account: windowsAccount,
             path: .windows(root + "\\target\\source"))))
         XCTAssertEqual(missing, .lookup(.missing))
         XCTAssertEqual(queue.remoteOperationResults.count, 2)

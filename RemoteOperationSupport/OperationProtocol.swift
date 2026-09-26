@@ -7,6 +7,7 @@ public enum OperationCapability: String, Codable, CaseIterable, Hashable, Sendab
     case ownedTemporaryObjects
     case nonReplacingCommit
     case sourceProof
+    case sourceManifest
 }
 
 public enum OperationCompatibilityError: Error, Codable, Equatable, Sendable {
@@ -67,6 +68,7 @@ public enum OperationRequest: Codable, Equatable, Sendable {
     case handshake(version: Int, schemaVersion: Int, requiredCapabilities: Set<OperationCapability>)
     case lookup(OperationLocation)
     case sourceProof(OperationLocation)
+    case sourceManifest(OperationLocation)
     case accept(identity: OperationRequestIdentity, intent: OperationIntent)
     case prepareUpload(identity: OperationRequestIdentity, contents: Data)
     case prepareCopy(OperationRequestIdentity)
@@ -89,6 +91,7 @@ public enum OperationRequest: Codable, Equatable, Sendable {
 public enum OperationReply: Codable, Equatable, Sendable {
     case handshake(OperationHandshake)
     case lookup(OperationLookup<OperationObservation>)
+    case manifest(OperationLookup<OperationManifest>)
     case accepted(OperationJournal.Snapshot)
     case status(OperationJournal.Snapshot)
     case cancellationRecorded(OperationRequestIdentity)

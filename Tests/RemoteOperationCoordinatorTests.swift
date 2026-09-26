@@ -261,6 +261,10 @@ actor CoordinatorBoundary {
     }
 
     func send(_ request: OperationRequest) async throws -> OperationReply {
+        if case .sourceManifest = request {
+            requests.append(.lookup)
+            return try await service.reply(to: request)
+        }
         if case .sourceProof = request {
             requests.append(.lookup)
             return try await service.reply(to: request)
