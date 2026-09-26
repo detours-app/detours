@@ -236,7 +236,7 @@ Execution order approved by Marco on 2026-09-25: complete C1-C3, then host mutat
 **Phase 2: Make readiness and lifetime authoritative**
 
 - [x] **C4** Add src/Remote/RemoteHostSession.swift and route RemoteConnectionRegistry, SSHConnection, PowerShellChannel and their readers/workers through verified readiness, generation fencing and the single recovery budget.
-- [ ] **C5** Replace unused operation/watch counters with owned lifetime tokens and connect pane, watcher, reader and operation teardown to them.
+- [x] **C5** Replace unused operation/watch counters with owned lifetime tokens and connect pane, watcher, reader and operation teardown to them.
 - [ ] **C6** Add the cancellable process-worker bridge for RPC, streaming and SFTP, concurrent pipe draining and independent status/cancel handling; remove transport-owned mutation retries.
 
 **Phase 3: Make file changes recoverable**
@@ -313,6 +313,8 @@ Use the existing guarded runner and independent prompt sentries for installed ch
 ---
 
 ## Build Log
+
+- **C5** Added owned session lifetime tokens for panes, watches, readers and accepted requests/uploads. Repeated release is harmless; final release starts the five-minute grace, and idle shutdown permits a newly verified generation. Pane observations are serialized and independently owned. Removed unused SSH operation/watch counters. At `1128c8f`, the signed Foundry build and 27 checks passed, including active-reader cancellation, pane teardown, watch ownership, idle reopen and live host regressions. The installed launch at `e6ca9b0` passed in 5.536 seconds; its exported screenshot showed both populated panes and sentry/cleanup evidence passed with zero prompts. At `9d8c7bd`, the signed build and 19 accepted-request, transfer, lifetime and live-host checks passed in 10.216 seconds. C6 supplies actual worker cancellation; C10 will retain an operation token across the coordinator workflow.
 
 - **C4** Shared host sessions now require the real version-2 handshake before publishing readiness, fence stale generations and share the recovery budget across Unix and Windows callers. Registry ownership prevents stale state publication. Restored watches precede authoritative listing refresh; transfer and search readers check the session generation. Foundry signed builds and focused checks passed at `f568a13`, `9d3e1dd`, `9e4905e` and `abf6dff`, including actual devtest/Windows reconnect and rejected SSH authentication. At `121fa67`, the installed launch test passed in 6.308 seconds, its exported screenshot showed both populated panes, prompt sentries recorded zero events and cleanup passed. Qualification now accepts the requested clean feature commit instead of requiring main. Lifetime ownership and bounded process cancellation remain C5-C6.
 
