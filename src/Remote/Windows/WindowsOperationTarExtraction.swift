@@ -35,10 +35,7 @@ extension WindowsOperationScripts {
             $inputStream = [DetoursOperationFiles]::OpenObservedFile($intermediate, $observed.identity.volume, $observed.identity.object, $observed.version)
             try {
                 $archive = [DetoursTarArchive]::new($inputStream)
-                foreach ($entry in $archive.Entries) {
-                    if ($entry.Kind -notin @('file', 'directory')) { throw 'Accepted TAR link extraction is not implemented.' }
-                }
-                $plan = @(New-WindowsZipPlan $archive)
+                $plan = @(New-WindowsTarPlan $archive)
                 Write-WindowsTarPayload $Context $plan
                 Assert-WindowsObservation (Get-WindowsContentProof $source) $before
                 Assert-WindowsObservation (Get-WindowsContentProof $intermediate) $observed
@@ -63,6 +60,7 @@ extension WindowsOperationScripts {
         try {
             foreach ($member in $Plan) {
                 Assert-WindowsOperationActive $Context
+                if ($member.kind -eq 'symbolicLink' -or $null -ne $member.hardLink) { continue }
                 $name = if ($member.name.Length -eq 0) { 'payload' } else { 'payload/' + $member.name }
                 $target = Join-Path $Context.record.windowsWorkspacePath $name
                 if ($member.kind -eq 'directory') {
@@ -73,6 +71,7 @@ extension WindowsOperationScripts {
                     $directories.Add([DetoursOperationFiles]::PinDirectory($target, $created.identity.volume, $created.identity.object))
                 } else { Write-WindowsZipEntry $Context $member $target $name }
             }
+            Write-WindowsTarLinks $Context $Plan
             foreach ($member in $Plan) {
                 if ($member.kind -ne 'directory' -or $null -eq $member.entry) { continue }
                 $name = if ($member.name.Length -eq 0) { 'payload' } else { 'payload/' + $member.name }

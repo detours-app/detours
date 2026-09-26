@@ -114,6 +114,8 @@ extension WindowsOperationScripts {
                 string name = Text(header, 0, 100); string prefix = Text(header, 345, 155);
                 if (prefix.Length > 0) name = prefix + "/" + name;
                 if (attributes.ContainsKey("path")) name = attributes["path"];
+                bool rootEntry = name == "." || name == "./";
+                while (name.StartsWith("./", StringComparison.Ordinal)) name = name.Substring(2);
                 if (attributes.ContainsKey("size")) length = long.Parse(attributes["size"], CultureInfo.InvariantCulture);
                 string target = attributes.ContainsKey("linkpath") ? attributes["linkpath"] : Text(header, 157, 100);
                 decimal time = attributes.ContainsKey("mtime") ? decimal.Parse(attributes["mtime"], CultureInfo.InvariantCulture) : Number(header, 136, 12);
@@ -126,6 +128,7 @@ extension WindowsOperationScripts {
                     default: throw new IOException("Unsupported Windows TAR entry type: " + kind);
                 }
                 if (length < 0 || length > source.Length - source.Position) throw new IOException("Invalid TAR member size.");
+                if (type == "directory" && rootEntry) { source.Position += length + (512 - length % 512) % 512; continue; }
                 entries.Add(new Entry { FullName = name, Kind = type, LinkTarget = target, Length = length,
                     LastWriteTime = new DateTimeOffset(1970, 1, 1, 0, 0, 0, TimeSpan.Zero).AddTicks(checked((long)(time * 10000000))),
                     Offset = source.Position, Archive = source });

@@ -45,6 +45,16 @@ extension WindowsOperationScripts {
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         private static extern bool CreateDirectoryW(string path, ref SecurityAttributes security);
 
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.U1)]
+        private static extern bool CreateSymbolicLinkW(string path, string target, uint flags);
+        public static Observation CreateArchiveSymbolicLink(string path, string target, bool directory) {
+            using (SafeFileHandle parent = Open(Path.GetDirectoryName(path), 0x80, 3)) {
+                if (Observe(parent).kind != "directory") throw new IOException("Archive link parent is not a directory.");
+                if (!CreateSymbolicLinkW(path, target, directory ? 3u : 2u)) throw new Win32Exception(Marshal.GetLastWin32Error());
+                return Observe(path);
+            }
+        }
         private static SafeFileHandle Open(string path, uint access, uint share) {
             SafeFileHandle handle = CreateFileW(path, access, share, IntPtr.Zero, 3, 0x02200000, IntPtr.Zero);
             if (handle.IsInvalid) {
@@ -131,10 +141,13 @@ extension WindowsOperationScripts {
             }
         }
         public static void SetDirectoryTime(string path, string volume, string id, long timestamp) {
+            SetArchiveTime(path, volume, id, "directory", timestamp);
+        }
+        public static void SetArchiveTime(string path, string volume, string id, string kind, long timestamp) {
             using (SafeFileHandle handle = Open(path, 0x180, 3)) {
                 Observation observed = Observe(handle);
-                if (observed.kind != "directory" || observed.identity.volume != volume || observed.identity.@object != id)
-                    throw new IOException("Archive directory identity changed.");
+                if (observed.kind != kind || observed.identity.volume != volume || observed.identity.@object != id)
+                    throw new IOException("Archive metadata identity changed.");
                 byte[] desired = new byte[40]; Buffer.BlockCopy(BitConverter.GetBytes(timestamp), 0, desired, 16, 8);
                 IntPtr buffer = Marshal.AllocHGlobal(40);
                 try {
@@ -342,6 +355,12 @@ extension WindowsOperationScripts {
                 throw new IOException("Operation object changed.");
         }
         public static Observation MoveExclusive(string source, string target, string volume, string id, string version) {
+            return LinkOrMove(source, target, volume, id, version, 10);
+        }
+        public static Observation CreateArchiveHardLink(string source, string target, string volume, string id, string version) {
+            return LinkOrMove(source, target, volume, id, version, 11);
+        }
+        private static Observation LinkOrMove(string source, string target, string volume, string id, string version, int information) {
             string parentPath = Path.GetDirectoryName(target), name = Path.GetFileName(target);
             if (String.IsNullOrEmpty(parentPath) || String.IsNullOrEmpty(name) || name == "." || name == "..")
                 throw new IOException("Invalid operation destination.");
@@ -364,7 +383,7 @@ extension WindowsOperationScripts {
                     Marshal.Copy(text, 0, IntPtr.Add(buffer, offset), text.Length);
                     // The NT entry point supports a pinned RootDirectory; the Win32 wrapper rejects it.
                     IoStatus result;
-                    int status = NtSetInformationFile(handle, out result, buffer, (uint)size, 10);
+                    int status = NtSetInformationFile(handle, out result, buffer, (uint)size, information);
                     if (status != 0) throw new Win32Exception((int)RtlNtStatusToDosError(status));
                 } finally {
                     if (retained) parent.DangerousRelease();

@@ -44,6 +44,7 @@ extension WindowsOperationScripts {
             $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($member.name))
             $matches = @($Manifest.entries | Where-Object { $_.relativePath -ceq $encoded })
             if ($matches.Count -ne 1 -or $matches[0].observation.kind -cne $member.kind) { throw 'Extracted archive object changed.' }
+            if ($member.kind -eq 'symbolicLink') { Assert-WindowsObservation $matches[0].observation $member.linkObservation }
             if ($member.kind -eq 'file' -and ($matches[0].observation.sha256 -cne $member.sha256 -or
                 $matches[0].observation.byteCount -ne $member.byteCount)) { throw 'Extracted archive content changed.' }
         }

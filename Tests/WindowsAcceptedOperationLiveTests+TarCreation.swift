@@ -12,6 +12,17 @@ extension WindowsAcceptedOperationLiveTests {
                 arguments: Arguments(root: root, account: account, operation: WindowsOperationArguments(request), trashFailure: nil))
             return try OperationReply.decode(await channel.run(script, operation: "AcceptedTarCreation"))
         }
+        let links = try PowerShellScript(source: PowerShellScript.prelude(operationBody: """
+            param($Arguments)
+            \(WindowsOperationScripts.filesystemHelpers)
+            $folder = Join-Path $Arguments.root 'folder'
+            [System.IO.File]::WriteAllText((Join-Path $folder 'data.txt'), 'archive bytes')
+            New-Item -ItemType HardLink -Path (Join-Path $folder 'hard.txt') -Target (Join-Path $folder 'data.txt') | Out-Null
+            [DetoursOperationFiles]::CreateArchiveSymbolicLink((Join-Path $folder 'file-link'), 'data.txt', $false) | Out-Null
+            [DetoursOperationFiles]::CreateArchiveSymbolicLink((Join-Path $folder 'directory-link'), 'empty', $true) | Out-Null
+            $true
+            """), arguments: ["root": root])
+        _ = try await channel.run(links, operation: "TarLinkFixtures")
         guard case .handshake(let handshake) = try await send(.handshake),
               case .lookup(.found(let folder)) = try await send(.lookup(location("folder"))),
               case .lookup(.found(let file)) = try await send(.lookup(location("selected.txt"))) else { return XCTFail("No TAR sources") }
