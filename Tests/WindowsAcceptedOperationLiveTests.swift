@@ -293,6 +293,10 @@ final class WindowsAcceptedOperationLiveTests: XCTestCase {
     }
 
     func cleanup(channel: PowerShellChannel, root: String) async throws {
+        try await Self.cleanupFixture(channel: channel, root: root)
+    }
+
+    static func cleanupFixture(channel: PowerShellChannel, root: String) async throws {
         struct Cleanup: Encodable { let root: String }
         let script = try PowerShellScript(source: PowerShellScript.prelude(operationBody: """
             param($Arguments)

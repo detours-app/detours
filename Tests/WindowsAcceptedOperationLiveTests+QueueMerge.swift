@@ -45,11 +45,11 @@ extension WindowsAcceptedOperationLiveTests {
                 try await exerciseQueueMerge(root: root, hostID: hostID, channel: channel,
                     context: .init(control: control, session: session, send: send, failLaterChild: failLaterChild))
                 await session.disconnect()
-                try await cleanup(channel: channel, root: root)
+                try await Self.cleanupFixture(channel: channel, root: root)
                 await channel.disconnect()
             } catch {
                 await session.disconnect()
-                do { try await cleanup(channel: channel, root: root) } catch { XCTFail("Queue merge cleanup failed: \(error)") }
+                do { try await Self.cleanupFixture(channel: channel, root: root) } catch { XCTFail("Queue merge cleanup failed: \(error)") }
                 await channel.disconnect()
                 throw error
             }
