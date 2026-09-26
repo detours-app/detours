@@ -8,7 +8,10 @@ actor WindowsRemoteProvider: FileProvider {
     private let transferChannel: WindowsTransferChannel
     private let watchChannel: WindowsWatchChannel?
     private var rawPaths: [Location: String] = [:]
-    private var archiveToolAvailability: WindowsArchiveToolAvailability?
+
+    func prepareAcceptedUpload(_ localURL: URL, identity: OperationRequestIdentity, sftpAvailable: Bool) async throws -> OperationReceipt {
+        try await transferChannel.prepareAcceptedUpload(localURL: localURL, identity: identity, sftpAvailable: sftpAvailable)
+    }
 
     func operationRequest(_ request: OperationRequest) async throws -> OperationReply {
         let script = try PowerShellScript(source: WindowsOperationScripts.protocolScript, arguments: WindowsOperationArguments(request))
@@ -69,160 +72,47 @@ actor WindowsRemoteProvider: FileProvider {
     }
 
     func copy(_ sources: [Location], to destination: Location) async throws -> [Location] {
-        guard !sources.isEmpty else { return [] }
-        let arguments = try TransferArguments(
-            sources: sources.map { try nativePath(from: windowsPath(from: $0)) },
-            destination: nativePath(from: windowsPath(from: destination))
-        )
-        let script = try PowerShellScript(source: Self.copyScript, arguments: arguments)
-        let data = try await channel.run(script, operation: "Copy")
-        return try decodeNativeLocations(from: data)
+        throw WindowsTransferError.acceptedOperationRequired
     }
 
     func move(_ sources: [Location], to destination: Location) async throws -> [Location] {
-        guard !sources.isEmpty else { return [] }
-        let arguments = try TransferArguments(
-            sources: sources.map { try nativePath(from: windowsPath(from: $0)) },
-            destination: nativePath(from: windowsPath(from: destination))
-        )
-        let script = try PowerShellScript(source: Self.moveScript, arguments: arguments)
-        let data = try await channel.run(script, operation: "Move")
-        return try decodeNativeLocations(from: data)
+        throw WindowsTransferError.acceptedOperationRequired
     }
 
-    /// Copy a single item to an exact target path, refusing to overwrite an existing
-    /// target. The file operation queue uses this to place items after resolving any
-    /// same-name conflict, so nothing is silently clobbered.
     func copyItem(_ source: Location, to target: Location) async throws -> Location {
-        try await transferItem(source, to: target, scriptSource: Self.copyItemScript, operation: "CopyItem")
+        throw WindowsTransferError.acceptedOperationRequired
     }
 
-    /// Move a single item to an exact target path, refusing to overwrite an existing target.
     func moveItem(_ source: Location, to target: Location) async throws -> Location {
-        try await transferItem(source, to: target, scriptSource: Self.moveItemScript, operation: "MoveItem")
-    }
-
-    private func transferItem(_ source: Location, to target: Location, scriptSource: String, operation: String) async throws -> Location {
-        let arguments = try ItemTransferArguments(
-            source: nativePath(from: windowsPath(from: source)),
-            target: nativePath(from: windowsPath(from: target))
-        )
-        let script = try PowerShellScript(source: scriptSource, arguments: arguments)
-        let data = try await channel.run(script, operation: operation)
-        guard let location = try decodeNativeLocations(from: data).first else {
-            throw RemoteFileProviderError.invalidResponse(operation)
-        }
-        return location
+        throw WindowsTransferError.acceptedOperationRequired
     }
 
     func delete(_ items: [Location]) async throws {
-        guard !items.isEmpty else { return }
-        let arguments = try TrashArguments(
-            paths: items.map { try nativePath(from: windowsPath(from: $0)) }
-        )
-        let script = try PowerShellScript(source: Self.deleteScript, arguments: arguments)
-        _ = try await channel.run(script, operation: "Delete")
+        throw WindowsTransferError.acceptedOperationRequired
     }
 
     func trash(_ items: [Location]) async throws -> [TrashedItem] {
-        guard !items.isEmpty else { return [] }
-        let arguments = try TrashArguments(paths: items.map { try nativePath(from: windowsPath(from: $0)) })
-        let script = try PowerShellScript(source: Self.trashScript, arguments: arguments)
-        let data = try await channel.run(script, operation: "Trash")
-        let replies = try WindowsReplyDecoder.decodeArrayOrSingle(WindowsTrashReply.self, from: data)
-        return try replies.map { reply in
-            TrashedItem(
-                originalLocation: try WindowsPath.location(fromNative: reply.originalPath, hostID: hostID),
-                trashLocation: WindowsTrashLocation.location(token: reply.trashToken, hostID: hostID)
-            )
-        }
+        throw WindowsTransferError.acceptedOperationRequired
     }
 
     func restoreFromTrash(_ items: [TrashedItem]) async throws -> [Location] {
-        guard !items.isEmpty else { return [] }
-        let arguments = try RestoreTrashArguments(items: items.map { item in
-            RestoreTrashItemArgument(
-                originalPath: try nativePath(from: windowsPath(from: item.originalLocation)),
-                trashToken: try WindowsTrashLocation.token(from: item.trashLocation, hostID: hostID)
-            )
-        })
-        let script = try PowerShellScript(source: Self.restoreTrashScript, arguments: arguments)
-        let data = try await channel.run(script, operation: "RestoreFromTrash")
-        return try decodeNativeLocations(from: data)
+        throw WindowsTransferError.acceptedOperationRequired
     }
 
     func rename(_ item: Location, to newName: String) async throws -> Location {
-        let arguments = try RenameArguments(path: nativePath(from: windowsPath(from: item)), newName: newName)
-        let script = try PowerShellScript(source: Self.renameScript, arguments: arguments)
-        let data = try await channel.run(script, operation: "Rename")
-        guard let renamed = try decodeNativeLocations(from: data).first else {
-            throw RemoteFileProviderError.invalidResponse("rename")
-        }
-        return renamed
+        throw WindowsTransferError.acceptedOperationRequired
     }
 
     func archiveCreate(_ items: [Location], format: ArchiveFormat, archiveName: String, password: String?) async throws -> Location {
-        guard !items.isEmpty else {
-            throw FileOperationError.archiveProcessFailed("No items selected for archive.")
-        }
-        guard password?.isEmpty ?? true else {
-            throw FileProviderError.unsupportedOperation("Password-protected archives are not supported on Windows remote machines.")
-        }
-        let arguments = try ArchiveCreateArguments(
-            items: items.map { try nativePath(from: windowsPath(from: $0)) },
-            format: format.rawValue,
-            archiveName: archiveName,
-            password: password
-        )
-        let usesBuiltInZip = format == .zip && (password?.isEmpty ?? true)
-        if !usesBuiltInZip {
-            try await requireHostArchiveTool(format: format, password: password)
-        }
-        let script = try PowerShellScript(
-            source: usesBuiltInZip ? WindowsArchiveScripts.zipCreate : WindowsArchiveScripts.externalCreate,
-            arguments: arguments
-        )
-        let data = try await channel.run(script, operation: "ArchiveCreate")
-        guard let archive = try decodeNativeLocations(from: data).first else {
-            throw RemoteFileProviderError.invalidResponse("archiveCreate")
-        }
-        return archive
+        throw WindowsTransferError.acceptedOperationRequired
     }
 
     func archiveExtract(_ archive: Location, password: String?) async throws -> Location {
-        guard let format = ArchiveFormat.detect(from: URL(fileURLWithPath: archive.path)) else {
-            throw FileOperationError.archiveExtractionFailed("Unsupported archive format: \(archive.lastPathComponent)")
-        }
-        guard password?.isEmpty ?? true else {
-            throw FileProviderError.unsupportedOperation("Password-protected archives are not supported on Windows remote machines.")
-        }
-        let usesBuiltInZip = format == .zip && (password?.isEmpty ?? true)
-        if !usesBuiltInZip {
-            try await requireHostArchiveTool(format: format, password: password)
-        }
-        let arguments = try ArchiveExtractArguments(
-            archive: nativePath(from: windowsPath(from: archive)),
-            format: format.rawValue,
-            password: password
-        )
-        let script = try PowerShellScript(
-            source: usesBuiltInZip ? WindowsArchiveScripts.zipExtract : WindowsArchiveScripts.externalExtract,
-            arguments: arguments
-        )
-        let data = try await channel.run(script, operation: "ArchiveExtract")
-        guard let extracted = try decodeNativeLocations(from: data).first else {
-            throw RemoteFileProviderError.invalidResponse("archiveExtract")
-        }
-        return extracted
+        throw WindowsTransferError.acceptedOperationRequired
     }
 
     func createDirectory(at location: Location, withIntermediateDirectories: Bool) async throws {
-        let arguments = try CreateDirectoryArguments(
-            path: nativePath(from: windowsPath(from: location)),
-            intermediate: withIntermediateDirectories
-        )
-        let script = try PowerShellScript(source: Self.createDirectoryScript, arguments: arguments)
-        _ = try await channel.run(script, operation: "CreateDirectory")
+        throw WindowsTransferError.acceptedOperationRequired
     }
 
     func watch(_ location: Location, onChange: @escaping @Sendable (Location) -> Void) async throws -> FileProviderWatch {
@@ -330,14 +220,7 @@ actor WindowsRemoteProvider: FileProvider {
     }
 
     func upload(_ localURL: URL, to location: Location) async throws {
-        let values = try localURL.resourceValues(forKeys: [.fileSizeKey])
-        let byteCount = Int64(values.fileSize ?? 0)
-        let remotePath = try windowsPath(from: location)
-        try await transferChannel.upload(
-            localURL: localURL,
-            remotePath: try nativePath(from: remotePath),
-            byteCount: byteCount
-        )
+        throw WindowsTransferError.acceptedOperationRequired
     }
 
     /// Small app-owned control writes use the existing PowerShell channel instead of opening a
@@ -451,37 +334,6 @@ actor WindowsRemoteProvider: FileProvider {
             throw WindowsPathError.nativePathRequired(path.remotePath)
         }
         return nativePath
-    }
-
-    private func decodeNativeLocations(from data: Data) throws -> [Location] {
-        try WindowsReplyDecoder.decodeArrayOrSingle(String.self, from: data).map { nativePath in
-            try WindowsPath.location(fromNative: nativePath, hostID: hostID)
-        }
-    }
-
-    private func requireHostArchiveTool(format: ArchiveFormat, password: String?) async throws {
-        let tools = try await hostArchiveTools()
-        switch format {
-        case .zip:
-            if !(password?.isEmpty ?? true), !tools.sevenZip {
-                throw FileOperationError.archiveToolNotFound("7z")
-            }
-        case .sevenZ:
-            guard tools.sevenZip else { throw FileOperationError.archiveToolNotFound("7z") }
-        case .tarGz, .tarBz2, .tarXz:
-            guard tools.tar else { throw FileOperationError.archiveToolNotFound("tar") }
-        }
-    }
-
-    private func hostArchiveTools() async throws -> WindowsArchiveToolAvailability {
-        if let archiveToolAvailability {
-            return archiveToolAvailability
-        }
-        let script = PowerShellScript(source: WindowsArchiveScripts.toolAvailability)
-        let data = try await channel.run(script, operation: "ArchiveTools")
-        let tools = try JSONDecoder.detoursWindows.decode(WindowsArchiveToolAvailability.self, from: data)
-        archiveToolAvailability = tools
-        return tools
     }
 
     private func loadedEntry(_ entry: WindowsDirectoryEntry) throws -> LoadedFileEntry {

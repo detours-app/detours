@@ -7,6 +7,7 @@ enum WindowsTransferError: Error, Equatable, LocalizedError {
     case invalidBase64Payload
     case partialFileMissing
     case invalidAcceptedUpload
+    case acceptedOperationRequired
 
     var errorDescription: String? {
         switch self {
@@ -18,6 +19,8 @@ enum WindowsTransferError: Error, Equatable, LocalizedError {
             return "Windows transfer returned invalid base64 data."
         case .partialFileMissing:
             return "The downloaded partial file was missing before it could be finalized."
+        case .acceptedOperationRequired:
+            return "Remote changes require an accepted operation. Reconnect with a compatible Detours client."
         case .invalidAcceptedUpload:
             return "The Windows host returned an invalid upload preparation result."
         }
@@ -89,14 +92,7 @@ actor WindowsTransferChannel {
     }
 
     func upload(localURL: URL, remotePath: String, byteCount: Int64) async throws {
-        do {
-            try await sftpClient.upload(localURL: localURL, remotePath: remotePath)
-        } catch {
-            guard byteCount <= fallbackThreshold else {
-                throw WindowsTransferError.unsupportedLargeTransferWithoutSFTP(byteCount: byteCount)
-            }
-            try await uploadViaPowerShell(localURL: localURL, remotePath: remotePath, byteCount: byteCount)
-        }
+        throw WindowsTransferError.acceptedOperationRequired
     }
 
     func prepareAcceptedUpload(localURL: URL, identity: OperationRequestIdentity, sftpAvailable: Bool) async throws -> OperationReceipt {
@@ -167,16 +163,6 @@ actor WindowsTransferChannel {
             throw WindowsTransferError.partialFileMissing
         }
         try FileManager.default.moveItem(at: partial, to: localURL)
-    }
-
-    private func uploadViaPowerShell(localURL: URL, remotePath: String, byteCount: Int64) async throws {
-        let payload = try Data(contentsOf: localURL)
-        guard Int64(payload.count) == byteCount else {
-            throw WindowsTransferError.byteCountMismatch(expected: byteCount, actual: Int64(payload.count))
-        }
-        let arguments = UploadArguments(path: remotePath, base64: payload.base64EncodedString(), expectedByteCount: byteCount)
-        let script = try PowerShellScript(source: Self.uploadScript, arguments: arguments)
-        _ = try await powerShellChannel.run(script, operation: "UploadFallback")
     }
 
     private func verifyByteCount(_ localURL: URL, expected: Int64) throws {
@@ -256,12 +242,6 @@ final class ProcessWindowsSFTPClient: WindowsSFTPClient, @unchecked Sendable {
     }
 }
 
-private struct UploadArguments: Encodable {
-    let path: String
-    let base64: String
-    let expectedByteCount: Int64
-}
-
 private extension WindowsTransferChannel {
     static let downloadScript = PowerShellScript.prelude(
         operationBody: """
@@ -270,28 +250,4 @@ private extension WindowsTransferChannel {
         """
     )
 
-    static let uploadScript = PowerShellScript.prelude(
-        operationBody: """
-        param($Arguments)
-        $bytes = [Convert]::FromBase64String($Arguments.base64)
-        if ($bytes.Length -ne [int64]$Arguments.expectedByteCount) {
-            throw "Decoded upload byte count did not match."
-        }
-        if ([System.IO.File]::Exists($Arguments.path) -or [System.IO.Directory]::Exists($Arguments.path)) {
-            throw "Destination already exists: $($Arguments.path)"
-        }
-        $directory = [System.IO.Path]::GetDirectoryName($Arguments.path)
-        if (-not [string]::IsNullOrWhiteSpace($directory)) {
-            [System.IO.Directory]::CreateDirectory($directory) | Out-Null
-        }
-        [System.IO.File]::WriteAllBytes($Arguments.path, $bytes)
-        [pscustomobject]@{ BytesWritten = [int64]$bytes.Length }
-        """
-    )
 }
-
-#if DEBUG
-extension WindowsTransferChannel {
-    static var uploadScriptForTesting: String { uploadScript }
-}
-#endif

@@ -111,168 +111,40 @@ final class WindowsRemoteProviderTests: XCTestCase {
         XCTAssertTrue(operations.isEmpty)
     }
 
-    func testWriteOperationsUsePowerShellAndReturnWindowsLocations() async throws {
+    func testLegacyMutationsRefuseBeforeSendingOrReadingPayloads() async throws {
         let hostID = UUID()
-        let transport = ProviderScriptTransport(responses: [
-            "CreateDirectory": #""C:\\Users\\sans\\New Folder""#,
-            "Rename": #""C:\\Users\\sans\\Renamed.txt""#,
-            "Copy": #"["C:\\Users\\sans\\Dest\\A.txt","C:\\Users\\sans\\Dest\\B"]"#,
-            "Move": #""C:\\Users\\sans\\Dest\\Move.txt""#,
-        ])
+        let transport = ProviderScriptTransport(responses: [:])
         let channel = PowerShellChannel(transport: transport)
-        let provider = WindowsRemoteProvider(
-            hostID: hostID,
-            channel: channel,
-            transferChannel: WindowsTransferChannel(
-                powerShellChannel: channel,
-                sftpClient: FakeWindowsSFTPClient()
-            )
-        )
-
-        try await provider.createDirectory(
-            at: .remote(hostID: hostID, path: "/C:/Users/sans/New Folder"),
-            withIntermediateDirectories: false
-        )
-        let renamed = try await provider.rename(
-            .remote(hostID: hostID, path: "/C:/Users/sans/Old.txt"),
-            to: "Renamed.txt"
-        )
-        let copied = try await provider.copy(
-            [
-                .remote(hostID: hostID, path: "/C:/Users/sans/A.txt"),
-                .remote(hostID: hostID, path: "/C:/Users/sans/B"),
-            ],
-            to: .remote(hostID: hostID, path: "/C:/Users/sans/Dest")
-        )
-        let moved = try await provider.move(
-            [.remote(hostID: hostID, path: "/C:/Users/sans/Move.txt")],
-            to: .remote(hostID: hostID, path: "/C:/Users/sans/Dest")
-        )
-        let requests = await transport.requests
-
-        XCTAssertEqual(requests.map(\.operation), ["CreateDirectory", "Rename", "Copy", "Move"])
-        XCTAssertTrue(requests[0].decodedScript.hasPrefix("param($Arguments)"))
-        XCTAssertTrue(requests[1].decodedScript.contains("Rename-Item"))
-        XCTAssertTrue(requests[2].decodedScript.contains("Copy-Item"))
-        XCTAssertTrue(requests[3].decodedScript.contains("Move-Item"))
-        XCTAssertTrue(requests[2].argumentsJSON.contains(#""destination":"C:\\Users\\sans\\Dest""#))
-        XCTAssertEqual(renamed, .remote(hostID: hostID, path: "/C:/Users/sans/Renamed.txt"))
-        XCTAssertEqual(copied, [
-            .remote(hostID: hostID, path: "/C:/Users/sans/Dest/A.txt"),
-            .remote(hostID: hostID, path: "/C:/Users/sans/Dest/B"),
-        ])
-        XCTAssertEqual(moved, [.remote(hostID: hostID, path: "/C:/Users/sans/Dest/Move.txt")])
-    }
-
-    func testLocationBasedDragAndPasteRouting() async throws {
-        let hostID = UUID()
-        let transport = ProviderScriptTransport(responses: [
-            "Copy": #"["C:\\Target\\one.txt","C:\\Target\\Folder"]"#,
-            "Move": #"["D:\\Paste\\one.txt","D:\\Paste\\Folder"]"#,
-        ])
-        let channel = PowerShellChannel(transport: transport)
-        let provider = WindowsRemoteProvider(
-            hostID: hostID,
-            channel: channel,
-            transferChannel: WindowsTransferChannel(
-                powerShellChannel: channel,
-                sftpClient: FakeWindowsSFTPClient()
-            )
-        )
-        let sources = [
-            Location.remote(hostID: hostID, path: "/C:/Source/one.txt"),
-            Location.remote(hostID: hostID, path: "/C:/Source/Folder"),
+        let provider = WindowsRemoteProvider(hostID: hostID, channel: channel,
+            transferChannel: WindowsTransferChannel(powerShellChannel: channel, sftpClient: FakeWindowsSFTPClient()))
+        let source = Location.remote(hostID: hostID, path: "/C:/source")
+        let destination = Location.remote(hostID: hostID, path: "/C:/destination")
+        let actions: [(String, @Sendable () async throws -> Void)] = [
+            ("copy", { _ = try await provider.copy([source], to: destination) }),
+            ("move", { _ = try await provider.move([source], to: destination) }),
+            ("copy item", { _ = try await provider.copyItem(source, to: destination) }),
+            ("move item", { _ = try await provider.moveItem(source, to: destination) }),
+            ("rename", { _ = try await provider.rename(source, to: "new") }),
+            ("delete", { try await provider.delete([source]) }),
+            ("trash", { _ = try await provider.trash([source]) }),
+            ("restore", { _ = try await provider.restoreFromTrash([.init(originalLocation: source, trashLocation: destination)]) }),
+            ("create folder", { try await provider.createDirectory(at: destination, withIntermediateDirectories: true) }),
+            ("create archive", { _ = try await provider.archiveCreate([source], format: .zip, archiveName: "archive", password: nil) }),
+            ("extract archive", { _ = try await provider.archiveExtract(source, password: nil) }),
+            ("upload", { try await provider.upload(URL(fileURLWithPath: "/must-not-read"), to: destination) }),
         ]
-        let dragDestination = Location.remote(hostID: hostID, path: "/C:/Target")
-        let pasteDestination = Location.remote(hostID: hostID, path: "/D:/Paste")
-
-        let copied = try await provider.copy(sources, to: dragDestination)
-        let moved = try await provider.move(sources, to: pasteDestination)
+        for (name, action) in actions {
+            do {
+                try await action()
+                XCTFail("Legacy \(name) was accepted")
+            } catch let error as WindowsTransferError {
+                XCTAssertEqual(error, .acceptedOperationRequired, name)
+            } catch {
+                XCTFail("Unexpected \(name) refusal: \(error)")
+            }
+        }
         let requests = await transport.requests
-
-        XCTAssertEqual(copied, [
-            .remote(hostID: hostID, path: "/C:/Target/one.txt"),
-            .remote(hostID: hostID, path: "/C:/Target/Folder"),
-        ])
-        XCTAssertEqual(moved, [
-            .remote(hostID: hostID, path: "/D:/Paste/one.txt"),
-            .remote(hostID: hostID, path: "/D:/Paste/Folder"),
-        ])
-        XCTAssertEqual(requests.map(\.operation), ["Copy", "Move"])
-        XCTAssertTrue(requests[0].argumentsJSON.contains(#""sources":["C:\\Source\\one.txt","C:\\Source\\Folder"]"#))
-        XCTAssertTrue(requests[0].argumentsJSON.contains(#""destination":"C:\\Target""#))
-        XCTAssertTrue(requests[1].argumentsJSON.contains(#""sources":["C:\\Source\\one.txt","C:\\Source\\Folder"]"#))
-        XCTAssertTrue(requests[1].argumentsJSON.contains(#""destination":"D:\\Paste""#))
-    }
-
-    func testTrashDeleteAndRestoreUseDistinctRecoverableAndPermanentContracts() async throws {
-        let hostID = UUID()
-        let transport = ProviderScriptTransport(responses: [
-            "Trash": #"{"OriginalPath":"C:\\Users\\sans\\Old.txt","TrashToken":"restore-token"}"#,
-            "Delete": "null",
-            "RestoreFromTrash": #""C:\\Users\\sans\\Old.txt""#,
-        ])
-        let channel = PowerShellChannel(transport: transport)
-        let provider = WindowsRemoteProvider(
-            hostID: hostID,
-            channel: channel,
-            transferChannel: WindowsTransferChannel(
-                powerShellChannel: channel,
-                sftpClient: FakeWindowsSFTPClient()
-            )
-        )
-        let original = Location.remote(hostID: hostID, path: "/C:/Users/sans/Old.txt")
-
-        let trashed = try await provider.trash([original])
-        try await provider.delete([original])
-        let restored = try await provider.restoreFromTrash(trashed)
-        let requests = await transport.requests
-
-        XCTAssertEqual(trashed, [
-            TrashedItem(
-                originalLocation: original,
-                trashLocation: .remote(hostID: hostID, path: "/.detours-trash/restore-token")
-            ),
-        ])
-        XCTAssertEqual(restored, [original])
-        XCTAssertEqual(requests.map(\.operation), ["Trash", "Delete", "RestoreFromTrash"])
-        XCTAssertTrue(requests[0].decodedScript.contains(".detours-trash"))
-        XCTAssertTrue(requests[0].decodedScript.contains("Move-Item -LiteralPath $item.FullName"))
-        XCTAssertTrue(requests[1].decodedScript.contains("Remove-Item -LiteralPath $path -Recurse -Force"))
-        XCTAssertTrue(requests[2].decodedScript.contains("Move-Item -LiteralPath $trashPath -Destination"))
-        XCTAssertTrue(requests[2].argumentsJSON.contains(#""trashToken":"restore-token""#))
-    }
-
-    func testArchiveRoutesZipBuiltInAndToolBackedFormats() async throws {
-        let hostID = UUID()
-        let transport = ProviderScriptTransport(responses: [
-            "ArchiveTools": #"{"SevenZip":true,"Tar":true}"#,
-            "ArchiveCreate": #""C:\\Users\\sans\\bundle.zip""#,
-            "ArchiveExtract": #""C:\\Users\\sans\\bundle""#,
-        ])
-        let channel = PowerShellChannel(transport: transport)
-        let provider = WindowsRemoteProvider(
-            hostID: hostID,
-            channel: channel,
-            transferChannel: WindowsTransferChannel(
-                powerShellChannel: channel,
-                sftpClient: FakeWindowsSFTPClient()
-            )
-        )
-        let source = Location.remote(hostID: hostID, path: "/C:/Users/sans/source")
-
-        let zip = try await provider.archiveCreate([source], format: .zip, archiveName: "bundle", password: nil)
-        let extracted = try await provider.archiveExtract(zip, password: nil)
-        _ = try await provider.archiveCreate([source], format: .sevenZ, archiveName: "bundle", password: nil)
-        let requests = await transport.requests
-
-        XCTAssertEqual(zip, .remote(hostID: hostID, path: "/C:/Users/sans/bundle.zip"))
-        XCTAssertEqual(extracted, .remote(hostID: hostID, path: "/C:/Users/sans/bundle"))
-        XCTAssertEqual(requests.map(\.operation), ["ArchiveCreate", "ArchiveExtract", "ArchiveTools", "ArchiveCreate"])
-        XCTAssertTrue(requests[0].decodedScript.contains("System.IO.Compression.ZipArchive"))
-        XCTAssertTrue(requests[1].decodedScript.contains("ZipFile]::OpenRead"))
-        XCTAssertTrue(requests[1].decodedScript.contains("ZipFileExtensions]::ExtractToFile"))
-        XCTAssertTrue(requests[3].decodedScript.contains("Resolve-ArchiveTool @('7z.exe', '7z')"))
+        XCTAssertTrue(requests.isEmpty)
     }
 
     func testGitStatusParsesHostPorcelainResults() async throws {

@@ -301,10 +301,6 @@ extension WindowsRemoteProviderTests {
         let survived = await fs.contentTag("C:\\dst\\A.txt")
         XCTAssertEqual(survived, "original")
 
-        // The scripts no longer trash-then-overwrite, and guard the collision explicitly.
-        XCTAssertFalse(WindowsRemoteProvider.copyItemScript.contains("Send-ToRecycleBin"))
-        XCTAssertTrue(WindowsRemoteProvider.copyItemScript.contains("Destination already exists"))
-        XCTAssertTrue(WindowsRemoteProvider.moveItemScript.contains("Destination already exists"))
     }
 
 }

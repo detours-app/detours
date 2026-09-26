@@ -10,9 +10,11 @@ final class WindowsTransferChannelTests: XCTestCase {
         let (identity, receipt) = acceptedFixture(phase: .preparing)
         let response = try XCTUnwrap(String(bytes: OperationReply.receipt(receipt).encoded(), encoding: .utf8))
         let transport = TransferScriptTransport(responses: ["AcceptedUpload": response])
-        let transfer = WindowsTransferChannel(powerShellChannel: PowerShellChannel(transport: transport), sftpClient: FailingWindowsSFTPClient())
+        let channel = PowerShellChannel(transport: transport)
+        let transfer = WindowsTransferChannel(powerShellChannel: channel, sftpClient: FailingWindowsSFTPClient())
+        let provider = WindowsRemoteProvider(hostID: UUID(), channel: channel, transferChannel: transfer)
         do {
-            _ = try await transfer.prepareAcceptedUpload(localURL: local, identity: identity, sftpAvailable: true)
+            _ = try await provider.prepareAcceptedUpload(local, identity: identity, sftpAvailable: true)
             XCTFail("SFTP failure must propagate")
         } catch RemoteTransferError.processFailed(let message) {
             XCTAssertEqual(message, "sftp unavailable")
@@ -138,45 +140,20 @@ final class WindowsTransferChannelTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: partial.path))
     }
 
-    func testUploadRefusesExistingRemoteTargetWithoutReplace() async throws {
-        // Contract: the upload script refuses to overwrite an existing remote target.
-        XCTAssertTrue(WindowsTransferChannel.uploadScriptForTesting.contains("Destination already exists"))
-
-        // Behavior: a host-side refusal propagates rather than being silently swallowed.
-        let temp = try createTempDirectory()
-        defer { cleanupTempDirectory(temp) }
-        let local = try createTestFile(in: temp, name: "u.bin", content: "x")
-        let transfer = WindowsTransferChannel(
-            powerShellChannel: PowerShellChannel(transport: TransferScriptTransport(responses: [:])),
-            sftpClient: FailingWindowsSFTPClient()
-        )
-
+    func testLegacyUploadNeverStartsSFTPOrFallback() async throws {
+        let transport = TransferScriptTransport(responses: [:])
+        let sftp = RecordingWindowsSFTPClient()
+        let transfer = WindowsTransferChannel(powerShellChannel: PowerShellChannel(transport: transport), sftpClient: sftp)
         do {
-            try await transfer.upload(localURL: local, remotePath: "C:\\dst\\u.bin", byteCount: 1)
-            XCTFail("Expected the refusal to propagate")
-        } catch {
-            // expected: SFTP fails, and the PowerShell fallback's refusal is not swallowed
-        }
-    }
-
-    func testUploadFallsBackThroughPowerShellWhenSFTPUnavailable() async throws {
-        let temp = try createTempDirectory()
-        defer { cleanupTempDirectory(temp) }
-
-        let local = try createTestFile(in: temp, name: "upload.bin", content: "payload")
-        let transport = TransferScriptTransport(responses: [
-            "UploadFallback": #"{"BytesWritten":7}"#,
-        ])
-        let transfer = WindowsTransferChannel(
-            powerShellChannel: PowerShellChannel(transport: transport),
-            sftpClient: FailingWindowsSFTPClient()
-        )
-
-        try await transfer.upload(localURL: local, remotePath: "C:\\Users\\sans\\upload.bin", byteCount: 7)
-
+            try await transfer.upload(localURL: URL(fileURLWithPath: "/must-not-read"), remotePath: "C:\\target", byteCount: 7)
+            XCTFail("Legacy upload was accepted")
+        } catch let error as WindowsTransferError { XCTAssertEqual(error, .acceptedOperationRequired) }
         let operations = await transport.operations
-        XCTAssertEqual(operations, ["UploadFallback"])
+        let uploads = await sftp.uploads
+        XCTAssertTrue(operations.isEmpty)
+        XCTAssertEqual(uploads, 0)
     }
+
 }
 
 private actor PartialScriptedSFTP: WindowsSFTPClient {
@@ -261,4 +238,10 @@ private extension JSONEncoder {
         let data = try encode(value)
         return try XCTUnwrap(String(bytes: data, encoding: .utf8))
     }
+}
+
+private actor RecordingWindowsSFTPClient: WindowsSFTPClient {
+    private(set) var uploads = 0
+    func download(remotePath: String, to localURL: URL) async throws {}
+    func upload(localURL: URL, remotePath: String) async throws { uploads += 1 }
 }
