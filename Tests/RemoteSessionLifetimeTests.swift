@@ -4,6 +4,36 @@ import XCTest
 @testable import Detours
 
 final class RemoteSessionLifetimeTests: XCTestCase {
+    func testDisconnectStopsOwnedReaderAfterPaneCloses() async throws {
+        let session = makeSession(LifetimeTransport())
+        let pane = try await session.acquireLifetime(.pane)
+        let ready = try await session.ensureReady()
+        let worker = RemoteProcessWorker(process: Process())
+        worker.process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        worker.process.arguments = ["-c", "printf ready; exec /bin/sleep 30"]
+        let entered = expectation(description: "Worker has read real child output")
+        let request = Task {
+            try await session.performOwnedWorker(worker, kind: .reader) { worker in
+                try worker.start()
+                _ = try worker.readExactly(5)
+                entered.fulfill()
+                return try worker.readExactly(1, timeout: nil)
+            }
+        }
+        await fulfillment(of: [entered], timeout: 2)
+        await pane.releaseAndWait()
+        try await Task.sleep(for: .milliseconds(60))
+        try await session.requireGeneration(ready.generation)
+        let started = ContinuousClock.now
+        await session.disconnect()
+        do {
+            _ = try await request.value
+            XCTFail("Disconnected reader returned output")
+        } catch is CancellationError {}
+        XCTAssertLessThan(started.duration(to: .now), .seconds(5))
+        XCTAssertFalse(worker.process.isRunning)
+    }
+
     func testLastOwnerStartsIdleGraceAndSessionCanReopen() async throws {
         let transport = LifetimeTransport()
         let session = makeSession(transport)

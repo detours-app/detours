@@ -4,6 +4,33 @@ import XCTest
 @testable import Detours
 
 final class RemoteHostSessionTests: XCTestCase {
+    func testCancelledReadinessWaiterDoesNotCancelSharedAttempt() async throws {
+        let transport = ControlledHostTransport()
+        let session = RemoteHostSession(transport: transport, publish: { _, _ in })
+        let cancelled = expectation(description: "Cancelled caller returns before handshake completes")
+        let first = Task {
+            do {
+                _ = try await session.ensureReady()
+                XCTFail("Cancelled caller became ready")
+            } catch is CancellationError {
+                cancelled.fulfill()
+            } catch {
+                XCTFail("Unexpected cancellation error: \(error)")
+            }
+        }
+        let generation = await transport.nextStarted()
+        let second = Task { try await session.ensureReady() }
+        first.cancel()
+        await fulfillment(of: [cancelled], timeout: 1)
+        await transport.complete(generation: generation, reply: .success(transport.validHandshake))
+        let ready = try await second.value
+        XCTAssertEqual(ready.handshake, transport.validHandshake)
+        let count = await transport.startedCount()
+        XCTAssertEqual(count, 1)
+        await first.value
+        await session.disconnect()
+    }
+
     func testConcurrentReadinessWaitsForVerifiedHandshake() async throws {
         let transport = ControlledHostTransport()
         let states = SessionStateRecorder()

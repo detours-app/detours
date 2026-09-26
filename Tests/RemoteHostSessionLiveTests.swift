@@ -84,6 +84,12 @@ final class RemoteHostSessionLiveTests: XCTestCase {
             XCTAssertEqual(second.handshake, first.handshake)
             let refreshed = try await provider.list(location, showHidden: false)
             XCTAssertTrue(refreshed.contains { $0.name == "hosts" })
+            let search = RemoteSearchChannel(sshTarget: target, controlDirectory: control, session: session)
+            var matches: [RemoteFindMatch] = []
+            for try await batch in search.search(query: Data("detours-server".utf8), cap: 1) {
+                matches.append(contentsOf: batch)
+            }
+            XCTAssertFalse(matches.isEmpty, "Search did not find the deployed helper")
             await provider.unwatch(watch)
             await session.disconnect()
         } catch {

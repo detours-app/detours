@@ -1,4 +1,5 @@
 import Foundation
+import os.log
 import RemoteOperationSupport
 
 protocol RemoteHostSessionTransport: Sendable {
@@ -59,6 +60,8 @@ actor RemoteHostSession: RemoteConnectionHandle {
     private var idleTask: Task<Void, Never>?
     private var idleRevision: UInt64 = 0
     private var idleRetirement: Task<Void, Never>?
+    private var workers: [UUID: RemoteProcessWorker] = [:]
+    private static let logger = Logger(subsystem: "com.detours", category: "remote-worker")
     private(set) var state: State = .disconnected
 
     init(
@@ -83,16 +86,44 @@ actor RemoteHostSession: RemoteConnectionHandle {
         await idleRetirement?.value
         guard !retired else { throw RemoteHostSessionError.retired }
         if case .ready(let ready) = state { return ready }
-        if let connectionTask { return try await connectionTask.value }
+        if let connectionTask { return try await RemoteReadinessWaiter().wait(for: connectionTask) }
         if case .failed(let reason) = state { throw RemoteHostSessionError.failed(reason) }
         let task = Task { try await self.connectInitially() }
         connectionTask = task
-        return try await task.value
+        return try await RemoteReadinessWaiter().wait(for: task)
     }
 
     func requireGeneration(_ expected: UInt64) throws {
         guard !retired, case .ready(let ready) = state, ready.generation == expected else {
             throw RemoteHostSessionError.obsoleteGeneration
+        }
+    }
+
+    func performOwnedWorker<Value: Sendable>(
+        _ worker: RemoteProcessWorker,
+        kind: RemoteSessionLifetimeKind,
+        body: @escaping @Sendable (RemoteProcessWorker) throws -> Value
+    ) async throws -> Value {
+        let lifetime = try acquireLifetime(kind)
+        defer { lifetime.release() }
+        let ready = try await ensureReady()
+        try Task.checkCancellation()
+        try requireGeneration(ready.generation)
+        let id = UUID()
+        workers[id] = worker
+        defer { workers.removeValue(forKey: id) }
+        let result = try await worker.perform(body)
+        try requireGeneration(ready.generation)
+        return result
+    }
+
+    private func retireWorkers() async {
+        let active = Array(workers.values)
+        for worker in active { worker.requestStop() }
+        for worker in active {
+            do { try await worker.stop() } catch {
+                Self.logger.error("Owned remote worker shutdown failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
     }
 
@@ -105,13 +136,14 @@ actor RemoteHostSession: RemoteConnectionHandle {
         attempt = nil
         state = .connecting
         let task = Task {
+            await self.retireWorkers()
             await previousAttempt?.cancel()
             await transport.retire(generation: previous)
             try Task.checkCancellation()
             return try await self.connectInitially()
         }
         connectionTask = task
-        _ = try await task.value
+        _ = try await RemoteReadinessWaiter().wait(for: task)
     }
 
     func disconnect() async {
@@ -119,6 +151,7 @@ actor RemoteHostSession: RemoteConnectionHandle {
         retired = true
         idleTask?.cancel()
         lifetimes.removeAll()
+        await retireWorkers()
         await idleRetirement?.value
         await retireAttempt()
         state = .disconnected
@@ -223,6 +256,7 @@ actor RemoteHostSession: RemoteConnectionHandle {
         let previous = generation
         generation += 1
         let current = generation
+        await retireWorkers()
         await transport.retire(generation: previous)
         try Task.checkCancellation()
         guard !retired, generation == current else { throw RemoteHostSessionError.obsoleteGeneration }
