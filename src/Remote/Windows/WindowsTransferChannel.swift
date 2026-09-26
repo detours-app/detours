@@ -49,7 +49,8 @@ actor WindowsTransferChannel {
         self.sftpClient = ProcessWindowsSFTPClient(
             sshTarget: sshTarget,
             controlDirectory: controlDirectory,
-            hostTrust: hostTrust
+            hostTrust: hostTrust,
+            powerShellChannel: powerShellChannel
         )
         self.fallbackThreshold = fallbackThreshold
     }
@@ -84,8 +85,8 @@ actor WindowsTransferChannel {
         // Stream into a .detours-partial temp, verify, then atomically swap into place, so an
         // interrupted or size-mismatched download never leaves a truncated file at the
         // destination.
-        let partial = RemoteTransferChannel.partialURL(for: localURL)
-        try preparePartial(partial, finalURL: localURL)
+        let partial = makePartial(for: localURL)
+        try prepareDestinationDirectory(localURL)
         do {
             try await sftpClient.download(remotePath: remotePath, to: partial)
             try verifyByteCount(partial, expected: expectedByteCount)
@@ -148,8 +149,8 @@ actor WindowsTransferChannel {
             throw WindowsTransferError.byteCountMismatch(expected: expectedByteCount, actual: Int64(payload.count))
         }
 
-        let partial = RemoteTransferChannel.partialURL(for: localURL)
-        try preparePartial(partial, finalURL: localURL)
+        let partial = makePartial(for: localURL)
+        try prepareDestinationDirectory(localURL)
         do {
             try payload.write(to: partial, options: .atomic)
             try finalizePartial(partial, to: localURL)
@@ -159,9 +160,12 @@ actor WindowsTransferChannel {
         }
     }
 
-    private func preparePartial(_ partial: URL, finalURL: URL) throws {
+    private func prepareDestinationDirectory(_ finalURL: URL) throws {
         try FileManager.default.createDirectory(at: finalURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try? FileManager.default.removeItem(at: partial)
+    }
+
+    private func makePartial(for destination: URL) -> URL {
+        destination.deletingLastPathComponent().appendingPathComponent(".detours-partial-\(UUID().uuidString)")
     }
 
     /// Move a verified partial into place. The guard is on the partial temp, not the final
@@ -184,57 +188,109 @@ actor WindowsTransferChannel {
 }
 
 final class ProcessWindowsSFTPClient: WindowsSFTPClient, @unchecked Sendable {
+    #if DEBUG
+    var bandwidthLimitForTesting: Int?
+    #endif
     private let sshTarget: String
     private let controlDirectory: URL
     private let hostTrust: SSHHostTrust
     private let processFactory: @Sendable () -> Process
+    private let powerShellChannel: PowerShellChannel
 
     init(
         sshTarget: String,
         controlDirectory: URL,
         hostTrust: SSHHostTrust,
+        powerShellChannel: PowerShellChannel,
         processFactory: @escaping @Sendable () -> Process = { Process() }
     ) {
         self.sshTarget = sshTarget
         self.controlDirectory = controlDirectory
         self.hostTrust = hostTrust
+        self.powerShellChannel = powerShellChannel
         self.processFactory = processFactory
     }
 
     func download(remotePath: String, to localURL: URL) async throws {
         try await runBatch(commands: [
             "get \(Self.quote(Self.sftpPath(fromNativePath: remotePath))) \(Self.quote(localURL.path))",
-        ])
+        ]) {
+            do {
+                let attributes = try FileManager.default.attributesOfItem(atPath: localURL.path)
+                guard let size = attributes[.size] as? NSNumber else { throw CocoaError(.fileReadUnknown) }
+                return size.int64Value
+            } catch let error as CocoaError where error.code == .fileReadNoSuchFile || error.code == .fileNoSuchFile {
+                return 0
+            }
+        }
     }
 
     func upload(localURL: URL, remotePath: String) async throws {
+        let script = try PowerShellScript(source: PowerShellScript.prelude(operationBody: """
+            param($Arguments)
+            try { ([System.IO.FileInfo]::new($Arguments.path)).Length }
+            catch [System.IO.FileNotFoundException] { [long]0 }
+            catch [System.IO.DirectoryNotFoundException] { [long]0 }
+            """), arguments: ["path": remotePath])
+        let channel = powerShellChannel
         try await runBatch(commands: [
             "put \(Self.quote(localURL.path)) \(Self.quote(Self.sftpPath(fromNativePath: remotePath)))",
-        ])
+        ]) {
+            let data = try await channel.runIndependent(script, operation: "TransferProgress")
+            return try JSONDecoder.detoursWindows.decode(Int64.self, from: data)
+        }
     }
 
-    private func runBatch(commands: [String]) async throws {
+    private func runBatch(commands: [String], measure: @escaping @Sendable () async throws -> Int64) async throws {
+        _ = try await powerShellChannel.readyForAuxiliaryRequest()
         try hostTrust.prepareKnownHostsFile()
         let process = processFactory()
-        let stdin = Pipe()
-        let stderr = Pipe()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/sftp")
         process.arguments = [
             "-b", "-",
             "-o", "ControlMaster=auto",
             "-o", "ControlPath=\(controlDirectory.path)/%C",
         ] + hostTrust.sshArguments + [sshTarget]
-        process.standardInput = stdin
-        process.standardError = stderr
-
-        try process.run()
-        stdin.fileHandleForWriting.write(Data((commands.joined(separator: "\n") + "\n").utf8))
-        try? stdin.fileHandleForWriting.close()
-        process.waitUntilExit()
-
-        guard process.terminationStatus == 0 else {
-            let message = String(data: stderr.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-            throw RemoteTransferError.processFailed(message)
+        #if DEBUG
+        if let bandwidthLimitForTesting {
+            process.arguments?.insert(contentsOf: ["-l", String(bandwidthLimitForTesting)], at: 0)
+        }
+        #endif
+        let worker = RemoteProcessWorker(process: process)
+        let progress = SFTPMeasuredProgress()
+        let monitor = Task {
+            do {
+                while !Task.isCancelled {
+                    progress.record(try await measure())
+                    try await Task.sleep(for: .seconds(5))
+                }
+            } catch {
+                if !Task.isCancelled { progress.fail(error); worker.requestStop() }
+            }
+        }
+        defer { monitor.cancel() }
+        let batch = Data((commands.joined(separator: "\n") + "\n").utf8)
+        do {
+            try await powerShellChannel.performAuxiliaryWorker(worker, kind: .reader) { worker in
+                try worker.start()
+                try worker.write(batch)
+                worker.closeInput()
+                while true {
+                    try progress.check()
+                    do {
+                        if try worker.read(maximumBytes: 4096, timeout: .milliseconds(250)).isEmpty { break }
+                    } catch RemoteProcessWorkerError.timedOut {
+                        try progress.check()
+                    }
+                }
+                guard try worker.waitForExit() == 0 else {
+                    worker.finishDiagnostics()
+                    throw RemoteTransferError.processFailed(worker.diagnostics)
+                }
+            }
+        } catch {
+            try progress.check()
+            throw error
         }
     }
 
@@ -259,4 +315,28 @@ private extension WindowsTransferChannel {
         """
     )
 
+}
+
+final class SFTPMeasuredProgress: @unchecked Sendable {
+    private let lock = NSLock()
+    private var measuredBytes: Int64 = 0
+    private var advanced: ContinuousClock.Instant
+    private var failure: Error?
+
+    init(startedAt: ContinuousClock.Instant = .now) { advanced = startedAt }
+
+    func record(_ bytes: Int64, at now: ContinuousClock.Instant = .now) {
+        lock.withLock {
+            if bytes > measuredBytes { measuredBytes = bytes; advanced = now }
+        }
+    }
+
+    func fail(_ error: Error) { lock.withLock { failure = error } }
+
+    func check(at now: ContinuousClock.Instant = .now) throws {
+        try lock.withLock {
+            if let failure { throw failure }
+            if advanced.duration(to: now) >= .seconds(30) { throw RemoteProcessWorkerError.timedOut }
+        }
+    }
 }

@@ -246,7 +246,8 @@ final class WindowsAcceptedOperationLiveTests: XCTestCase {
         XCTAssertEqual(allocation.phase, .preparing, allocation.failure ?? "")
         let duplicate = try await send(.init(ingress: .prepareIngress(identity)))
         XCTAssertEqual(duplicate, allocated)
-        let sftp = ProcessWindowsSFTPClient(sshTarget: "detours-windows", controlDirectory: control, hostTrust: SSHHostTrust())
+        let sftp = ProcessWindowsSFTPClient(sshTarget: "detours-windows", controlDirectory: control,
+            hostTrust: SSHHostTrust(), powerShellChannel: channel)
         try await sftp.upload(localURL: local, remotePath: ingress)
 
         let transport = PowerShellProcessTransport(sshTarget: "detours-windows", controlDirectory: control,
