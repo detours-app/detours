@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry accepted queue integration compilation | `cb955ba` | FAIL: signed build passed, but the new queue tests could not access the helper's internal reply method because their file omitted the detours_server testable import. No tests ran. Adding that import before repeating the same focused selection. |
 | Foundry accepted providers and typed lookup | `6138e19` | PASS: signed build and all nine provider/batch checks passed in 0.261 seconds. Unix uploads at zero bytes, 1 MiB minus one and 1 MiB require acceptance and separate commit. Unix invalid UTF-8 and Windows Unicode paths round-trip; denied/disconnected/missing remain distinct, and a destination created after missing lookup is preserved. |
 | Foundry ordered per-item batch results | `507ef18` | PASS: signed build and all 26 batch, coordinator, store and queue checks passed in 1.028 seconds. Real helper batches continue after confirmed unchanged failure or Skip; cancellation and lost replies preserve later items as not started. Earlier completed content and undo survive later failures, and reopening the same batch sends no additional mutation. |
 | Foundry queue reconnect without mutation replay | `4a959dc` | PASS: signed build and all five disconnection checks passed in 0.504 seconds. Waiting work starts once after readiness; interrupted copy and a completed Trash operation with a lost reply each submit once, and reconnect does not replay either mutation. Paused cancellation and idle-host presentation passed. |

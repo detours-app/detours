@@ -3,6 +3,7 @@ import Foundation
 import RemoteOperationSupport
 import XCTest
 @testable import Detours
+@testable import detours_server
 
 @MainActor
 final class AcceptedRemoteQueueTests: XCTestCase {
