@@ -28,8 +28,7 @@ extension WindowsAcceptedOperationLiveTests {
             XCTFail("Existing TAR extraction unexpectedly created a symbolic link without the required host privilege")
         } catch {
             let message = String(describing: error)
-            XCTAssertTrue(message.localizedCaseInsensitiveContains("symlink") || message.localizedCaseInsensitiveContains("privilege")
-                          || message.localizedCaseInsensitiveContains("symbolic link"), message)
+            XCTAssertTrue(message.contains("links/file-link:") && message.contains("Invalid argument"), message)
         }
         let account = OperationAccount(hostIdentity: "accepted-fixture", accountIdentity: "accepted-fixture-user")
         func location(_ name: String) -> OperationLocation { .init(account: account, path: .windows(root + "\\" + name)) }

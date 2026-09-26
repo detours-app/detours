@@ -11,13 +11,14 @@ extension WindowsOperationScripts {
         if ($intent.action -eq 'archiveCreate' -and $intent.archiveFormat -in @('tarGz', 'tarBz2', 'tarXz')) {
             return Prepare-WindowsTarArchive $Context $Parameters
         }
-        if ($intent.action -ne 'archiveCreate' -or $intent.archiveFormat -ne 'zip') { throw 'Accepted Windows archive format is not implemented.' }
+        if ($intent.action -ne 'archiveCreate' -or $intent.archiveFormat -notin @('zip', 'sevenZ')) { throw 'Accepted Windows archive format is not implemented.' }
         if ($intent.archiveEncrypted -ne $false -or -not [string]::IsNullOrEmpty($Parameters.password)) {
             throw 'Password-protected archives are not supported on Windows remote machines.'
         }
         if (@($intent.sources).Count -eq 0 -or @($intent.sources).Count -ne @($intent.sourceObservations).Count) {
             throw 'Invalid accepted archive sources.'
         }
+        if ($intent.archiveFormat -eq 'sevenZ') { Resolve-ArchiveTool @('7z.exe', '7z') | Out-Null }
         Add-Type -AssemblyName System.IO.Compression
         Add-Type -AssemblyName System.IO.Compression.FileSystem
         $destination = Assert-WindowsDestination $Context
@@ -35,7 +36,7 @@ extension WindowsOperationScripts {
             foreach ($member in $plan.inputs) {
                 if ($member.observation.kind -eq 'directory' -and $member.observation.identity.volume -ceq $parent.identity.volume -and
                     $member.observation.identity.object -ceq $parent.identity.object) { throw 'Cannot create an archive inside its source.' }
-                if ($member.observation.kind -eq 'file' -and $member.observation.byteCount -gt [uint32]::MaxValue) {
+                if ($intent.archiveFormat -eq 'zip' -and $member.observation.kind -eq 'file' -and $member.observation.byteCount -gt [uint32]::MaxValue) {
                     throw 'Built-in ZIP cannot archive entries larger than 4 GiB.'
                 }
             }
@@ -46,18 +47,21 @@ extension WindowsOperationScripts {
         New-WindowsWorkspace $Context $destination | Out-Null
         $output = New-WindowsPayload $Context
         try {
-            $archive = [System.IO.Compression.ZipArchive]::new($output, [System.IO.Compression.ZipArchiveMode]::Create, $true)
-            try {
-                foreach ($source in $sources) {
-                    foreach ($member in $source.plan.inputs) {
-                        Assert-WindowsOperationActive $Context
-                        $relative = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($member.relativePath))
-                        $name = if ($relative.Length -eq 0) { $source.name } else { $source.name + '/' + $relative }
-                        if ($member.observation.kind -eq 'directory') { $archive.CreateEntry($name + '/') | Out-Null }
-                        else { Add-WindowsAcceptedZipFile $Context $archive $name $member }
+            if ($intent.archiveFormat -eq 'sevenZ') { Write-WindowsSevenZipArchive $Context $sources $output }
+            else {
+                $archive = [System.IO.Compression.ZipArchive]::new($output, [System.IO.Compression.ZipArchiveMode]::Create, $true)
+                try {
+                    foreach ($source in $sources) {
+                        foreach ($member in $source.plan.inputs) {
+                            Assert-WindowsOperationActive $Context
+                            $relative = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($member.relativePath))
+                            $name = if ($relative.Length -eq 0) { $source.name } else { $source.name + '/' + $relative }
+                            if ($member.observation.kind -eq 'directory') { $archive.CreateEntry($name + '/') | Out-Null }
+                            else { Add-WindowsAcceptedZipFile $Context $archive $name $member }
+                        }
                     }
-                }
-            } finally { $archive.Dispose() }
+                } finally { $archive.Dispose() }
+            }
             $output.Flush($true)
         } finally { $output.Dispose() }
         foreach ($source in $sources) {
