@@ -15,6 +15,8 @@ actor WindowsRemoteProvider: FileProvider {
     }
 
     func operationRequest(_ request: OperationRequest) async throws -> OperationReply {
+        let lifetime = try await channel.acquireLifetime(.operation)
+        defer { lifetime?.release() }
         let script = try PowerShellScript(source: WindowsOperationScripts.protocolScript, arguments: WindowsOperationArguments(request))
         return try OperationReply.decode(await channel.run(script, operation: "AcceptedOperation"))
     }

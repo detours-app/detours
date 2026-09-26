@@ -21,7 +21,9 @@ actor RemoteSessionRPCClient: RemoteRPCClient, RemoteHostSessionTransport {
 
     func send(_ message: RPCMessage) async throws -> [Data] {
         guard let session else { throw RemoteHostSessionError.retired }
-        let lifetime = try await session.acquireLifetime(.reader)
+        let kind: RemoteSessionLifetimeKind
+        if case .operation = message { kind = .operation } else { kind = .reader }
+        let lifetime = try await session.acquireLifetime(kind)
         defer { lifetime.release() }
         let ready = try await session.ensureReady()
         try Task.checkCancellation()

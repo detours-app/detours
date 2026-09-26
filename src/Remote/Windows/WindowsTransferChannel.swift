@@ -101,7 +101,7 @@ actor WindowsTransferChannel {
     }
 
     func prepareAcceptedUpload(localURL: URL, identity: OperationRequestIdentity, sftpAvailable: Bool) async throws -> OperationReceipt {
-        let lifetime = try await powerShellChannel.acquireLifetime(.reader)
+        let lifetime = try await powerShellChannel.acquireLifetime(.operation)
         defer { lifetime?.release() }
         let generation = try await powerShellChannel.readyForAuxiliaryRequest()
         if !sftpAvailable {

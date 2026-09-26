@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry installed lifetime launch | `e6ca9b0` | PASS: signed build and the single installed launch test passed. Prompt sentries and cleanup passed with zero prompt events or interruptions. |
 | Foundry owned session lifetimes | `1128c8f` | PASS: signed build and 27 focused tests, zero failures, 8.855 seconds. Active ownership survives final-pane closure, duplicate releases do not drain another owner, watch teardown and abandoned tokens permit idle shutdown, and a retired idle session reconnects with a new generation. A pending Windows reader survives pane closure and releases after cancellation; live Unix/Windows reconnect and authentication checks passed. |
 | Foundry installed session launch on feature commit | `121fa67` | PASS: signed build and the single installed launch test passed in 6.308 seconds. The runner verified the requested clean commit, recorded zero consent prompts or interruptions and passed cleanup. Removed the obsolete main-only preflight restriction that caused the preceding failure. |
 | Foundry guarded installed launch preflight | `3e1d087` | FAIL: qualification rejected branch fix/remote-operation-reliability because its preflight requires main. Both machines were clean at the same commit. No installed-app test ran; the runner wrote reset/cleanup evidence. C4 remains open pending the branch-guard decision and actual installed launch verification. |
