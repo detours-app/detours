@@ -1,3 +1,4 @@
+import Darwin
 import DetoursProcess
 import Foundation
 import RemoteOperationSupport
@@ -13,6 +14,10 @@ final class RemoteTransferArchiveTests: XCTestCase {
         try Data("verified child".utf8).write(to: folder.appendingPathComponent("é child"))
         try Data().write(to: folder.appendingPathComponent("zero"))
         try FileManager.default.createSymbolicLink(atPath: folder.appendingPathComponent("link").path, withDestinationPath: "é child")
+        var linkBytes = [UInt8](repeating: 0, count: 1024)
+        let linkLength = folder.appendingPathComponent("link").path.withCString { readlink($0, &linkBytes, 1024) }
+        guard linkLength > 0 else { return XCTFail("Cannot read original link bytes") }
+        let originalLink = Data(linkBytes.prefix(linkLength))
         let workspace = try OperationWorkspace(parent: OperationDirectory(path: Data(root.path.utf8)),
             id: .init(operation: UUID(), item: UUID()))
         let output = try workspace.createFile(named: Data("transfer.zip".utf8))
@@ -37,7 +42,7 @@ final class RemoteTransferArchiveTests: XCTestCase {
         XCTAssertEqual(zero.size, 0)
         let link = try XCTUnwrap(members.first { $0.name == "tree/link" })
         XCTAssertEqual(link.mode & 0o170000, 0o120000)
-        XCTAssertEqual(try Data(contentsOf: extracted.appendingPathComponent(String(link.index))), Data("é child".utf8))
+        XCTAssertEqual(try Data(contentsOf: extracted.appendingPathComponent(String(link.index))), originalLink)
         XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: folder.appendingPathComponent("link").path), "é child")
     }
 
