@@ -17,6 +17,7 @@ extension WindowsAcceptedOperationLiveTests {
             [System.IO.Directory]::CreateDirectory((Join-Path $root 'source/nested')) | Out-Null
             [System.IO.File]::WriteAllText((Join-Path $root 'source/nested/é space.txt'), 'known content')
             [System.IO.File]::WriteAllText((Join-Path $root 'source/z.txt'), 'later child')
+            [System.IO.Directory]::SetLastWriteTimeUtc((Join-Path $root 'source'), [datetime]::new(2003, 4, 5, 6, 7, 8, [DateTimeKind]::Utc))
             $root
             """))
         let root = try JSONDecoder().decode(String.self, from: await channel.run(setup, operation: "TreeCopyFixture"))
@@ -84,10 +85,12 @@ extension WindowsAcceptedOperationLiveTests {
                laterOriginal = [System.IO.File]::ReadAllText((Join-Path $Arguments.root 'source/z.txt'))
                laterCopied = [System.IO.File]::ReadAllText((Join-Path $Arguments.root 'copied/z.txt'))
                empty = [System.IO.Directory]::Exists((Join-Path $Arguments.root 'copied/empty')).ToString()
+               timestamp = ([System.IO.Directory]::GetLastWriteTimeUtc((Join-Path $Arguments.root 'source')) -eq
+                   [System.IO.Directory]::GetLastWriteTimeUtc((Join-Path $Arguments.root 'copied'))).ToString()
                scratch = @([System.IO.Directory]::GetDirectories($Arguments.root, '.detours-partial-*')).Count.ToString() }
             """, arguments: ["root": root])
         let contents = try JSONDecoder().decode([String: String].self, from: await channel.run(verify, operation: "VerifyTreeCopy"))
         XCTAssertEqual(contents, ["original": "known content", "copied": "known content", "laterOriginal": "later child",
-                                  "laterCopied": "later child", "empty": "True", "scratch": "0"])
+                                  "laterCopied": "later child", "empty": "True", "timestamp": "True", "scratch": "0"])
     }
 }

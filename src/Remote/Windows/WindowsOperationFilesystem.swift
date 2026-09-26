@@ -112,6 +112,24 @@ extension WindowsOperationScripts {
                 return handle;
             } catch { handle.Dispose(); throw; }
         }
+        public static void CopyDirectoryMetadata(string source, string target, string volume, string id) {
+            using (SafeFileHandle origin = Open(source, 0x80, 7))
+            using (SafeFileHandle destination = Open(target, 0x180, 3)) {
+                Observation current = Observe(destination);
+                if (current.kind != "directory" || current.identity.volume != volume || current.identity.@object != id)
+                    throw new IOException("Operation metadata destination changed.");
+                byte[] original = Info(origin, 0, 40), desired = new byte[40];
+                Buffer.BlockCopy(original, 16, desired, 16, 8);
+                Buffer.BlockCopy(original, 32, desired, 32, 4);
+                IntPtr buffer = Marshal.AllocHGlobal(40);
+                try {
+                    Marshal.Copy(desired, 0, buffer, 40);
+                    IoStatus result;
+                    int status = NtSetInformationFile(destination, out result, buffer, 40, 4);
+                    if (status != 0) throw new Win32Exception((int)RtlNtStatusToDosError(status));
+                } finally { Marshal.FreeHGlobal(buffer); }
+            }
+        }
         public static FileStream OpenObservedFile(string path, string volume, string id, string version) {
             SafeFileHandle handle = Open(path, 0x80000000, 1);
             try {

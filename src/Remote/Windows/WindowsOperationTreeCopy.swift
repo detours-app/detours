@@ -69,8 +69,11 @@ extension WindowsOperationScripts {
                 $origin = if ($relative.Length -eq 0) { $Source } else { Join-Path $Source $relative }
                 $target = Join-Path $Context.record.windowsWorkspacePath 'payload'
                 if ($relative.Length -gt 0) { $target = Join-Path $target $relative }
-                [System.IO.Directory]::SetLastWriteTimeUtc($target, [System.IO.Directory]::GetLastWriteTimeUtc($origin))
-                [System.IO.File]::SetAttributes($target, [System.IO.File]::GetAttributes($origin))
+                $name = if ($relative.Length -eq 0) { 'payload' } else { 'payload/' + $relative }
+                $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($name))
+                $owned = @($Context.record.workspace.objects | Where-Object { $_.name -ceq $encoded })
+                if ($owned.Count -ne 1) { throw 'Directory metadata ownership is missing.' }
+                [DetoursOperationFiles]::CopyDirectoryMetadata($origin, $target, $owned[0].identity.volume, $owned[0].identity.object)
             }
             $payload = Join-Path $Context.record.windowsWorkspacePath 'payload'
             $prepared = Get-WindowsTreeProof $payload
