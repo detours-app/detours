@@ -138,11 +138,11 @@ final class RemoteProcessWorker: @unchecked Sendable {
         }
     }
 
-    func write(_ data: Data, timeout: Duration = .seconds(10)) throws {
+    func write(_ data: Data, timeout: Duration = .seconds(10), progress: RemoteMeasuredProgress? = nil) throws {
         try inputLock.withLock {
             try checkCancellation()
             guard !inputClosed else { throw RemoteProcessWorkerError.closed }
-            let deadline = clock.now.advanced(by: timeout)
+            var deadline = clock.now.advanced(by: timeout)
             let descriptor = input.fileHandleForWriting.fileDescriptor
             try data.withUnsafeBytes { buffer in
                 guard let base = buffer.baseAddress else { return }
@@ -152,7 +152,11 @@ final class RemoteProcessWorker: @unchecked Sendable {
                     let count = Darwin.write(descriptor, base.advanced(by: offset), buffer.count - offset)
                     if count > 0 {
                         offset += count
-                        lock.withLock { writtenBytes += Int64(count) }
+                        let total = lock.withLock { writtenBytes += Int64(count); return writtenBytes }
+                        if let progress {
+                            progress.record(UInt64(total))
+                            deadline = clock.now.advanced(by: timeout)
+                        }
                         continue
                     }
                     if count < 0, errno == EINTR || errno == EAGAIN { continue }

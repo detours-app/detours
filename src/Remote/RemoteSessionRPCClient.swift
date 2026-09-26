@@ -83,7 +83,8 @@ actor RemoteSessionRPCClient: RemoteRPCClient, RemoteHostSessionTransport {
             sequence: 0, isFinal: true, payload: try message.binaryEncoded())
         let deadline = ContinuousClock.now.advanced(by: .seconds(10))
         try worker.start()
-        try worker.write(RPCStreamHandler.encodeFrame(envelope.encodedPayload()))
+        try worker.write(RPCStreamHandler.encodeFrame(envelope.encodedPayload()),
+                         timeout: progress == nil ? .seconds(10) : .seconds(30), progress: progress)
         worker.closeInput()
         var frames = RPCStreamHandler()
         var assembler = RPCResponseAssembler()

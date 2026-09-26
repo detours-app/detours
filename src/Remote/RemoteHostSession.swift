@@ -104,6 +104,14 @@ actor RemoteHostSession: RemoteConnectionHandle {
         kind: RemoteSessionLifetimeKind,
         body: @escaping @Sendable (RemoteProcessWorker) throws -> Value
     ) async throws -> Value {
+        try await withOwnedWorker(worker, kind: kind) { try await worker.perform(body) }
+    }
+
+    func withOwnedWorker<Value: Sendable>(
+        _ worker: RemoteProcessWorker,
+        kind: RemoteSessionLifetimeKind,
+        body: @escaping @Sendable () async throws -> Value
+    ) async throws -> Value {
         let lifetime = try acquireLifetime(kind)
         defer { lifetime.release() }
         let ready = try await ensureReady()
@@ -112,7 +120,7 @@ actor RemoteHostSession: RemoteConnectionHandle {
         let id = UUID()
         workers[id] = worker
         defer { workers.removeValue(forKey: id) }
-        let result = try await worker.perform(body)
+        let result = try await body()
         try requireGeneration(ready.generation)
         return result
     }
