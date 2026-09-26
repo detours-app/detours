@@ -50,7 +50,7 @@ extension WindowsOperationScripts {
             } finally { process.Dispose(); }
         }
     }
-'@
+    '@
     }
     function Write-WindowsArchiveProcess($Context, [string]$Executable, [string[]]$CommandArguments, [string]$Directory, $Output) {
         $process = [DetoursArchiveProcess]::new($Executable, $CommandArguments, $Directory, $Output)
