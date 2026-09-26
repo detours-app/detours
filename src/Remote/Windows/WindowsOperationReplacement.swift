@@ -71,12 +71,17 @@ extension WindowsOperationScripts {
             if ($source -ieq (Get-OperationPath $intent.destination $Context.account)) { throw 'Replacement source is its destination.' }
             $sourceProof = [DetoursOperationFiles]::Observe($source)
             if ($sourceProof.kind -eq 'file') { $sourceProof = Get-WindowsContentProof $source }
+            else { $sourceProof = Get-WindowsManifestObservation (Get-WindowsTreeProof $source) }
             Assert-WindowsObservation $sourceProof $intent.sourceObservations[0]
         } else { throw 'Unsupported replacement operation.' }
         $destination = Assert-WindowsDestination $Context
         $expected = $intent.conflict.replace._0
         $before = [DetoursOperationFiles]::Observe($destination)
         if ($before.kind -eq 'file') { $before = Get-WindowsContentProof $destination }
+        else {
+            $backupManifest = Get-WindowsTreeProof $destination
+            $before = Get-WindowsManifestObservation $backupManifest
+        }
         Assert-WindowsObservation $before $expected
         if ($null -eq $Context.record.workspace) { New-WindowsWorkspace $Context $destination | Out-Null }
         $holding = Join-Path $Context.record.windowsWorkspacePath 'displaced'
@@ -88,7 +93,7 @@ extension WindowsOperationScripts {
                 Assert-WindowsOperationActive $Context
                 Assert-WindowsDestination $Context | Out-Null
                 $Context.record | Add-Member -NotePropertyName windowsReplacementBackup -NotePropertyValue @{
-                    location = $location; observation = $before } -Force
+                    location = $location; observation = $before; manifest = $backupManifest } -Force
                 Save-WindowsWorkspace $Context
                 $receipt = New-WindowsReceipt $Context 'committing' 'running'
                 $receipt.plannedPaths = @($receipt.plannedPaths) + @($location, $intent.destination)
@@ -102,7 +107,12 @@ extension WindowsOperationScripts {
                 Save-WindowsWorkspace $Context
                 Set-WindowsBackupReference $Context $location @($location)
             } finally { $commit.Dispose() }
-            $actual = if ($moved.kind -eq 'file') { Get-WindowsContentProof $holding } else { [DetoursOperationFiles]::Observe($holding) }
+            if ($moved.kind -eq 'file') { $actual = Get-WindowsContentProof $holding }
+            else {
+                $heldManifest = Get-WindowsTreeProof $holding
+                Assert-WindowsTreeMovement $backupManifest $heldManifest
+                $actual = Get-WindowsManifestObservation $heldManifest
+            }
             Assert-WindowsObservation $actual $moved
             if ($actual.sha256 -cne $before.sha256) { throw 'Displaced original content changed.' }
             $Context.record.windowsReplacementBackup.observation = $actual

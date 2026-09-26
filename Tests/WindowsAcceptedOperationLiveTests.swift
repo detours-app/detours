@@ -295,7 +295,18 @@ final class WindowsAcceptedOperationLiveTests: XCTestCase {
         struct Cleanup: Encodable { let root: String }
         let script = try PowerShellScript(source: PowerShellScript.prelude(operationBody: """
             param($Arguments)
-            [System.IO.Directory]::Delete([string]$Arguments.root, $true)
+            function Remove-FixtureDirectory([string]$Path) {
+                foreach ($child in [System.IO.Directory]::GetFileSystemEntries($Path)) {
+                    $attributes = [System.IO.File]::GetAttributes($child)
+                    if (($attributes -band [System.IO.FileAttributes]::Directory) -ne 0) {
+                        if (($attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+                            [System.IO.Directory]::Delete($child)
+                        } else { Remove-FixtureDirectory $child }
+                    } else { [System.IO.File]::Delete($child) }
+                }
+                [System.IO.Directory]::Delete($Path)
+            }
+            Remove-FixtureDirectory ([string]$Arguments.root)
             """), arguments: Cleanup(root: root))
         _ = try await channel.run(script, operation: "AcceptedFixtureCleanup")
     }

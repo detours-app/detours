@@ -32,7 +32,12 @@ extension WindowsOperationScripts {
                 $moved = [DetoursOperationFiles]::MoveExclusive($holding, $target, $expected.identity.volume, $expected.identity.object, $expected.version)
                 Set-WindowsBackupReference $Context $targetLocation @($targetLocation)
             } finally { $commit.Dispose() }
-            $actual = if ($moved.kind -eq 'file') { Get-WindowsContentProof $target } else { [DetoursOperationFiles]::Observe($target) }
+            if ($moved.kind -eq 'file') { $actual = Get-WindowsContentProof $target }
+            else {
+                $retainedManifest = Get-WindowsTreeProof $target
+                Assert-WindowsTreeMovement $backup.manifest $retainedManifest
+                $actual = Get-WindowsManifestObservation $retainedManifest
+            }
             Assert-WindowsObservation $actual $moved
             if ($actual.sha256 -cne $expected.sha256) { throw 'Retained original changed during Trash handoff.' }
             Remove-WindowsWorkspace $Context

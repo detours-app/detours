@@ -79,5 +79,37 @@ extension WindowsAcceptedOperationLiveTests {
             """, arguments: ["root": root])
         let contents = try JSONDecoder().decode([String: String].self, from: await channel.run(verify, operation: "VerifyTreeRollback"))
         XCTAssertEqual(contents, ["child": "modified", "outside": "outside body", "empty": "True"])
+        let targetSetup = try PowerShellScript(source: """
+            param($Arguments)
+            [System.IO.Directory]::CreateDirectory((Join-Path $Arguments.root 'target/old-empty')) | Out-Null
+            [System.IO.File]::WriteAllText((Join-Path $Arguments.root 'target/original.txt'), 'retained original')
+            $true
+            """, arguments: ["root": root])
+        _ = try await channel.run(targetSetup, operation: "CreateTreeReplacementFixture")
+        guard case .lookup(.found(let approved)) = try await send(.lookup(location("target"))),
+              case .lookup(.found(let incoming)) = try await send(.lookup(location("renamed-folder"))) else {
+            return XCTFail("Replacement trees missing")
+        }
+        let replacementIntent = OperationIntent(id: .init(operation: UUID(), item: UUID()), action: .rename,
+            sources: [location("renamed-folder")], destination: location("target"), sourceObservations: [incoming], conflict: .replace(approved))
+        let replaced = try await execute(replacementIntent)
+        XCTAssertEqual(replaced.outcome, .committed, replaced.failure ?? "")
+        XCTAssertNil(replaced.failure)
+        XCTAssertTrue(replaced.contentVerified)
+        XCTAssertEqual(replaced.effects.first?.observation.identity, incoming.identity)
+        let backup = try XCTUnwrap(replaced.recovery.first(where: { $0.purpose == .displacedOriginal }))
+        XCTAssertEqual(backup.identity, approved.identity)
+        XCTAssertFalse(replaced.recovery.contains(where: { $0.purpose == .scratch }))
+        guard case .windows(let backupPath) = try XCTUnwrap(backup.knownLocation).path else { return XCTFail("No backup path") }
+        let verifyReplacement = try PowerShellScript(source: """
+            param($Arguments)
+            @{ incoming = [System.IO.File]::ReadAllText((Join-Path $Arguments.root 'target/child.txt'))
+               original = [System.IO.File]::ReadAllText((Join-Path $Arguments.backup 'original.txt'))
+               empty = [System.IO.Directory]::Exists((Join-Path $Arguments.backup 'old-empty')).ToString()
+               outside = [System.IO.File]::ReadAllText((Join-Path $Arguments.root 'outside/keep.txt')) }
+            """, arguments: ["root": root, "backup": backupPath])
+        let replacementContents = try JSONDecoder().decode([String: String].self,
+            from: await channel.run(verifyReplacement, operation: "VerifyTreeReplacement"))
+        XCTAssertEqual(replacementContents, ["incoming": "modified", "original": "retained original", "empty": "True", "outside": "outside body"])
     }
 }
