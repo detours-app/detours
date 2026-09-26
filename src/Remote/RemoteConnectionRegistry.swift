@@ -4,6 +4,12 @@ struct RemoteConnectionResources: Sendable {
     let provider: any FileProvider
     let homePath: String
     let session: RemoteHostSession
+
+    var operationEndpoint: RemoteOperationCoordinator.Endpoint {
+        RemoteOperationCoordinator.Endpoint(session: session,
+            request: { try await provider.operationRequest($0) },
+            upload: { try await provider.prepareAcceptedUpload($0, identity: $1) })
+    }
 }
 
 protocol RemoteConnectionHandle: Sendable {

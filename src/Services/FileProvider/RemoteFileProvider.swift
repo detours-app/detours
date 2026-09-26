@@ -347,8 +347,8 @@ enum RemoteFindCodec {
 actor RemoteFileProvider: FileProvider {
     let hostID: UUID
 
-    private let rpcClient: RemoteRPCClient
-    private let transferChannel: RemoteTransferChannel
+    let rpcClient: RemoteRPCClient
+    let transferChannel: RemoteTransferChannel
     private let watcherClient: RemoteWatcherClient?
     private let searchChannel: RemoteSearchChannel?
     private var watchers: [FileProviderWatch: UUID] = [:]

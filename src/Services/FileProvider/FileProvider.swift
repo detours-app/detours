@@ -1,4 +1,5 @@
 import Foundation
+import RemoteOperationSupport
 
 struct FileProviderWatch: Hashable, Sendable {
     let id: UUID
@@ -22,6 +23,10 @@ struct FoundItem: Equatable, Sendable {
 }
 
 protocol FileProvider: Sendable {
+    func operationRequest(_ request: OperationRequest) async throws -> OperationReply
+    func prepareAcceptedUpload(_ localURL: URL, identity: OperationRequestIdentity) async throws -> OperationReceipt
+    func operationPath(_ location: Location) async throws -> OperationLocation.Path
+    func displayLocation(_ path: OperationLocation.Path) async throws -> Location
     func list(_ location: Location, showHidden: Bool) async throws -> [LoadedFileEntry]
     func stat(_ location: Location) async throws -> LoadedFileEntry
     func copy(_ sources: [Location], to destination: Location) async throws -> [Location]
@@ -80,6 +85,22 @@ extension FileProviderError: LocalizedError {
 }
 
 extension FileProvider {
+    func operationRequest(_ request: OperationRequest) async throws -> OperationReply {
+        throw FileProviderError.unsupportedOperation("This provider does not support accepted remote operations.")
+    }
+
+    func prepareAcceptedUpload(_ localURL: URL, identity: OperationRequestIdentity) async throws -> OperationReceipt {
+        throw FileProviderError.unsupportedOperation("This provider does not support accepted remote uploads.")
+    }
+
+    func operationPath(_ location: Location) async throws -> OperationLocation.Path {
+        throw FileProviderError.unsupportedOperation("This provider does not expose remote operation paths.")
+    }
+
+    func displayLocation(_ path: OperationLocation.Path) async throws -> Location {
+        throw FileProviderError.unsupportedOperation("This provider does not expose remote operation locations.")
+    }
+
     func createDirectory(at location: Location, withIntermediateDirectories: Bool = false) async throws {
         throw FileProviderError.unsupportedOperation("createDirectory")
     }
