@@ -330,6 +330,15 @@ final class WindowsAcceptedOperationLiveTests: XCTestCase {
         if ($Arguments.trashFailure -eq 'treeChanged' -and $Path.Contains('\.detours-trash\')) {
             [System.IO.File]::WriteAllText((Join-Path $Path 'child.txt'), 'modified')
         }
+        if ($Arguments.trashFailure -eq 'treeReplyLost' -and $Path.EndsWith('\renamed-folder') -and -not $script:TreeReplyLost) {
+            $script:TreeReplyLost = $true
+            throw 'Injected interruption after native tree publication.'
+        }
+        if ($Arguments.trashFailure -eq 'treeResultChanged' -and $Path.EndsWith('\unconfirmed-folder') -and -not $script:TreeResultChanged) {
+            $script:TreeResultChanged = $true
+            [System.IO.File]::WriteAllText((Join-Path $Path 'child.txt'), 'later writer')
+            throw 'Injected changed tree after native publication.'
+        }
         & $nativeTreeProof $Path
     }
     $nativeBackupReference = ${function:Set-WindowsBackupReference}

@@ -121,7 +121,18 @@ extension WindowsOperationScripts {
             if ($lookup.ContainsKey('found')) {
                 $expected = if ($null -ne $previous.preparedPayload) { $previous.preparedPayload.observation } else { $previous.effects[0].observation }
                 $actual = $lookup.found._0
-                if ($actual.kind -eq 'file') { $actual = (Get-WindowsContentProof $destination) }
+                try {
+                    if ($actual.kind -eq 'file') { $actual = (Get-WindowsContentProof $destination) }
+                    elseif ($null -ne $expected.sha256) {
+                        $manifest = Get-WindowsTreeProof $destination
+                        $expectedManifest = if ($null -ne $Context.record.payloadManifest) { $Context.record.payloadManifest } else { $Context.record.sourceManifest }
+                        Assert-WindowsTreeMovement $expectedManifest $manifest
+                        $actual = Get-WindowsManifestObservation $manifest
+                    }
+                } catch {
+                    $actual = $null
+                    $receipt.failure += ' Result verification: ' + $_.Exception.Message
+                }
                 if ($actual.identity.volume -ceq $expected.identity.volume -and $actual.identity.object -ceq $expected.identity.object -and
                     $actual.kind -ceq $expected.kind -and $actual.contentVersion -ceq $expected.contentVersion -and
                     $actual.linkTarget -ceq $expected.linkTarget -and ($null -eq $expected.sha256 -or $actual.sha256 -ceq $expected.sha256)) {

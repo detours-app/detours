@@ -64,7 +64,7 @@ extension WindowsAcceptedOperationLiveTests {
         XCTAssertEqual(restored.effects.first?.observation.identity, original.identity)
         let renameIntent = OperationIntent(id: .init(operation: UUID(), item: UUID()), action: .rename, sources: [location("source")],
             destination: location("renamed-folder"), sourceObservations: [try XCTUnwrap(restored.effects.first?.observation)], conflict: .createNew)
-        let renamed = try await execute(renameIntent)
+        let renamed = try await execute(renameIntent, failure: "treeReplyLost")
         XCTAssertEqual(renamed.outcome, .committed, renamed.failure ?? "")
         let changedIntent = OperationIntent(id: .init(operation: UUID(), item: UUID()), action: .trash, sources: [location("renamed-folder")], destination: nil,
             sourceObservations: [try XCTUnwrap(renamed.effects.first?.observation)], conflict: .createNew)
@@ -111,5 +111,19 @@ extension WindowsAcceptedOperationLiveTests {
         let replacementContents = try JSONDecoder().decode([String: String].self,
             from: await channel.run(verifyReplacement, operation: "VerifyTreeReplacement"))
         XCTAssertEqual(replacementContents, ["incoming": "modified", "original": "retained original", "empty": "True", "outside": "outside body"])
+        let uncertainIntent = OperationIntent(id: .init(operation: UUID(), item: UUID()), action: .rename,
+            sources: [location("target")], destination: location("unconfirmed-folder"),
+            sourceObservations: [try XCTUnwrap(replaced.effects.first?.observation)], conflict: .createNew)
+        let uncertain = try await execute(uncertainIntent, failure: "treeResultChanged")
+        XCTAssertEqual(uncertain.outcome, .unknown)
+        XCTAssertEqual(uncertain.sourceDisposition, .unknown)
+        XCTAssertFalse(uncertain.contentVerified)
+        XCTAssertTrue(uncertain.recovery.contains(where: { $0.purpose == .source }))
+        let duplicate = try await execute(uncertainIntent)
+        XCTAssertEqual(duplicate, uncertain)
+        guard case .lookup(.found(let unconfirmed)) = try await send(.lookup(location("unconfirmed-folder"))) else {
+            return XCTFail("Changed tree was lost")
+        }
+        XCTAssertEqual(unconfirmed.identity, incoming.identity)
     }
 }
