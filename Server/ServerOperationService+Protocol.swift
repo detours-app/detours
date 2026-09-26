@@ -49,11 +49,14 @@ extension ServerOperationService {
             guard missing.isEmpty else { return .incompatible(.missingCapabilities(missing)) }
             return .handshake(OperationHandshake(version: version, schemaVersion: schema, capabilities: capabilities,
                                                 account: journal.account, epoch: journal.epoch))
-        case .lookup(let location):
+        case .lookup(let location), .sourceProof(let location):
             try journal.validateEpoch()
             guard location.account == journal.account else { return .incompatible(.accountMismatch) }
             do {
                 let resolved = try resolve(location)
+                if case .sourceProof = request {
+                    return .lookup(.found(try resolved.directory.proveObject(resolved.name) { _ in try Task.checkCancellation() }))
+                }
                 return .lookup(try resolved.directory.lookup(resolved.name))
             } catch OperationFilesystemError.system(let code) {
                 switch code {

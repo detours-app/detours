@@ -88,8 +88,15 @@ extension WindowsOperationScripts {
     function Get-WindowsOperationLocation([string]$Path, $Account) {
         [pscustomobject]@{ account = $Account; path = @{ windows = @{ _0 = $Path } } }
     }
-    function Get-WindowsOperationLookup([string]$Path) {
-        try { return @{ found = @{ _0 = [DetoursOperationFiles]::Observe($Path) } } }
+    function Get-WindowsOperationLookup([string]$Path, [bool]$Prove = $false) {
+        try {
+            $observed = [DetoursOperationFiles]::Observe($Path)
+            if ($Prove) {
+                if ($observed.kind -eq 'file') { $observed = Get-WindowsContentProof $Path }
+                else { $observed = Get-WindowsManifestObservation (Get-WindowsTreeProof $Path) }
+            }
+            return @{ found = @{ _0 = $observed } }
+        }
         catch {
             $cause = $_.Exception.GetBaseException()
             if ($cause -is [System.ComponentModel.Win32Exception]) {
@@ -126,13 +133,13 @@ extension WindowsOperationScripts {
         if ($kind -eq 'handshake') {
             if ($parameters.version -ne 2) { return @{ incompatible = @{ _0 = @{ protocolVersion = @{ expected = 2; actual = $parameters.version } } } } }
             if ($parameters.schemaVersion -ne 1) { return @{ incompatible = @{ _0 = @{ journalSchema = @{ expected = 1; actual = $parameters.schemaVersion } } } } }
-            $capabilities = @('receipts', 'status', 'cancellation', 'ownedTemporaryObjects', 'nonReplacingCommit')
+            $capabilities = @('receipts', 'status', 'cancellation', 'ownedTemporaryObjects', 'nonReplacingCommit', 'sourceProof')
             $missing = @($parameters.requiredCapabilities | Where-Object { $_ -notin $capabilities })
             if ($missing.Count -gt 0) { return @{ incompatible = @{ _0 = @{ missingCapabilities = @{ _0 = $missing } } } } }
             return @{ handshake = @{ _0 = @{ version = 2; schemaVersion = 1; capabilities = $capabilities; account = $Account; epoch = $epoch } } }
         }
-        if ($kind -eq 'lookup') {
-            return @{ lookup = @{ _0 = (Get-WindowsOperationLookup (Get-OperationPath $parameters._0 $Account)) } }
+        if ($kind -in @('lookup', 'sourceProof')) {
+            return @{ lookup = @{ _0 = (Get-WindowsOperationLookup (Get-OperationPath $parameters._0 $Account) ($kind -eq 'sourceProof')) } }
         }
         $identity = if ($null -ne $parameters.identity) { $parameters.identity } else { $parameters._0 }
         if ($identity.account.hostIdentity -cne $Account.hostIdentity -or $identity.account.accountIdentity -cne $Account.accountIdentity) {

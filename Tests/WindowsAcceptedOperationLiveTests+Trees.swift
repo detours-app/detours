@@ -49,7 +49,8 @@ extension WindowsAcceptedOperationLiveTests {
             guard case .receipt(let receipt) = try await send(.execute(identity), failure: failure) else { throw NSError(domain: "AcceptedTree", code: 1) }
             return receipt
         }
-        guard case .lookup(.found(let original)) = try await send(.lookup(location("source"))) else { return XCTFail("No tree source") }
+        guard case .lookup(.found(let original)) = try await send(.sourceProof(location("source"))) else { return XCTFail("No tree source proof") }
+        XCTAssertNotNil(original.sha256)
         let trashIntent = OperationIntent(id: .init(operation: UUID(), item: UUID()), action: .trash, sources: [location("source")], destination: nil,
             sourceObservations: [original], conflict: .createNew)
         let trashed = try await execute(trashIntent)
