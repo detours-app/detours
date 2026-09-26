@@ -246,7 +246,7 @@ Marco clarified on 2026-09-26 that each code task includes its corresponding tes
 - [x] **C7** Add FilesystemPrimitives and RemoteOperationSupport commit support for exclusive temporary allocation, stable identity, native no-clobber moves, synchronization and recorded cleanup ownership.
 - [x] **C8** Route Server/FileOperations.swift, Server/TransferMode.swift and Server/RPCHandler.swift through one journaled preparation/commit/recovery path with per-item results.
 - [x] **C9** Route WindowsRemoteProvider, WindowsTransferChannel and WindowsOperationScripts through accepted temporary payloads, verified commit and pre-reserved private Trash references.
-- [ ] **C10** Add src/Operations/RemoteOperationCoordinator.swift and src/Operations/RemoteOperationStore.swift; persist accepted intents and consume host receipts without replaying sent mutations.
+- [x] **C10** Add src/Operations/RemoteOperationCoordinator.swift and src/Operations/RemoteOperationStore.swift; persist accepted intents and consume host receipts without replaying sent mutations.
 - [ ] **C11** Replace remote queue retry/resume and array-or-error paths in FileOperationQueue operations, coordination and Windows transfer extensions with typed lookup, per-item results and the defined stopping policy.
 - [ ] **C12** Implement complete-new-folder preparation, existing Windows child merges and verified destination-before-source disposition, preserving current symbolic-link rules and partial-link outcomes.
 - [ ] **C13** Route FileOpenHelper save, clipboard, drag/drop, rename, folder creation, archives, Trash, confirmed permanent delete and undo through the coordinator; carry replacement intent/version to final commit.
@@ -315,6 +315,8 @@ Use the existing guarded runner and independent prompt sentries for installed ch
 ---
 
 ## Build Log
+
+- **C10, T2, T3, T5, T10, T12 (partial test evidence)** Added private atomic client snapshots and the accepted-operation coordinator. Intent, host/account/epoch binding, sent phases, cancellation and receipts survive restart; every mutation phase is persisted before sending and cannot be replayed. One lifetime spans acceptance through commit; status checks perform no mutation and undo registration is durable. At `ef5a023`, all seven store tests passed. At `6b4f7b3`, all twenty-five coordinator/store/reducer tests passed, including lost replies after actual helper preparation and publication. At `d852fec`, twenty ownership/journal/reconciliation tests passed, including final-pane closure across idle grace, cancellation before acceptance, missing/corrupt records and the file-change/receipt-write interval. Queue, caller, cross-host and installed recovery journeys remain with C11-C16.
 
 - **T1** The actual session controller is covered by controlled unfinished handshakes, concurrent waiters, rejected protocol/account identity, late handshake/failure callbacks, registry unregister, hanging attempts and repeated helper exits. Real SSH authentication rejection stops without spending the retry budget. At `6a1c4da`, seventeen of eighteen readiness/lifetime/registry checks passed; the repeated-exit test incorrectly required a timeout reason. At `102cb91`, its corrected assertion passed in 0.091 seconds, proving multiple exits consume the same ninety-millisecond test budget and preserve the final exit reason. Signed builds passed.
 
