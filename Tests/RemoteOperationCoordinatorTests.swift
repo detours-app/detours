@@ -5,6 +5,44 @@ import XCTest
 @testable import detours_server
 
 final class RemoteOperationCoordinatorTests: XCTestCase {
+    func testOperationOwnershipSurvivesIdleGraceUntilCommitFinishes() async throws {
+        let fixture = try await CoordinatorFixture(pauseAfterPreparation: true)
+        defer { fixture.cleanup() }
+        let pane = try await fixture.session.acquireLifetime(.pane)
+        let ready = try await fixture.session.ensureReady()
+        let running = Task { try await fixture.perform() }
+        try await fixture.boundary.waitUntilPaused()
+        await pane.releaseAndWait()
+        try await Task.sleep(for: .milliseconds(80))
+        try await fixture.session.requireGeneration(ready.generation)
+        await fixture.boundary.resume()
+        let result = try await running.value
+        XCTAssertEqual(result.outcome, .committed)
+        let deadline = ContinuousClock.now.advanced(by: .seconds(2))
+        while await fixture.session.state != .disconnected, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        let finalState = await fixture.session.state
+        XCTAssertEqual(finalState, .disconnected)
+        XCTAssertEqual(try fixture.store.load(fixture.intent.id.operation).items.first?.result.outcome, .committed)
+        await fixture.session.disconnect()
+    }
+
+    func testCancellationBeforeAcceptanceSendsNoMutation() async throws {
+        let fixture = try await CoordinatorFixture()
+        defer { fixture.cleanup() }
+        let coordinator = fixture.coordinator()
+        try await coordinator.cancel(fixture.intent.id.operation)
+        do {
+            _ = try await coordinator.perform(fixture.intent, hostID: fixture.hostID, work: .copy)
+            XCTFail("Cancelled operation accepted a new item")
+        } catch OperationContractError.cancelled {}
+        let requests = await fixture.boundary.requests
+        XCTAssertTrue(requests.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.destination.path))
+        await fixture.session.disconnect()
+    }
+
     func testLostCommitReplyIsRecoveredWithoutRepeatingTheFileChange() async throws {
         let fixture = try await CoordinatorFixture(loss: .commit)
         defer { fixture.cleanup() }
@@ -159,7 +197,7 @@ private final class CoordinatorFixture: @unchecked Sendable {
         try bytes.write(to: source)
         store = try RemoteOperationStore(root: root.appendingPathComponent("client"))
         let service = try await ServerOperationService(root: root.appendingPathComponent("host"), account: account)
-        session = RemoteHostSession(transport: CoordinatorTransport(service: service), publish: { _, _ in })
+        session = RemoteHostSession(transport: CoordinatorTransport(service: service), idleGrace: .milliseconds(30), publish: { _, _ in })
         let operation = UUID()
         try store.save(.init(operation: operation))
         let directory = try OperationDirectory(path: Data(root.path.utf8))
