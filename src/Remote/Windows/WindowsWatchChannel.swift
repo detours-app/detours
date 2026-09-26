@@ -77,7 +77,8 @@ actor WindowsWatchChannel {
                 sshTarget: sshTarget,
                 controlDirectory: controlDirectory,
                 hostTrust: hostTrust,
-                executionMode: .persistent
+                executionMode: .persistent,
+                responseTimeout: nil
             )
         }
         self.watcherKiller = { pid in

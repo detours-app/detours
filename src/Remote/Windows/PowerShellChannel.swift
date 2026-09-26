@@ -95,7 +95,7 @@ actor PowerShellChannel: RemoteConnectionHandle {
     // lock at every `await transport.*`, so without this gate a second concurrent `run()`
     // could start its send/read while another is mid-flight and collide on the process.
     private var isProcessingRequest = false
-    private var requestWaiters: [CheckedContinuation<Void, Never>] = []
+    private var requestWaiters: [(id: UUID, continuation: CheckedContinuation<Void, Error>)] = []
 
     private var state: SSHConnectionState = .disconnected {
         didSet { publishStateChange(from: oldValue, to: state) }
@@ -183,7 +183,7 @@ actor PowerShellChannel: RemoteConnectionHandle {
     }
 
     private func runRequest(_ script: PowerShellScript, operation: String, generation: UInt64?) async throws -> Data {
-        await acquireRequestSlot()
+        try await acquireRequestSlot()
         beginInFlightOperation()
         defer {
             endInFlightOperation()
@@ -206,19 +206,8 @@ actor PowerShellChannel: RemoteConnectionHandle {
                 }
                 throw error
             }
-            // A transient transport failure (a oneShot ssh that lost a race on the shared
-            // master, say) gets one quiet re-establish-and-retry before it is treated as a
-            // real drop, so a single hiccup never pauses the file-operation queue.
-            isStarted = false
-            await transport.stop()
-            do {
-                return try await sendAndReceive(script, operation: operation)
-            } catch let retryError as PowerShellChannelError where Self.isRemoteOperationError(retryError) {
-                throw retryError
-            } catch {
-                await restartAfterProtocolFailure(reason: .transport(error.localizedDescription))
-                throw error
-            }
+            await retireAfterProtocolFailure(reason: .transport(error.localizedDescription))
+            throw error
         }
     }
 
@@ -367,23 +356,36 @@ actor PowerShellChannel: RemoteConnectionHandle {
         }
     }
 
+    func pendingRequestCountForTesting() -> Int { requestWaiters.count }
+
     /// FIFO mutex over the shared transport: each request fully completes its send and read
     /// before the next begins. Ownership passes directly to the next waiter on release.
-    private func acquireRequestSlot() async {
+    private func acquireRequestSlot() async throws {
+        try Task.checkCancellation()
         if !isProcessingRequest {
             isProcessingRequest = true
             return
         }
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            requestWaiters.append(continuation)
+        let id = UUID()
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                requestWaiters.append((id, continuation))
+            }
+        } onCancel: {
+            Task { await self.cancelRequestWaiter(id) }
         }
+    }
+
+    private func cancelRequestWaiter(_ id: UUID) {
+        guard let index = requestWaiters.firstIndex(where: { $0.id == id }) else { return }
+        requestWaiters.remove(at: index).continuation.resume(throwing: CancellationError())
     }
 
     private func releaseRequestSlot() {
         if requestWaiters.isEmpty {
             isProcessingRequest = false
         } else {
-            requestWaiters.removeFirst().resume()
+            requestWaiters.removeFirst().continuation.resume()
         }
     }
 
@@ -393,16 +395,11 @@ actor PowerShellChannel: RemoteConnectionHandle {
         isStarted = true
     }
 
-    private func restartAfterProtocolFailure(reason: SSHConnectionFailureReason) async {
-        // Clear the started flag before the teardown await (T13), publish the drop, then
-        // re-arm if work is still pending so the next request reconnects transparently.
+    private func retireAfterProtocolFailure(reason: SSHConnectionFailureReason) async {
         isStarted = false
         cancelIdleDisconnect()
         transition(to: .failed(reason: reason))
         await transport.stop()
-        if hasIdleBlockers {
-            try? await startIfNeeded()
-        }
     }
 
     static let dispatcherBase64 = dispatcherScript.utf16LittleEndianData.base64EncodedString()

@@ -155,6 +155,18 @@ final class RemoteProcessWorker: @unchecked Sendable {
 
     func readExactly(_ count: Int, timeout: Duration? = .seconds(10)) throws -> Data {
         let deadline = timeout.map { clock.now.advanced(by: $0) }
+        return try readExactly(count, deadline: deadline)
+    }
+
+    func readFrame(timeout: Duration? = .seconds(10)) throws -> Data {
+        let deadline = timeout.map { clock.now.advanced(by: $0) }
+        let header = try readExactly(4, deadline: deadline)
+        let count = Int(header.reduce(UInt32(0)) { ($0 << 8) | UInt32($1) })
+        guard count <= RPCStreamHandler.defaultMaxFrameSize else { throw RPCProtocolError.frameTooLarge(count) }
+        return try readExactly(count, deadline: deadline)
+    }
+
+    private func readExactly(_ count: Int, deadline: ContinuousClock.Instant?) throws -> Data {
         var result = Data()
         while result.count < count {
             let chunk = try read(maximumBytes: min(count - result.count, 65_536), deadline: deadline)

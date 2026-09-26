@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import os.log
 
 final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked Sendable {
     enum ExecutionMode: Equatable {
@@ -16,9 +17,10 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
     private let executionMode: ExecutionMode
     private let stateLock = NSLock()
 
-    private var process: Process?
-    private var stdinPipe: Pipe?
-    private var stdoutPipe: Pipe?
+    private var worker: RemoteProcessWorker?
+    private var shutdownFailure: String?
+    private let responseTimeout: Duration?
+    private static let logger = Logger(subsystem: "com.detours", category: "remote-worker")
     private var dispatcherBase64: String?
 
     init(
@@ -26,82 +28,73 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
         controlDirectory: URL,
         hostTrust: SSHHostTrust,
         executionMode: ExecutionMode = .persistent,
+        responseTimeout: Duration? = .seconds(10),
         processFactory: @escaping @Sendable () -> Process = { Process() }
     ) {
         self.sshTarget = sshTarget
         self.controlDirectory = controlDirectory
         self.hostTrust = hostTrust
         self.executionMode = executionMode
+        self.responseTimeout = responseTimeout
         self.processFactory = processFactory
     }
 
     func start(dispatcherBase64: String) async throws {
         try hostTrust.prepareKnownHostsFile()
-        self.dispatcherBase64 = dispatcherBase64
+        stateLock.withLock { self.dispatcherBase64 = dispatcherBase64 }
         guard executionMode == .persistent else { return }
-        try startProcess(dispatcherBase64: dispatcherBase64)
+        try await startProcess(dispatcherBase64: dispatcherBase64)
     }
 
-    private func startProcess(dispatcherBase64: String) throws {
-        stateLock.lock()
-        defer { stateLock.unlock() }
-        guard process == nil else { return }
-        let process = processFactory()
-        let stdinPipe = Pipe()
-        let stdoutPipe = Pipe()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-        process.arguments = sshArguments(dispatcherBase64: dispatcherBase64)
-        process.standardInput = stdinPipe
-        process.standardOutput = stdoutPipe
-        process.standardError = FileHandle.standardError
-        do {
-            try process.run()
-        } catch {
-            ProcessRetirement.retireOnMain(process)
-            throw error
+    private func startProcess(dispatcherBase64: String) async throws {
+        let current = try stateLock.withLock {
+            if let shutdownFailure { throw PowerShellChannelError.processFailed(shutdownFailure) }
+            if let worker { return worker }
+            let process = processFactory()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
+            process.arguments = sshArguments(dispatcherBase64: dispatcherBase64)
+            let created = RemoteProcessWorker(process: process)
+            worker = created
+            return created
         }
-
-        self.process = process
-        self.stdinPipe = stdinPipe
-        self.stdoutPipe = stdoutPipe
+        try await current.perform { try $0.start() }
     }
 
     func sendFrame(_ frame: Data) async throws {
         if executionMode == .oneShot {
-            guard let dispatcherBase64 else {
+            guard let dispatcher = stateLock.withLock({ dispatcherBase64 }) else {
                 throw PowerShellChannelError.processFailed("PowerShell channel is not connected.")
             }
-            try startProcess(dispatcherBase64: dispatcherBase64)
+            try await startProcess(dispatcherBase64: dispatcher)
         }
-        let (_, stdinPipe) = try processForWriting()
-        try await Task.detached(priority: .userInitiated) {
-            try Self.writeFramePayload(frame, to: stdinPipe.fileHandleForWriting)
-        }.value
-        if executionMode == .oneShot {
-            stdinPipe.fileHandleForWriting.closeFile()
-            clearStdinPipeIfCurrent(stdinPipe)
-        }
+        let current = try currentWorker()
+        let oneShot = executionMode == .oneShot
+        do {
+            try await current.perform { worker in
+                try worker.write(frame)
+                if oneShot { worker.closeInput() }
+            }
+        } catch { throw mapped(error, worker: current) }
     }
 
     func readFrame() async throws -> Data {
-        let (runningProcess, stdoutPipe) = try processForReading()
-        let output = stdoutPipe.fileHandleForReading
-        defer {
-            if executionMode == .oneShot {
-                stopProcess()
-            }
-        }
+        let current = try currentWorker()
+        let timeout = responseTimeout
         do {
-            return try await Task.detached(priority: .userInitiated) {
-                try withExtendedLifetime((runningProcess, stdoutPipe)) {
-                    try Self.readFramePayload(from: output)
-                }
-            }.value
-        } catch {
-            if executionMode == .persistent {
-                stopProcess()
-            }
-            throw error
+            let result = try await current.perform { try $0.readFrame(timeout: timeout) }
+            if executionMode == .oneShot { try await retire(current) }
+            return result
+        } catch { throw mapped(error, worker: current) }
+    }
+
+    private func mapped(_ error: Error, worker: RemoteProcessWorker) -> Error {
+        guard let failure = error as? RemoteProcessWorkerError else { return error }
+        switch failure {
+        case .timedOut: return PowerShellChannelError.timeout(failure.localizedDescription)
+        case .closed:
+            let detail = worker.diagnostics
+            return detail.isEmpty ? PowerShellChannelError.unexpectedEOF : PowerShellChannelError.processFailed(detail)
+        case .shutdownTimedOut, .system: return PowerShellChannelError.processFailed(failure.localizedDescription)
         }
     }
 
@@ -117,38 +110,44 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
     }
 
     func stop() async {
-        stopProcess()
+        guard let current = stateLock.withLock({ worker }) else { return }
+        do { try await retire(current) } catch { recordShutdownFailure(error) }
+    }
+
+    private func retire(_ current: RemoteProcessWorker) async throws {
+        try await current.stop()
+        stateLock.withLock {
+            if worker === current { worker = nil }
+        }
     }
 
     func closeControlConnection() async {
-        // Ask the multiplexing master at this host's ControlPath to exit now. Because the
-        // command, transfer, and watch channels share one socket, a single exit request ends
-        // them all — including long-lived watcher processes — instead of leaving them orphaned
-        // until ControlPersist expires. Best effort: a missing master just exits nonzero.
-        let controlPath = "\(controlDirectory.path)/%C"
-        let target = sshTarget
-        let factory = processFactory
-        await Task.detached(priority: .userInitiated) {
-            let process = factory()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-            process.arguments = ["-o", "ControlPath=\(controlPath)", "-O", "exit", target]
-            process.standardOutput = FileHandle.nullDevice
-            process.standardError = FileHandle.nullDevice
-            try? process.run()
-            process.waitUntilExit()
-            ProcessRetirement.retireOnMain(process)
-        }.value
+        let process = processFactory()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
+        process.arguments = ["-o", "ControlPath=\(controlDirectory.path)/%C", "-O", "exit", sshTarget]
+        let control = RemoteProcessWorker(process: process)
+        do {
+            try await control.perform { worker in
+                try worker.start()
+                worker.closeInput()
+                while !(try worker.read(maximumBytes: 4_096, timeout: .seconds(10))).isEmpty {}
+                _ = try worker.waitForExit()
+            }
+        } catch { recordShutdownFailure(error) }
     }
 
-    private func stopProcess() {
-        stateLock.lock()
-        let runningProcess = process
-        process = nil
-        stdinPipe = nil
-        stdoutPipe = nil
-        stateLock.unlock()
-        Self.terminatePromptly(runningProcess)
-        ProcessRetirement.retireOnMain(runningProcess)
+    private func recordShutdownFailure(_ error: Error) {
+        let message = error.localizedDescription
+        stateLock.withLock { shutdownFailure = message }
+        Self.logger.error("Remote worker shutdown failed: \(message, privacy: .public)")
+    }
+
+    private func currentWorker() throws -> RemoteProcessWorker {
+        try stateLock.withLock {
+            if let shutdownFailure { throw PowerShellChannelError.processFailed(shutdownFailure) }
+            guard let worker else { throw PowerShellChannelError.processFailed("PowerShell channel is not connected.") }
+            return worker
+        }
     }
 
     /// Terminates a process without ever blocking indefinitely. A plain `waitUntilExit()` after
@@ -169,32 +168,6 @@ final class PowerShellProcessTransport: PowerShellChannelTransport, @unchecked S
             usleep(10_000)
         }
         return true
-    }
-
-    private func processForWriting() throws -> (Process, Pipe) {
-        stateLock.lock()
-        defer { stateLock.unlock() }
-        guard let runningProcess = process, runningProcess.isRunning, let stdinPipe else {
-            throw PowerShellChannelError.processFailed("PowerShell channel is not connected.")
-        }
-        return (runningProcess, stdinPipe)
-    }
-
-    private func processForReading() throws -> (Process, Pipe) {
-        stateLock.lock()
-        defer { stateLock.unlock() }
-        guard let runningProcess = process, let stdoutPipe else {
-            throw PowerShellChannelError.processFailed("PowerShell channel is not connected.")
-        }
-        return (runningProcess, stdoutPipe)
-    }
-
-    private func clearStdinPipeIfCurrent(_ pipe: Pipe) {
-        stateLock.lock()
-        if stdinPipe === pipe {
-            stdinPipe = nil
-        }
-        stateLock.unlock()
     }
 
     private func sshArguments(dispatcherBase64: String) -> [String] {

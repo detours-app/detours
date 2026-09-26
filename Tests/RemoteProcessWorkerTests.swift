@@ -3,6 +3,20 @@ import XCTest
 @testable import Detours
 
 final class RemoteProcessWorkerTests: XCTestCase {
+    func testRejectsOversizedFrameFromActualProcess() async throws {
+        let worker = makeWorker("printf '\\001\\000\\000\\001'")
+        do {
+            _ = try await worker.perform { worker in
+                try worker.start()
+                return try worker.readFrame()
+            }
+            XCTFail("Oversized frame was accepted")
+        } catch RPCProtocolError.frameTooLarge(let count) {
+            XCTAssertEqual(count, RPCStreamHandler.defaultMaxFrameSize + 1)
+        }
+        XCTAssertFalse(worker.process.isRunning)
+    }
+
     func testDrainsLargeDiagnosticsWhileReadingOutput() async throws {
         let worker = makeWorker("/usr/bin/awk 'BEGIN { for (i=0;i<40000;i++) print \"diagnostic line\" > \"/dev/stderr\"; printf \"ready\" }'")
         let result = try await worker.perform { worker in
