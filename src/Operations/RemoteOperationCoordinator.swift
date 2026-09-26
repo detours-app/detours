@@ -16,9 +16,16 @@ actor RemoteOperationCoordinator {
         case archive(password: String?)
     }
 
+    struct PlannedItem: Sendable {
+        let intent: OperationIntent
+        let hostID: UUID
+        let work: Work
+    }
+
     private let store: RemoteOperationStore
     private let resolve: @Sendable (UUID) async throws -> Endpoint
     private var active: Set<OperationItemID> = []
+    var activeBatches: Set<UUID> = []
     private static let logger = Logger(subsystem: "com.detours", category: "remote-operation")
 
     init(store: RemoteOperationStore, resolve: @escaping @Sendable (UUID) async throws -> Endpoint) {
@@ -33,6 +40,27 @@ actor RemoteOperationCoordinator {
     }
 
     func snapshot(_ operation: UUID) throws -> RemoteOperationStore.Snapshot { try store.load(operation) }
+
+    func recordPlannedItem(_ planned: PlannedItem) async throws {
+        if let existing = try itemIfPresent(planned.intent.id) {
+            guard existing.hostID == planned.hostID, existing.result.intent == planned.intent else {
+                throw OperationContractError.intentMismatch
+            }
+            return
+        }
+        let endpoint = try await resolve(planned.hostID)
+        let lifetime = try await endpoint.session.acquireLifetime(.operation)
+        defer { lifetime.release() }
+        let ready = try await endpoint.session.ensureReady()
+        try Task.checkCancellation()
+        var snapshot = try store.load(planned.intent.id.operation)
+        try snapshot.record.accept(planned.intent)
+        let result = OperationOutcomeReducer(intent: planned.intent, account: ready.handshake.account,
+                                             epoch: ready.handshake.epoch,
+                                             intentDigest: try OperationContentProof.data(planned.intent.canonicalData()).sha256)
+        snapshot.items.append(.init(hostID: planned.hostID, result: result))
+        try store.save(snapshot)
+    }
 
     func restore() throws -> [RemoteOperationStore.Snapshot] {
         try store.all().map { saved in
@@ -59,7 +87,9 @@ actor RemoteOperationCoordinator {
                 try store.save(snapshot)
                 return snapshot.items[position].result
             }
-            return previous.result
+            if !previous.sent.isEmpty || previous.result.cancellationRequested || intent.conflict == .skip {
+                return previous.result
+            }
         }
         return try await withTaskCancellationHandler {
             let endpoint = try await resolve(hostID)
@@ -72,8 +102,12 @@ actor RemoteOperationCoordinator {
             let result = OperationOutcomeReducer(intent: intent, account: ready.handshake.account,
                                                  epoch: ready.handshake.epoch,
                                                  intentDigest: try OperationContentProof.data(intent.canonicalData()).sha256)
-            snapshot.items.append(.init(hostID: hostID, result: result))
-            try store.save(snapshot)
+            if let previous = snapshot.items.first(where: { $0.identity.id == intent.id }) {
+                try ready.handshake.validate(expectedAccount: previous.result.account, expectedEpoch: previous.result.epoch)
+            } else {
+                snapshot.items.append(.init(hostID: hostID, result: result))
+                try store.save(snapshot)
+            }
             if intent.conflict == .skip { return result }
             do {
                 try await submit(intent.id, step: .accept, endpoint: endpoint) { identity in

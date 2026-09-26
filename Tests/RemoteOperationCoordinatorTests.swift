@@ -176,7 +176,7 @@ final class RemoteOperationCoordinatorTests: XCTestCase {
     }
 }
 
-private final class CoordinatorFixture: @unchecked Sendable {
+final class CoordinatorFixture: @unchecked Sendable {
     let root: URL
     let source: URL
     let destination: URL
@@ -223,7 +223,7 @@ private final class CoordinatorFixture: @unchecked Sendable {
     func cleanup() { try? FileManager.default.removeItem(at: root) }
 }
 
-private struct CoordinatorTransport: RemoteHostSessionTransport {
+struct CoordinatorTransport: RemoteHostSessionTransport {
     let service: ServerOperationService
     func handshake(generation: UInt64,
                    onFailure: @escaping @Sendable (UInt64, SSHConnectionFailureReason) async -> Void) async throws -> OperationHandshake {
@@ -236,14 +236,15 @@ private struct CoordinatorTransport: RemoteHostSessionTransport {
     func setActivePaneCount(_ count: Int) async {}
 }
 
-private actor CoordinatorBoundary {
-    enum Kind { case accept, prepare, commit, status, cancel }
+actor CoordinatorBoundary {
+    enum Kind { case accept, prepare, commit, execute, status, cancel }
     enum Failure: Error { case lostReply, notPersisted, timeout }
     let service: ServerOperationService
     let store: RemoteOperationStore
     let loss: Kind?
     let pauseAfterPreparation: Bool
     var requests: [Kind] = []
+    private var lossItem: OperationItemID?
     private var paused: CheckedContinuation<Void, Never>?
 
     init(service: ServerOperationService, store: RemoteOperationStore, loss: Kind?, pauseAfterPreparation: Bool) {
@@ -261,6 +262,7 @@ private actor CoordinatorBoundary {
         case .accept(let value, _): (identity, kind, step) = (value, .accept, .accept)
         case .prepareCopy(let value): (identity, kind, step) = (value, .prepare, .prepare)
         case .commit(let value): (identity, kind, step) = (value, .commit, .commit)
+        case .execute(let value): (identity, kind, step) = (value, .execute, .execute)
         case .status(let value): (identity, kind, step) = (value, .status, nil)
         case .cancel(let value): (identity, kind, step) = (value, .cancel, nil)
         default: throw OperationContractError.invalidReceipt
@@ -274,7 +276,7 @@ private actor CoordinatorBoundary {
         if kind == .prepare && pauseAfterPreparation {
             await withCheckedContinuation { paused = $0 }
         }
-        if kind == loss { throw Failure.lostReply }
+        if kind == loss && (lossItem == nil || lossItem == identity.id) { throw Failure.lostReply }
         return reply
     }
 
@@ -290,4 +292,6 @@ private actor CoordinatorBoundary {
         paused?.resume()
         paused = nil
     }
+
+    func loseReply(onlyFor item: OperationItemID) { lossItem = item }
 }
