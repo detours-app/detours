@@ -10,7 +10,8 @@ final class RemoteHostSessionTests: XCTestCase {
         let session = RemoteHostSession(transport: transport, attemptLimit: .milliseconds(20), recoveryLimit: .milliseconds(90),
             recoveryDelays: [.milliseconds(5)], publish: { await states.append($0, generation: $1) })
         let started = ContinuousClock.now
-        do { _ = try await session.ensureReady(); XCTFail("Exiting helpers became ready") } catch RemoteHostSessionError.failed(.timedOut) {}
+        do { _ = try await session.ensureReady(); XCTFail("Exiting helpers became ready") } catch RemoteHostSessionError.failed(.processExited(255)) {}
+        XCTAssertGreaterThanOrEqual(started.duration(to: .now), .milliseconds(80))
         XCTAssertLessThan(started.duration(to: .now), .seconds(1))
         let attempts = await transport.attempts
         XCTAssertGreaterThan(attempts, 2)
