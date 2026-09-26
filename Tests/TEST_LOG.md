@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry installed remote connection with visual evidence | `1dddd41` | PASS: signed build and focused installed connection check passed in 9.703 seconds. Inspected the retained screenshot: populated devtest pane and unchanged local pane, no crash or error UI. Zero consent prompts or interruptions; cleanup passed. |
 | Foundry installed remote connection | `19bfebd` | PASS: signed build and the focused installed connection journey passed in 9.722 seconds. The remote pane connected while the other pane retained its local location and focus; prompt events and interruptions were zero and cleanup passed. The test retained no screenshot, so visual evidence remains open pending an explicit attachment. |
 | Foundry repeated-exit recovery assertion correction | `102cb91` | PASS: signed build and the focused repeated-exit check passed in 0.091 seconds. Multiple helper exits consume the same ninety-millisecond test budget, never publish readiness, and retain the final process-exit reason. Resolves the single failed assertion in the preceding eighteen-check readiness run. |
 | Foundry repeated-exit recovery-budget proof | `6a1c4da` | FAIL: signed build passed; 17 of 18 checks passed in 3.335 seconds. The new repeated-exit case expected a timeout error, but recovery deliberately preserves the last process-exit reason when another retry would exceed the deadline. Correcting that assertion and checking elapsed budget plus attempt count explicitly. |
