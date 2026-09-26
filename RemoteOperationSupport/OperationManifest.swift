@@ -9,6 +9,14 @@ public struct OperationManifest: Codable, Equatable, Sendable {
     public let entries: [Entry]
     public let proof: OperationContentProof
 
+    public func matchesMovedObjects(_ actual: OperationManifest) -> Bool {
+        proof == actual.proof && entries.count == actual.entries.count && zip(entries, actual.entries).allSatisfy { before, after in
+            before.relativePath == after.relativePath && before.observation.identity == after.observation.identity &&
+                before.observation.kind == after.observation.kind && before.observation.linkTarget == after.observation.linkTarget &&
+                before.observation.contentVersion == after.observation.contentVersion
+        }
+    }
+
     public static func combining(_ trees: [(prefix: Data, manifest: OperationManifest)]) throws -> OperationManifest {
         var combined: [Data: OperationObservation] = [:]
         for tree in trees {

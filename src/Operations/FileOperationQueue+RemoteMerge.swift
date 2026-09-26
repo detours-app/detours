@@ -64,6 +64,15 @@ extension FileOperationQueue {
         guard let proof = selection.sourceObservations.first, let target = selection.destination,
               let observed = selection.sources.first else { throw OperationContractError.invalidReceipt }
         let provider = try remoteProvider(for: plan.hostID)
+        let originalManifest: OperationManifest?
+        if selection.action == .move {
+            let coordinator = try operationCoordinator()
+            guard case .found(let manifest) = try await coordinator.sourceManifest(observed.path, hostID: plan.hostID).result,
+                  manifest.entries.first?.observation.identity == proof.identity, manifest.proof.sha256 == proof.sha256 else {
+                throw OperationFilesystemError.identityChanged
+            }
+            originalManifest = manifest
+        } else { originalManifest = nil }
         let start = plan.items.count
         let children = try await provider.list(source, showHidden: true)
         for child in children.sorted(by: { $0.name < $1.name }) {
@@ -74,7 +83,8 @@ extension FileOperationQueue {
         if selection.action == .move {
             guard proof.sha256 != nil else { throw OperationContractError.invalidReceipt }
             let trash = OperationIntent(id: .init(operation: plan.operation, item: UUID()), action: .trash,
-                sources: [observed], destination: nil, sourceObservations: [proof], conflict: .createNew)
+                sources: [observed], destination: nil, sourceObservations: [proof], conflict: .createNew,
+                sourceManifest: originalManifest)
             plan.items.append(.init(intent: trash, hostID: plan.hostID, work: .execute, requiresVerified: copies))
         }
         if recordSelection {

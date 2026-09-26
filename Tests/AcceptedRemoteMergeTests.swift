@@ -90,6 +90,39 @@ final class AcceptedRemoteMergeTests: XCTestCase {
         await fixture.session.disconnect()
     }
 
+    func testIdenticalReplacementOfNestedSourceAfterCopiesPreventsFolderTrash() async throws {
+        let fixture = try await CoordinatorFixture()
+        defer { fixture.cleanup() }
+        let (source, destination) = try setup(fixture)
+        let nested = source.appendingPathComponent("nested")
+        try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: false)
+        let child = nested.appendingPathComponent("child")
+        let bytes = Data("same bytes".utf8)
+        try bytes.write(to: child)
+        let plan = try await plan(fixture, source: source, destination: destination, isMove: true)
+        let manifest = try XCTUnwrap(plan.items.last?.intent.sourceManifest)
+        let lastCopy = try XCTUnwrap(plan.items.dropLast().last?.intent.id)
+        let endpoint = RemoteOperationCoordinator.Endpoint(session: fixture.session, request: { request in
+            let reply = try await fixture.boundary.send(request)
+            if case .commit(let identity) = request, identity.id == lastCopy {
+                try FileManager.default.moveItem(at: child, to: fixture.root.appendingPathComponent("held-child"))
+                try bytes.write(to: child)
+            }
+            return reply
+        }, upload: { _, _ in throw OperationContractError.invalidReceipt })
+        let coordinator = RemoteOperationCoordinator(store: fixture.store, resolve: { _ in endpoint })
+        let result = try await coordinator.performBatch(plan.items, operation: fixture.intent.id.operation, selections: plan.selections)
+        XCTAssertEqual(result.items.map(\.outcome), [.committed, .committed, .committed, .failedUnchanged])
+        let actual = try OperationDirectory(path: Data(source.deletingLastPathComponent().path.utf8))
+            .manifest(Data(source.lastPathComponent.utf8), progress: { _ in })
+        XCTAssertEqual(actual.proof, manifest.proof)
+        XCTAssertEqual(actual.entries.first?.observation, manifest.entries.first?.observation)
+        XCTAssertNotEqual(actual, manifest)
+        XCTAssertEqual(try Data(contentsOf: child), bytes)
+        XCTAssertEqual(try Data(contentsOf: destination.appendingPathComponent("merge/nested/child")), bytes)
+        await fixture.session.disconnect()
+    }
+
     private func setup(_ fixture: CoordinatorFixture) throws -> (URL, URL) {
         let source = fixture.root.appendingPathComponent("merge")
         let destination = fixture.root.appendingPathComponent("output")

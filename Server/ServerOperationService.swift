@@ -4,10 +4,13 @@ import RemoteOperationSupport
 struct ServerOperationService: Sendable {
     let journal: OperationJournal
     let trashStore: ServerOperationTrash
+    let afterTrashMove: (@Sendable (OperationLocation) throws -> Void)?
 
-    init(root: URL, account: OperationAccount, homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) async throws {
+    init(root: URL, account: OperationAccount, homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
+         afterTrashMove: (@Sendable (OperationLocation) throws -> Void)? = nil) async throws {
         journal = try await OperationJournal(root: root, account: account)
         trashStore = ServerOperationTrash(homeDirectory: homeDirectory, account: account)
+        self.afterTrashMove = afterTrashMove
     }
 
     func accept(_ identity: OperationRequestIdentity, intent: OperationIntent) async throws -> OperationJournal.Snapshot {

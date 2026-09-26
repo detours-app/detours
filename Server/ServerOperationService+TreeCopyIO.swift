@@ -70,8 +70,10 @@ extension ServerOperationService {
         let current = try journal.read(identity.id)
         try journal.record(OperationReceipt(
             id: identity.id, account: journal.account, epoch: journal.epoch, intentDigest: identity.intentDigest,
-            revision: (current.receipt?.revision ?? 0) + 1, phase: .preparing, outcome: .running,
-            sourceDisposition: current.intent?.action == .move ? .present : .notRequired,
+            revision: (current.receipt?.revision ?? 0) + 1, phase: current.receipt?.phase ?? .preparing, outcome: .running,
+            effects: current.receipt?.effects ?? [],
+            sourceDisposition: current.receipt?.sourceDisposition ?? (current.intent?.action == .move ? .present : .notRequired),
+            contentVerified: current.receipt?.contentVerified ?? false, preparedPayload: current.receipt?.preparedPayload,
             plannedPaths: current.receipt?.plannedPaths, measuredBytes: measured, recovery: current.receipt?.recovery ?? []
         ), ownership: ownership)
     }

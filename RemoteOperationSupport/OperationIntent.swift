@@ -107,13 +107,14 @@ public struct OperationIntent: Codable, Equatable, Sendable {
     public let archiveFormat: String?
     public let archiveEncrypted: Bool?
     public let payloadProof: OperationContentProof?
+    public let sourceManifest: OperationManifest?
 
     public init(
         id: OperationItemID, action: Action, sources: [OperationLocation],
         destination: OperationLocation?, sourceObservations: [OperationObservation],
         conflict: Conflict, children: [OperationItemID] = [],
         reverses: OperationItemID? = nil, archiveFormat: String? = nil, archiveEncrypted: Bool? = nil,
-        payloadProof: OperationContentProof? = nil
+        payloadProof: OperationContentProof? = nil, sourceManifest: OperationManifest? = nil
     ) {
         self.id = id
         self.action = action
@@ -126,6 +127,7 @@ public struct OperationIntent: Codable, Equatable, Sendable {
         self.archiveFormat = archiveFormat
         self.archiveEncrypted = archiveEncrypted
         self.payloadProof = payloadProof
+        self.sourceManifest = sourceManifest
     }
 
     public func canonicalData() throws -> Data {

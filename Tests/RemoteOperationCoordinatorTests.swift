@@ -189,7 +189,8 @@ final class CoordinatorFixture: @unchecked Sendable {
     let intent: OperationIntent
 
     init(loss: CoordinatorBoundary.Kind? = nil, pauseAfterPreparation: Bool = false, pauseAfterCommit: Bool = false,
-         account: OperationAccount = .init(hostIdentity: "fixture-host", accountIdentity: "fixture-account")) async throws {
+         account: OperationAccount = .init(hostIdentity: "fixture-host", accountIdentity: "fixture-account"),
+         afterTrashMove: (@Sendable (OperationLocation) throws -> Void)? = nil) async throws {
         self.account = account
         root = FileManager.default.temporaryDirectory.appendingPathComponent("Coordinator-" + UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false,
@@ -198,7 +199,8 @@ final class CoordinatorFixture: @unchecked Sendable {
         destination = root.appendingPathComponent("destination")
         try bytes.write(to: source)
         store = try RemoteOperationStore(root: root.appendingPathComponent("client"))
-        let service = try await ServerOperationService(root: root.appendingPathComponent("host"), account: account, homeDirectory: root)
+        let service = try await ServerOperationService(root: root.appendingPathComponent("host"), account: account,
+            homeDirectory: root, afterTrashMove: afterTrashMove)
         session = RemoteHostSession(transport: CoordinatorTransport(service: service), idleGrace: .milliseconds(30), publish: { _, _ in })
         let operation = UUID()
         try store.save(.init(operation: operation))

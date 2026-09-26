@@ -5,6 +5,23 @@ import XCTest
 @testable import detours_server
 
 final class RemoteSourceDispositionTests: XCTestCase {
+    func testActualTrashedContentIsRevalidatedAndRestoredWhenChanged() async throws {
+        let fixture = try await CoordinatorFixture(afterTrashMove: { location in
+            guard case .unix(let bytes) = location.path, let path = String(data: bytes, encoding: .utf8) else {
+                throw OperationFilesystemError.invalidPath
+            }
+            try Data("changed after actual Trash move".utf8).write(to: URL(fileURLWithPath: path))
+        })
+        defer { fixture.cleanup() }
+        let result = try await fixture.coordinator().performBatch(makePlan(fixture), operation: fixture.intent.id.operation)
+        XCTAssertEqual(result.items.map(\.outcome), [.committed, .partial])
+        XCTAssertEqual(result.items[1].result.receipt?.sourceDisposition, .present)
+        XCTAssertEqual(try Data(contentsOf: fixture.destination), fixture.bytes)
+        XCTAssertEqual(try Data(contentsOf: fixture.source), Data("changed after actual Trash move".utf8))
+        XCTAssertTrue(result.items[1].result.receipt?.recovery.contains { $0.purpose == .source && $0.knownLocation == fixture.intent.sources.first } == true)
+        await fixture.session.disconnect()
+    }
+
     func testVerifiedDestinationPrecedesRecordedSourceTrash() async throws {
         let fixture = try await CoordinatorFixture()
         defer { fixture.cleanup() }

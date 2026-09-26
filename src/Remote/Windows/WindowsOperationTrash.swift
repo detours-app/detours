@@ -84,6 +84,12 @@ extension WindowsOperationScripts {
             if ($before.kind -eq 'file') { $before = Get-WindowsContentProof $source }
             else {
                 $manifest = Get-WindowsTreeProof $source
+                if ($null -ne $intent.sourceManifest) {
+                    Assert-WindowsTreeMovement $intent.sourceManifest $manifest
+                    for ($index = 0; $index -lt @($manifest.entries).Count; $index++) {
+                        Assert-WindowsObservation $manifest.entries[$index].observation $intent.sourceManifest.entries[$index].observation
+                    }
+                }
                 $before = Get-WindowsManifestObservation $manifest
                 $Context.record | Add-Member -NotePropertyName sourceManifest -NotePropertyValue $manifest -Force
                 Save-WindowsWorkspace $Context
