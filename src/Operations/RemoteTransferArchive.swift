@@ -24,13 +24,19 @@ enum RemoteTransferArchive {
             case .directory: type = 0o040000
             case .symbolicLink: type = 0o120000
             }
+            let openInput: (@Sendable () throws -> FileHandle)?
+            if observation.kind == .file {
+                openInput = {
+                    let directory = try OperationDirectory(path: Data(location.deletingLastPathComponent().path.utf8))
+                    return try directory.openObservedFile(Data(location.lastPathComponent.utf8), expected: observation)
+                }
+            } else {
+                openInput = nil
+            }
             return .init(name: relative.isEmpty ? "tree" : "tree/" + relative,
                 input: nil, size: observation.byteCount, directory: observation.kind == .directory,
                 mode: type | mode.uint32Value, modified: modified, linkTarget: observation.linkTarget,
-                openInput: observation.kind == .file ? {
-                    let directory = try OperationDirectory(path: Data(location.deletingLastPathComponent().path.utf8))
-                    return try directory.openObservedFile(Data(location.lastPathComponent.utf8), expected: observation)
-                } : nil)
+                openInput: openInput)
         }
         try SevenZipArchiveWriter.create(entries: entries, output: output, password: nil, format: .zip) { bytes in
             try Task.checkCancellation()

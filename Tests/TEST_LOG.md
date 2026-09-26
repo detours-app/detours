@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry staged-folder archive compilation | `467e322` | FAIL: the app build stopped at the archive entry map with Swift reporting that it failed to produce a diagnostic for the expression. No tests ran. Replacing the conditional file-opening closure with an explicitly typed Sendable closure before repeating the focused check. |
 | Foundry complete source manifests | `fd5f741` | PASS: both helpers and signed app built; all 12 focused protocol, source-proof and live Windows checks passed in 19.430 seconds with no skips. Identical-byte replacement changes the recorded nested child identity while the tree content digest stays equal. Empty directories, dangling links, typed missing and foreign-account refusal pass; live Windows manifests retain paths and hashes through encoding. |
 | devtest source-manifest helper rebuild | `fd5f741` | PASS: all 140 container checks passed, comprising 18 process checks in 11.987 seconds and 122 filesystem/archive/journal checks in 20.894 seconds. Foundry helper/app build and focused live checks continue in the same run. |
 | Foundry cross-host file conflicts | `7065e0b` | PASS: signed build and all seven focused checks passed in 0.216 seconds. Skip leaves both original files unchanged and sends no acceptance or source Trash; Keep Both preserves the competing destination and publishes the numbered copy before source Trash. Public queue routing, payload/source changes and lost Trash replies remain green. |
