@@ -97,6 +97,9 @@ extension WindowsOperationScripts {
             public uint Index;
             public string FullName;
             public long Length;
+            public string Kind;
+            public string LinkTarget;
+            internal uint Attributes;
             public DateTimeOffset LastWriteTime;
         }
         private readonly IDetoursSevenZipReader archive;
@@ -115,15 +118,30 @@ extension WindowsOperationScripts {
                     cancellation.Check();
                     if (Flag(index, 15) || Flag(index, 21) || Flag(index, 63) || Flag(index, 65))
                         throw new IOException("Encrypted, deleted, anti-item and alternate-stream archive members are unsupported.");
-                    if (!String.IsNullOrEmpty(Text(index, 54)) || !String.IsNullOrEmpty(Text(index, 90)))
-                        throw new IOException("7z link members require link-aware extraction.");
+
                     string name = Text(index, 3);
                     if (String.IsNullOrEmpty(name)) throw new IOException("7z member has no path.");
-                    if (Flag(index, 6)) name = name.TrimEnd('/') + "/";
-                    entries.Add(new Entry { Index = index, FullName = name, Length = Number(index, 7),
+                    uint attributes = checked((uint)Number(index, 9));
+                    bool posixLink = (attributes & 0x8000) != 0 && ((attributes >> 16) & 0xF000) == 0xA000;
+                    bool windowsLink = (attributes & 0x400) != 0;
+                    bool directory = Flag(index, 6) && !posixLink && !windowsLink;
+                    if (directory) name = name.TrimEnd('/') + "/";
+                    entries.Add(new Entry { Index = index, FullName = name, Length = Number(index, 7), Attributes = attributes,
+                        Kind = posixLink || windowsLink ? "symbolicLink" : directory ? "directory" : "file",
                         LastWriteTime = new DateTimeOffset(DateTime.FromFileTimeUtc(Number(index, 12))) });
                 }
                 Entries = entries.ToArray();
+                foreach (Entry entry in Entries) {
+                    if (entry.Kind != "symbolicLink") continue;
+                    if (entry.Length < 1 || entry.Length >= 4096) throw new IOException("Invalid 7z link data length.");
+                    using (MemoryStream target = new MemoryStream()) {
+                        Extract(entry, target);
+                        if ((entry.Attributes & 0x400) != 0) throw new IOException("Windows reparse archive members require native link restoration.");
+                        entry.LinkTarget = new UTF8Encoding(false, true).GetString(target.ToArray());
+                        if (entry.LinkTarget.IndexOf('\0') >= 0 || entry.LinkTarget.Length == 0)
+                            throw new IOException("Invalid 7z symbolic link target.");
+                    }
+                }
             } catch { archive.Close(); Marshal.FinalReleaseComObject(archive); throw; }
         }
         private void Check(int result) {

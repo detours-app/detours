@@ -25,7 +25,7 @@ extension WindowsOperationScripts {
                 $cancel = Join-Path $Context.root ((Get-OperationKey $Context.identity.id) + '.cancel')
                 $archive = $library.OpenArchive($inputStream, $cancel)
                 try {
-                    $plan = @(New-WindowsZipPlan $archive)
+                    $plan = @(New-WindowsTarPlan $archive)
                     New-WindowsWorkspace $Context $destination | Out-Null
                     $workspace = $Context.record.workspace
                     $pin = [DetoursOperationFiles]::PinDirectory($Context.record.windowsWorkspacePath, $workspace.root.identity.volume, $workspace.root.identity.object)
@@ -33,6 +33,7 @@ extension WindowsOperationScripts {
                     try {
                         foreach ($member in $plan) {
                             Assert-WindowsOperationActive $Context
+                            if ($member.kind -eq 'symbolicLink' -or $null -ne $member.hardLink) { continue }
                             $name = if ($member.name.Length -eq 0) { 'payload' } else { 'payload/' + $member.name }
                             $target = Join-Path $Context.record.windowsWorkspacePath $name
                             if ($member.kind -eq 'directory') {
@@ -43,6 +44,7 @@ extension WindowsOperationScripts {
                                 $directories.Add([DetoursOperationFiles]::PinDirectory($target, $created.identity.volume, $created.identity.object))
                             } else { Write-WindowsSevenZipEntry $Context $archive $member $target $name }
                         }
+                        Write-WindowsTarLinks $Context $plan
                         foreach ($member in $plan) {
                             if ($member.kind -ne 'directory' -or $null -eq $member.entry) { continue }
                             $name = if ($member.name.Length -eq 0) { 'payload' } else { 'payload/' + $member.name }
