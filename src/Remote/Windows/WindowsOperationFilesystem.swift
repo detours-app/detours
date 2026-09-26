@@ -193,6 +193,9 @@ extension WindowsOperationScripts {
         public static TreeManifest Manifest(string path) {
             var entries = new System.Collections.Generic.List<TreeEntry>();
             CollectTree(path, "", entries);
+            return MakeManifest(entries);
+        }
+        private static TreeManifest MakeManifest(System.Collections.Generic.List<TreeEntry> entries) {
             entries.Sort(delegate(TreeEntry left, TreeEntry right) {
                 byte[] a = Convert.FromBase64String(left.relativePath), b = Convert.FromBase64String(right.relativePath);
                 for (int index = 0; index < Math.Min(a.Length, b.Length); index++) {
@@ -218,6 +221,65 @@ extension WindowsOperationScripts {
             using (SHA256 hash = SHA256.Create()) {
                 string digest = BitConverter.ToString(hash.ComputeHash(Encoding.UTF8.GetBytes(json.ToString()))).Replace("-", "").ToLowerInvariant();
                 return new TreeManifest { entries = entries.ToArray(), proof = new ContentProof { byteCount = total, sha256 = digest } };
+            }
+        }
+        public sealed class CopyInput { public string relativePath; public string sourcePath; public Observation observation; }
+        public sealed class CopyPlan { public TreeManifest manifest; public CopyInput[] inputs; public CopyInput[] links; }
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern uint GetFinalPathNameByHandleW(SafeFileHandle file, StringBuilder path, uint count, uint flags);
+        private static string FollowedPath(string path) {
+            using (SafeFileHandle handle = CreateFileW(path, 0x80, 7, IntPtr.Zero, 3, 0x02000000, IntPtr.Zero)) {
+                if (handle.IsInvalid) throw new Win32Exception(Marshal.GetLastWin32Error());
+                StringBuilder result = new StringBuilder(32768);
+                uint count = GetFinalPathNameByHandleW(handle, result, (uint)result.Capacity, 0);
+                if (count == 0) throw new Win32Exception(Marshal.GetLastWin32Error());
+                if (count >= result.Capacity) throw new IOException("Resolved operation path is too long.");
+                string resolved = result.ToString();
+                if (resolved.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase)) return @"\\" + resolved.Substring(8);
+                return resolved.StartsWith(@"\\?\", StringComparison.Ordinal) ? resolved.Substring(4) : resolved;
+            }
+        }
+        public static CopyPlan PlanCopy(string path) {
+            var inputs = new System.Collections.Generic.List<CopyInput>();
+            var links = new System.Collections.Generic.List<CopyInput>();
+            ExpandCopy(path, "", new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal), 0, inputs, links);
+            var entries = new System.Collections.Generic.List<TreeEntry>();
+            var byName = new System.Collections.Generic.Dictionary<string, CopyInput>(StringComparer.Ordinal);
+            foreach (CopyInput input in inputs) {
+                entries.Add(new TreeEntry { relativePath = input.relativePath, observation = input.observation });
+                byName.Add(input.relativePath, input);
+            }
+            TreeManifest manifest = MakeManifest(entries);
+            CopyInput[] ordered = new CopyInput[manifest.entries.Length];
+            for (int index = 0; index < ordered.Length; index++) ordered[index] = byName[manifest.entries[index].relativePath];
+            return new CopyPlan { manifest = manifest, inputs = ordered, links = links.ToArray() };
+        }
+        private static string ObjectKey(Observation observation) { return observation.identity.volume + ":" + observation.identity.@object; }
+        private static void ExpandCopy(string path, string prefix, System.Collections.Generic.HashSet<string> ancestors,
+            int depth, System.Collections.Generic.List<CopyInput> inputs, System.Collections.Generic.List<CopyInput> links) {
+            if (depth > 40) throw new IOException("Copy link traversal exceeded its limit.");
+            TreeManifest manifest = Manifest(path);
+            if (manifest.entries[0].observation.kind == "directory" && ancestors.Contains(ObjectKey(manifest.entries[0].observation)))
+                throw new IOException("Copy source contains a directory link cycle.");
+            foreach (TreeEntry entry in manifest.entries) {
+                string relative = Encoding.UTF8.GetString(Convert.FromBase64String(entry.relativePath));
+                string output = prefix.Length == 0 ? relative : relative.Length == 0 ? prefix : prefix + "/" + relative;
+                string origin = relative.Length == 0 ? path : Path.Combine(path, relative.Replace('/', Path.DirectorySeparatorChar));
+                string encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(output));
+                if (entry.observation.kind != "symbolicLink") {
+                    inputs.Add(new CopyInput { relativePath = encoded, sourcePath = origin, observation = entry.observation });
+                    continue;
+                }
+                links.Add(new CopyInput { relativePath = encoded, sourcePath = origin, observation = entry.observation });
+                string target = FollowedPath(origin);
+                Require(Observe(origin), entry.observation.identity.volume, entry.observation.identity.@object, entry.observation.version);
+                var parents = new System.Collections.Generic.HashSet<string>(ancestors, StringComparer.Ordinal);
+                foreach (TreeEntry directory in manifest.entries) {
+                    if (directory.observation.kind != "directory") continue;
+                    string name = Encoding.UTF8.GetString(Convert.FromBase64String(directory.relativePath));
+                    if (name.Length == 0 || relative.StartsWith(name + "/", StringComparison.Ordinal)) parents.Add(ObjectKey(directory.observation));
+                }
+                ExpandCopy(target, output, parents, depth + 1, inputs, links);
             }
         }
         private static void CollectTree(string path, string relative, System.Collections.Generic.List<TreeEntry> entries) {
