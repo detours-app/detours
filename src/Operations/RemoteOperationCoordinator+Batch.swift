@@ -3,12 +3,14 @@ import RemoteOperationSupport
 
 extension RemoteOperationCoordinator {
     /// The entire ordered plan is durable before the first host accepts an item.
-    func performBatch(_ plan: [PlannedItem], operation: UUID) async throws -> RemoteOperationStore.Snapshot {
+    func performBatch(_ plan: [PlannedItem], operation: UUID,
+                      selections: [OperationIntent] = []) async throws -> RemoteOperationStore.Snapshot {
         guard activeBatches.insert(operation).inserted else { throw OperationJournalError.busy }
         defer { activeBatches.remove(operation) }
         let previous = try snapshot(operation)
         if previous.items.contains(where: { !$0.sent.isEmpty }) {
             guard previous.record.intents == plan.map(\.intent),
+                  (previous.selections ?? []) == selections,
                   previous.items.map(\.hostID) == plan.map(\.hostID),
                   previous.items.map({ $0.requiresVerified ?? [] }) == plan.map(\.requiresVerified),
                   previous.items.map(\.preflightFailure) == plan.map(\.preflightFailure) else {
@@ -17,6 +19,7 @@ extension RemoteOperationCoordinator {
             return previous
         }
         try await persistPlan(plan, operation: operation)
+        try recordSelections(selections, operation: operation)
         guard try snapshot(operation).record.intents.map(\.id) == plan.map({ $0.intent.id }) else {
             throw OperationContractError.intentMismatch
         }

@@ -37,6 +37,7 @@ final class RemoteOperationStore: @unchecked Sendable {
         var revision: UInt64
         var record: OperationRecord
         var items: [Item]
+        var selections: [OperationIntent]?
 
         init(operation: UUID) {
             schemaVersion = 1
@@ -179,10 +180,21 @@ final class RemoteOperationStore: @unchecked Sendable {
                 throw StoreError.unsafeRecord
             }
         }
+        if let selections = snapshot.selections {
+            let identifiers = Set(intents.map(\.id))
+            guard Set(selections.map(\.id)).count == selections.count,
+                  selections.allSatisfy({ selection in
+                      selection.id.operation == snapshot.record.operation && !identifiers.contains(selection.id)
+                          && selection.children.allSatisfy({ identifiers.contains($0) })
+                          && Set(selection.children).count == selection.children.count
+                  }) else { throw StoreError.unsafeRecord }
+        }
     }
 
     private func validateTransition(from previous: Snapshot, to next: Snapshot) throws {
         guard next.items.count >= previous.items.count,
+              previous.selections == nil || previous.selections == next.selections,
+              !previous.items.contains(where: { !$0.sent.isEmpty }) || previous.selections == next.selections,
               !previous.record.cancellationRequested || next.record.cancellationRequested else {
             throw StoreError.unsafeRecord
         }

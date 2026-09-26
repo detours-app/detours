@@ -99,7 +99,7 @@ final class AcceptedProviderTests: XCTestCase {
 struct AcceptedProviderRPC: RemoteRPCClient {
     let service: ServerOperationService
     func send(_ message: RPCMessage) async throws -> [Data] {
-        guard case .operation(let request) = message else { throw OperationContractError.invalidReceipt }
-        return [try await service.reply(to: request).encoded()]
+        if case .operation(let request) = message { return [try await service.reply(to: request).encoded()] }
+        return try RPCHandler(operationService: service).handleChunks(message: ServerRPCMessage(binaryEncoded: message.binaryEncoded()))
     }
 }

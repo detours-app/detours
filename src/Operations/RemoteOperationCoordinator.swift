@@ -43,6 +43,17 @@ actor RemoteOperationCoordinator {
 
     func snapshot(_ operation: UUID) throws -> RemoteOperationStore.Snapshot { try store.load(operation) }
 
+    func recordSelections(_ selections: [OperationIntent], operation: UUID) throws {
+        var snapshot = try store.load(operation)
+        let recorded = selections.isEmpty ? nil : selections
+        if snapshot.selections == recorded { return }
+        guard snapshot.selections == nil, snapshot.items.allSatisfy({ $0.sent.isEmpty }) else {
+            throw OperationContractError.intentMismatch
+        }
+        snapshot.selections = recorded
+        try store.save(snapshot)
+    }
+
     func lookup(_ path: OperationLocation.Path, hostID: UUID, proveContent: Bool = false) async throws
         -> (location: OperationLocation, result: OperationLookup<OperationObservation>) {
         let endpoint = try await resolve(hostID)

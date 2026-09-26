@@ -45,47 +45,14 @@ extension FileOperationQueue {
         let provider = try remoteProvider(for: hostID)
         let coordinator = try operationCoordinator()
         let operation = try await coordinator.create()
-        var plan: [RemoteOperationCoordinator.PlannedItem] = []
-        var cachedChoice: ConflictChoice?
+        var plan = RemoteTransferPlan(hostID: hostID, operation: operation, mergeDirectories: isWindowsDestination(destination))
         let directory = try await provider.operationPath(destination)
         for source in items {
-            try checkCancelled()
-            let sourcePath = try await provider.operationPath(source)
-            let observed = try await coordinator.lookup(sourcePath, hostID: hostID)
-            var targetPath = try Self.targetPath(source: sourcePath, directory: directory)
-            var failure = Self.preflightFailure(observed.result)
-            var conflict = OperationIntent.Conflict.createNew
-            let sourceObservation: OperationObservation?
-            if case .found(let value) = observed.result { sourceObservation = value } else { sourceObservation = nil }
-            if failure == nil {
-                let target = try await coordinator.lookup(targetPath, hostID: hostID)
-                switch target.result {
-                case .missing: break
-                case .found(let existing):
-                    let targetLocation = try await provider.displayLocation(targetPath)
-                    let resolution = await resolveConflict(source: Location.remoteFileURL(source.path),
-                        destination: Location.remoteFileURL(targetLocation.path), cachedChoice: cachedChoice)
-                    if resolution.applyToAll { cachedChoice = resolution.choice }
-                    switch resolution.choice {
-                    case .skip: conflict = .skip
-                    case .replace: conflict = .replace(existing)
-                    case .keepBoth:
-                        targetPath = try await availableTarget(source: sourcePath, directory: directory,
-                                                              hostID: hostID, coordinator: coordinator)
-                    }
-                case .denied: failure = .denied
-                case .disconnected: failure = .disconnected
-                case .unsupported: failure = .unsupported
-                }
-            }
-            let intent = OperationIntent(id: .init(operation: operation, item: UUID()), action: isMove ? .move : .copy,
-                sources: [observed.location], destination: .init(account: observed.location.account, path: targetPath),
-                sourceObservations: sourceObservation.map { [$0] } ?? [], conflict: conflict)
-            plan.append(.init(intent: intent, hostID: hostID, work: isMove ? .execute : .copy, preflightFailure: failure))
+            try await planRemoteItem(source, directory: directory, isMove: isMove, plan: &plan)
         }
         try checkCancelled()
         do {
-            let result = try await coordinator.performBatch(plan, operation: operation)
+            let result = try await coordinator.performBatch(plan.items, operation: operation, selections: plan.selections)
             remoteOperationResults[operation] = result
             return result
         } catch {
@@ -115,7 +82,7 @@ extension FileOperationQueue {
         }
     }
 
-    private static func preflightFailure(_ result: OperationLookup<OperationObservation>) -> RemoteOperationStore.PreflightFailure? {
+    static func preflightFailure(_ result: OperationLookup<OperationObservation>) -> RemoteOperationStore.PreflightFailure? {
         switch result {
         case .found: return nil
         case .missing: return .sourceMissing
@@ -125,8 +92,8 @@ extension FileOperationQueue {
         }
     }
 
-    private func availableTarget(source: OperationLocation.Path, directory: OperationLocation.Path, hostID: UUID,
-                                 coordinator: RemoteOperationCoordinator) async throws -> OperationLocation.Path {
+    func availableTarget(source: OperationLocation.Path, directory: OperationLocation.Path, hostID: UUID,
+                         coordinator: RemoteOperationCoordinator) async throws -> OperationLocation.Path {
         var index = 2
         while true {
             try checkCancelled()
@@ -141,8 +108,8 @@ extension FileOperationQueue {
         }
     }
 
-    private static func targetPath(source: OperationLocation.Path, directory: OperationLocation.Path,
-                                   index: Int? = nil) throws -> OperationLocation.Path {
+    static func targetPath(source: OperationLocation.Path, directory: OperationLocation.Path,
+                           index: Int? = nil) throws -> OperationLocation.Path {
         switch (source, directory) {
         case (.unix(let source), .unix(let directory)):
             guard var name = source.split(separator: 47).last.map({ Data($0) }), !name.isEmpty else {
