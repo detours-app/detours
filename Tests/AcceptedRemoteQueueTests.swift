@@ -151,6 +151,65 @@ final class AcceptedRemoteQueueTests: XCTestCase {
         await fixture.session.disconnect()
     }
 
+    func testNewFolderPublishesOnlyAfterEveryChildIsPrepared() async throws {
+        let fixture = try await CoordinatorFixture(pauseAfterPreparation: true)
+        defer { fixture.cleanup() }
+        let queue = try await configure(fixture)
+        let source = try folderSource(fixture)
+        let destination = try destination(fixture)
+        let transfer = Task { try await queue.copy(items: [source], to: destination) }
+        try await fixture.boundary.waitUntilPaused()
+        let final = URL(fileURLWithPath: destination.path).appendingPathComponent("folder")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: final.path))
+        await fixture.boundary.resume()
+        let copied = try await transfer.value
+        XCTAssertEqual(copied, [destination.appendingPathComponent("folder")])
+        XCTAssertEqual(try Data(contentsOf: final.appendingPathComponent("first")), fixture.bytes)
+        XCTAssertEqual(try Data(contentsOf: final.appendingPathComponent("nested/last")), Data("last child".utf8))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: final.appendingPathComponent("empty").path))
+        await fixture.session.disconnect()
+    }
+
+    func testChangedLaterFolderPayloadPreventsWholeFolderPublication() async throws {
+        let fixture = try await CoordinatorFixture(pauseAfterPreparation: true)
+        defer { fixture.cleanup() }
+        let queue = try await configure(fixture)
+        let source = try folderSource(fixture)
+        let destination = try destination(fixture)
+        let transfer = Task { try await queue.copy(items: [source], to: destination) }
+        try await fixture.boundary.waitUntilPaused()
+        let record = try XCTUnwrap(fixture.store.all().first { !$0.items.isEmpty })
+        let item = try XCTUnwrap(record.items.first)
+        let host = try fixture.boundary.service.status(item.identity)
+        let payload = try XCTUnwrap(host.receipt?.preparedPayload)
+        guard case .unix(let bytes) = payload.location.path,
+              let path = String(data: bytes, encoding: .utf8) else {
+            await fixture.boundary.resume()
+            _ = try? await transfer.value
+            return XCTFail("Expected native prepared folder")
+        }
+        try Data("damaged later child".utf8).write(to: URL(fileURLWithPath: path).appendingPathComponent("nested/last"))
+        await fixture.boundary.resume()
+        do {
+            _ = try await transfer.value
+            XCTFail("A damaged child published the folder")
+        } catch let error as RemoteBatchFailure {
+            XCTAssertEqual(error.snapshot.items.first?.outcome, .failedUnchanged)
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: URL(fileURLWithPath: destination.path).appendingPathComponent("folder").path))
+        XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: source.path).appendingPathComponent("nested/last")), Data("last child".utf8))
+        await fixture.session.disconnect()
+    }
+
+    private func folderSource(_ fixture: CoordinatorFixture) throws -> Location {
+        let root = fixture.root.appendingPathComponent("folder")
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("nested"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("empty"), withIntermediateDirectories: false)
+        try fixture.bytes.write(to: root.appendingPathComponent("first"))
+        try Data("last child".utf8).write(to: root.appendingPathComponent("nested/last"))
+        return .remote(hostID: fixture.hostID, path: root.path)
+    }
+
     private func configure(_ fixture: CoordinatorFixture) async throws -> FileOperationQueue {
         let queue = FileOperationQueue.shared
         let provider = RemoteFileProvider(hostID: fixture.hostID, rpcClient: AcceptedProviderRPC(service: fixture.boundary.service),
