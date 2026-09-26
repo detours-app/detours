@@ -71,7 +71,7 @@ extension WindowsOperationScripts {
     public sealed class DetoursSevenZipUpdate : IDetoursSevenZipUpdate, IDisposable {
         private readonly DetoursSevenZipSource[] sources;
         private readonly DetoursSevenZipCancellation cancellation;
-        private readonly List<DetoursSevenZipSourceStream> streams = new List<DetoursSevenZipSourceStream>();
+        private readonly Dictionary<uint, DetoursSevenZipSourceStream> streams = new Dictionary<uint, DetoursSevenZipSourceStream>();
         public DetoursSevenZipUpdate(DetoursSevenZipSource[] items, DetoursSevenZipCancellation token) { sources = items; cancellation = token; }
         public int SetTotal(ulong total) { return SetCompleted(IntPtr.Zero); }
         public int SetCompleted(IntPtr completed) {
@@ -100,7 +100,7 @@ extension WindowsOperationScripts {
                 cancellation.Check();
                 if (!sources[index].directory) {
                     DetoursSevenZipSourceStream input = new DetoursSevenZipSourceStream(sources[index], cancellation);
-                    streams.Add(input); stream = input;
+                    streams.Add(index, input); stream = input;
                 }
                 return 0;
             } catch (Exception error) { return cancellation.Fail(error); }
@@ -110,11 +110,19 @@ extension WindowsOperationScripts {
             return SetCompleted(IntPtr.Zero);
         }
         public void Verify() {
-            int expected = 0; foreach (DetoursSevenZipSource source in sources) if (!source.directory) expected++;
-            if (streams.Count != expected) throw new IOException("7z did not consume every selected file.");
-            foreach (DetoursSevenZipSourceStream stream in streams) if (!stream.verified) throw new IOException("7z input was not fully verified.");
+            for (uint index = 0; index < sources.Length; index++) {
+                cancellation.Check();
+                if (sources[index].directory) continue;
+                DetoursSevenZipSourceStream stream;
+                if (!streams.TryGetValue(index, out stream)) {
+                    if (sources[index].length != 0) throw new IOException("7z did not consume a selected file.");
+                    stream = new DetoursSevenZipSourceStream(sources[index], cancellation);
+                    streams.Add(index, stream);
+                }
+                if (!stream.verified) throw new IOException("7z input was not fully verified.");
+            }
         }
-        public void Dispose() { foreach (DetoursSevenZipSourceStream stream in streams) stream.Dispose(); }
+        public void Dispose() { foreach (DetoursSevenZipSourceStream stream in streams.Values) stream.Dispose(); }
     }
     """#
 }
