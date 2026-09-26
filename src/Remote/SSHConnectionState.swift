@@ -6,6 +6,7 @@ enum SSHConnectionFailureReason: Equatable, Sendable {
     case processExited(Int32)
     case timedOut
     case transport(String)
+    case compatibility(String)
 }
 
 extension SSHConnectionFailureReason {
@@ -19,6 +20,8 @@ extension SSHConnectionFailureReason {
             return "SSH process exited with status \(status)"
         case .timedOut:
             return "Connection timed out"
+        case .compatibility(let message):
+            return "Remote protocol compatibility error: \(message)"
         case .transport(let message):
             return message.isEmpty ? "Transport error" : message
         }
@@ -58,7 +61,7 @@ enum SSHReconnectPolicy {
 
     static func isRetryable(_ reason: SSHConnectionFailureReason) -> Bool {
         switch reason {
-        case .authentication, .hostKeyChanged:
+        case .authentication, .hostKeyChanged, .compatibility:
             return false
         case .processExited, .timedOut, .transport:
             return true
