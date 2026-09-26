@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry verified destination before source disposition | `696917a` | PASS: signed build and all 27 coordinator, store, batch and source-disposition checks passed in 0.613 seconds. Actual helper Trash runs only after verified publication; changed sources and failed destinations preserve source content. Lost Trash and status replies retain the destination and unknown source result without replay. |
 | Foundry complete new-folder queue publication | `33a8de2` | PASS: signed build and all 15 queue/tree checks passed in 0.371 seconds. The real queue keeps the entire folder private through preparation, preserves empty directories, and refuses publication after a later prepared child changes while preserving the source. C12 and T9 remain open for merges and cross-host transfers. |
 | Foundry installed accepted-session connection | `1fe1cc9` | PASS: guarded connection XCUI passed in 8.794 seconds with no skips, zero consent prompts and successful cleanup. Inspected the exported screenshot: devtest is populated in the left pane and the local fixture remains in the right pane. Run c11-connection-1fe1cc9. |
 | Foundry verified-session queue ownership | `d45c039` | PASS: signed build and all 37 focused checks passed in 1.044 seconds. A legacy disconnect notification during actual preparation neither pauses nor cancels accepted work; publication completes with cancellation still false. |

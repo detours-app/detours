@@ -56,6 +56,44 @@ final class RemoteSourceDispositionTests: XCTestCase {
         let requests = await fixture.boundary.requests
         XCTAssertTrue(requests.isEmpty)
         XCTAssertEqual(try Data(contentsOf: fixture.source), fixture.bytes)
+        var altered = try fixture.store.load(fixture.intent.id.operation)
+        altered.items[1].requiresVerified = nil
+        XCTAssertThrowsError(try fixture.store.save(altered))
+        await fixture.session.disconnect()
+    }
+
+    func testSkippedDestinationCannotAuthorizeSourceTrash() async throws {
+        let fixture = try await CoordinatorFixture()
+        defer { fixture.cleanup() }
+        var plan = makePlan(fixture)
+        let original = fixture.intent
+        let skipped = OperationIntent(id: original.id, action: original.action, sources: original.sources,
+            destination: original.destination, sourceObservations: original.sourceObservations, conflict: .skip)
+        plan[0] = .init(intent: skipped, hostID: fixture.hostID, work: .copy)
+        let result = try await fixture.coordinator().performBatch(plan, operation: original.id.operation)
+        XCTAssertEqual(result.items.map(\.outcome), [.notStarted, .notStarted])
+        XCTAssertTrue(result.items.allSatisfy { $0.sent.isEmpty })
+        XCTAssertEqual(try Data(contentsOf: fixture.source), fixture.bytes)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.destination.path))
+        await fixture.session.disconnect()
+    }
+
+    func testCancellationAfterDestinationCommitPreventsSourceDisposition() async throws {
+        let fixture = try await CoordinatorFixture(pauseAfterCommit: true)
+        defer { fixture.cleanup() }
+        let coordinator = fixture.coordinator()
+        let plan = makePlan(fixture)
+        let running = Task { try await coordinator.performBatch(plan, operation: fixture.intent.id.operation) }
+        try await fixture.boundary.waitUntilPaused()
+        XCTAssertEqual(try Data(contentsOf: fixture.destination), fixture.bytes)
+        try await coordinator.cancel(fixture.intent.id.operation)
+        await fixture.boundary.resume()
+        let result = try await running.value
+        XCTAssertTrue(result.record.cancellationRequested)
+        XCTAssertEqual(result.items.map(\.outcome), [.committed, .notStarted])
+        XCTAssertTrue(result.items[1].sent.isEmpty)
+        XCTAssertEqual(try Data(contentsOf: fixture.source), fixture.bytes)
+        XCTAssertEqual(try Data(contentsOf: fixture.destination), fixture.bytes)
         await fixture.session.disconnect()
     }
 

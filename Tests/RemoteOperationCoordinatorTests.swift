@@ -188,7 +188,7 @@ final class CoordinatorFixture: @unchecked Sendable {
     let boundary: CoordinatorBoundary
     let intent: OperationIntent
 
-    init(loss: CoordinatorBoundary.Kind? = nil, pauseAfterPreparation: Bool = false) async throws {
+    init(loss: CoordinatorBoundary.Kind? = nil, pauseAfterPreparation: Bool = false, pauseAfterCommit: Bool = false) async throws {
         root = FileManager.default.temporaryDirectory.appendingPathComponent("Coordinator-" + UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false,
                                                 attributes: [.posixPermissions: 0o700])
@@ -206,7 +206,8 @@ final class CoordinatorFixture: @unchecked Sendable {
                                  sources: [OperationLocation(account: account, path: .unix(Data(source.path.utf8)))],
                                  destination: OperationLocation(account: account, path: .unix(Data(destination.path.utf8))),
                                  sourceObservations: [observation], conflict: .createNew)
-        boundary = CoordinatorBoundary(service: service, store: store, loss: loss, pauseAfterPreparation: pauseAfterPreparation)
+        boundary = CoordinatorBoundary(service: service, store: store, loss: loss,
+            pauseAfterPreparation: pauseAfterPreparation, pauseAfterCommit: pauseAfterCommit)
     }
 
     func coordinator() -> RemoteOperationCoordinator {
@@ -243,15 +244,18 @@ actor CoordinatorBoundary {
     let store: RemoteOperationStore
     let loss: Kind?
     let pauseAfterPreparation: Bool
+    let pauseAfterCommit: Bool
     var requests: [Kind] = []
     private var lossItem: OperationItemID?
     private var paused: CheckedContinuation<Void, Never>?
 
-    init(service: ServerOperationService, store: RemoteOperationStore, loss: Kind?, pauseAfterPreparation: Bool) {
+    init(service: ServerOperationService, store: RemoteOperationStore, loss: Kind?,
+         pauseAfterPreparation: Bool, pauseAfterCommit: Bool = false) {
         self.service = service
         self.store = store
         self.loss = loss
         self.pauseAfterPreparation = pauseAfterPreparation
+        self.pauseAfterCommit = pauseAfterCommit
     }
 
     func send(_ request: OperationRequest) async throws -> OperationReply {
@@ -277,7 +281,7 @@ actor CoordinatorBoundary {
               kind != .cancel || saved.record.cancellationRequested else { throw Failure.notPersisted }
         requests.append(kind)
         let reply = try await service.reply(to: request)
-        if kind == .prepare && pauseAfterPreparation {
+        if (kind == .prepare && pauseAfterPreparation) || (kind == .commit && pauseAfterCommit) {
             await withCheckedContinuation { paused = $0 }
         }
         if kind == loss && (lossItem == nil || lossItem == identity.id) { throw Failure.lostReply }
