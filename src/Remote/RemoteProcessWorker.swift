@@ -24,13 +24,17 @@ final class RemoteProcessWorker: @unchecked Sendable {
     private let diagnostic = Pipe()
     private let lock = NSLock()
     private let inputLock = NSLock()
+    private let outputLock = NSLock()
     private let shutdown = DispatchGroup()
     private let diagnosticsFinished = DispatchGroup()
     private var started = false
     private var stopping = false
     private var inputClosed = false
+    private var outputClosed = false
+    private var stopDiagnostics = false
     private var diagnosticBytes = Data()
     private var writtenBytes: Int64 = 0
+    private var activeReads = 0
     private let clock = ContinuousClock()
 
     init(process: Process) {
@@ -92,7 +96,16 @@ final class RemoteProcessWorker: @unchecked Sendable {
         }
         guard launch else { return }
         DispatchQueue.global(qos: .userInitiated).async {
-            defer { self.shutdown.leave() }
+            defer {
+                self.outputLock.withLock {
+                    if !self.outputClosed {
+                        self.outputClosed = true
+                        try? self.output.fileHandleForReading.close()
+                    }
+                }
+                self.lock.withLock { self.stopDiagnostics = true }
+                self.shutdown.leave()
+            }
             self.closeInput()
             guard self.lock.withLock({ self.started }) else { return }
             if self.waitUntilExit(within: .seconds(2)) { return }
@@ -177,6 +190,15 @@ final class RemoteProcessWorker: @unchecked Sendable {
     }
 
     private func read(maximumBytes: Int, deadline: ContinuousClock.Instant?) throws -> Data {
+        try outputLock.withLock {
+            try checkCancellation()
+            lock.withLock { activeReads += 1 }
+            defer { lock.withLock { activeReads -= 1 } }
+            return try readAvailable(maximumBytes: maximumBytes, deadline: deadline)
+        }
+    }
+
+    private func readAvailable(maximumBytes: Int, deadline: ContinuousClock.Instant?) throws -> Data {
         precondition(maximumBytes > 0)
         let descriptor = output.fileHandleForReading.fileDescriptor
         var bytes = Data(count: maximumBytes)
@@ -207,9 +229,19 @@ final class RemoteProcessWorker: @unchecked Sendable {
     }
 
     var writtenByteCount: Int64 { lock.withLock { writtenBytes } }
+    var isReading: Bool { lock.withLock { activeReads > 0 } }
 
     func finishDiagnostics() {
         _ = diagnosticsFinished.wait(timeout: .now() + 1)
+    }
+
+    func collectedDiagnostics() async -> String {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async {
+                self.finishDiagnostics()
+                continuation.resume(returning: self.diagnostics)
+            }
+        }
     }
 
     private func checkCancellation() throws {
@@ -240,10 +272,14 @@ final class RemoteProcessWorker: @unchecked Sendable {
     }
 
     private func drainDiagnostics() {
-        defer { diagnosticsFinished.leave() }
+        defer {
+            try? diagnostic.fileHandleForReading.close()
+            diagnosticsFinished.leave()
+        }
         let descriptor = diagnostic.fileHandleForReading.fileDescriptor
         var buffer = [UInt8](repeating: 0, count: 4_096)
         while true {
+            if lock.withLock({ stopDiagnostics }), process.isRunning { return }
             var item = pollfd(fd: descriptor, events: Int16(POLLIN), revents: 0)
             let result = poll(&item, 1, 50)
             if result == 0 {

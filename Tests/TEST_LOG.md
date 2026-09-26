@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry Windows cancellable command transport | `c85a9d1` | PASS: signed build and 22 selected checks passed in 23.914 seconds, zero failures. Command framing, no automatic replay, cancellation while queued, real-process shutdown/diagnostics/frame limits and actual Unix/Windows readiness and watch reconnect checks passed. C6 adapter integration remains in progress. |
 | Foundry worker cancellation race correction | `ec40ed6` | PASS: signed build and all six real-process tests passed in 9.354 seconds. Verified bounded shutdown of a child ignoring termination, cancellation during a partially written blocked pipe, cancellation before a write/launch, response deadline cleanup and draining a large stderr stream while reading stdout. |
 | Foundry cancellable process worker foundation | `96557dc` | FAIL: signed build passed; four of five real-process tests and all five lifetime tests passed. Cancellation raced with the writer's input-closed check, returning closed instead of CancellationError. Correcting error precedence before adapter integration. |
 | Foundry accepted-operation lifetime ownership | `9d8c7bd` | PASS: signed build and all 19 selected ownership, Windows transfer, readiness and live-host checks, zero failures, 10.216 seconds. Accepted Unix/Windows requests and prepared Windows uploads retain operation ownership through their result or error. |

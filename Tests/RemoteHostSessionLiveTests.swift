@@ -4,6 +4,34 @@ import XCTest
 @testable import Detours
 
 final class RemoteHostSessionLiveTests: XCTestCase {
+    func testDisconnectStopsWaitingPersistentReader() async throws {
+        let control = try makeControlDirectory()
+        defer { try? FileManager.default.removeItem(at: control) }
+        let deployer = ServerDeployer(client: SSHServerDeploymentClient(sshTarget: "devtest"),
+            bundledBinaryDirectoryURL: URL(fileURLWithPath: "resources/Servers"))
+        _ = try await deployer.deployIfNeeded()
+        let connection = SSHConnection(configuration: .init(hostID: UUID(), sshTarget: "devtest"), controlDirectory: control)
+        try await connection.connect()
+        let entered = expectation(description: "Persistent reader started")
+        let reader = Task {
+            entered.fulfill()
+            return try await connection.receive()
+        }
+        await fulfillment(of: [entered], timeout: 1)
+        let readDeadline = ContinuousClock.now.advanced(by: .seconds(1))
+        while !(await connection.hasPendingReaderForTesting()), ContinuousClock.now < readDeadline {
+            try await Task.sleep(for: .milliseconds(2))
+        }
+        let pending = await connection.hasPendingReaderForTesting()
+        XCTAssertTrue(pending, "Expected an actual blocked pipe reader")
+        let started = ContinuousClock.now
+        await connection.disconnect()
+        do { _ = try await reader.value; XCTFail("Disconnected reader returned a stale frame") } catch {}
+        XCTAssertLessThan(started.duration(to: .now), .seconds(5))
+        let state = await connection.state
+        XCTAssertEqual(state, .disconnected)
+    }
+
     func testSSHAuthenticationRejectionStopsWithoutRetryBudget() async throws {
         let control = try makeControlDirectory()
         defer { try? FileManager.default.removeItem(at: control) }
