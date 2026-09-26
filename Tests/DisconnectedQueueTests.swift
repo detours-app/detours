@@ -83,7 +83,7 @@ final class DisconnectedQueueTests: XCTestCase {
         XCTAssertNil(queue.operationPauseMessage)
     }
 
-    func testInProgressOpRequeues() async throws {
+    func testInterruptedCopyIsNotRequeuedAfterReconnect() async throws {
         let hostID = UUID()
         let provider = DisconnectedQueueProvider(hostID: hostID, dropsFirstOperation: true) {
             await MainActor.run {
@@ -106,11 +106,16 @@ final class DisconnectedQueueTests: XCTestCase {
 
         postState(.connected, for: hostID)
 
-        try await operation.value
+        do {
+            try await operation.value
+            XCTFail("Reconnect replayed the interrupted copy")
+        } catch let error as FileProviderError {
+            XCTAssertEqual(error, .unsupportedOperation("connection dropped"))
+        }
         let copyCalls = await provider.copyCallCount()
         let completedCopyCalls = await provider.completedCopyCallCount()
-        XCTAssertEqual(copyCalls, 2)
-        XCTAssertEqual(completedCopyCalls, 1)
+        XCTAssertEqual(copyCalls, 1)
+        XCTAssertEqual(completedCopyCalls, 0)
     }
 
     func testCompletedMutationIsNotRetriedAfterAmbiguousDisconnect() async throws {

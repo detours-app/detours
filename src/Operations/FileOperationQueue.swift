@@ -205,12 +205,9 @@ final class FileOperationQueue {
 
         guard let sourceURLs = localURLs(from: items), case .local(let destinationURL) = destination else {
             let hostIDs = remoteHostIDs(from: items, destination: destination)
-            // Built outside the closure: a reconnect retry re-invokes the closure, and the state is
-            // what tells the retry which items already reached the host.
-            let resume = RemoteCopyResumeState(items: items)
-            return try await enqueue(remoteHosts: hostIDs, retryAfterInterruption: true) {
+            return try await enqueue(remoteHosts: hostIDs) {
                 if self.isSingleRemoteHostOperation(items: items, destination: destination) {
-                    return try await self.performRemoteCopy(items: items, to: destination, undoManager: undoManager, resume: resume)
+                    return try await self.performRemoteCopy(items: items, to: destination, undoManager: undoManager)
                 }
                 return try await self.performProviderTransfer(items: items, to: destination, isMove: false, undoManager: undoManager)
             }

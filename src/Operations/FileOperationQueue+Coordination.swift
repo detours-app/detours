@@ -261,7 +261,6 @@ extension FileOperationQueue {
 
     func enqueue<T: Sendable>(
         remoteHosts hostIDs: Set<UUID>,
-        retryAfterInterruption: Bool = false,
         _ work: @escaping () async throws -> T
     ) async throws -> T {
         try await withCheckedThrowingContinuation { continuation in
@@ -269,7 +268,6 @@ extension FileOperationQueue {
                 do {
                     let result = try await self.performQueuedRemoteAwareWork(
                         hostIDs: hostIDs,
-                        retryAfterInterruption: retryAfterInterruption,
                         work
                     )
                     self.onOperationFinish?(self.lastFinishedOperation, nil)
@@ -306,35 +304,20 @@ extension FileOperationQueue {
 
     private func performQueuedRemoteAwareWork<T: Sendable>(
         hostIDs: Set<UUID>,
-        retryAfterInterruption: Bool,
         _ work: @escaping () async throws -> T
     ) async throws -> T {
         guard !hostIDs.isEmpty else {
             return try await work()
         }
 
-        while true {
-            try await waitForRemoteHosts(hostIDs)
-            currentRemoteOperationHosts = hostIDs
+        try await waitForRemoteHosts(hostIDs)
+        currentRemoteOperationHosts = hostIDs
+        currentRemoteOperationInterruptedHosts = []
+        defer {
+            currentRemoteOperationHosts = []
             currentRemoteOperationInterruptedHosts = []
-            defer {
-                currentRemoteOperationHosts = []
-                currentRemoteOperationInterruptedHosts = []
-            }
-
-            do {
-                return try await work()
-            } catch {
-                let interruptedHosts = currentRemoteOperationInterruptedHosts.intersection(hostIDs)
-                if !interruptedHosts.isEmpty || !pausedRemoteHosts.isDisjoint(with: hostIDs) {
-                    try await waitForRemoteHosts(hostIDs)
-                    if retryAfterInterruption {
-                        continue
-                    }
-                }
-                throw error
-            }
         }
+        return try await work()
     }
 
     private func waitForRemoteHosts(_ hostIDs: Set<UUID>) async throws {

@@ -5,8 +5,7 @@ extension FileOperationQueue {
     func performRemoteCopy(
         items: [Location],
         to destination: Location,
-        undoManager: UndoManager? = nil,
-        resume: RemoteCopyResumeState? = nil
+        undoManager: UndoManager? = nil
     ) async throws -> [Location] {
         guard case .remote(let destinationHostID, _) = destination,
               let groups = remoteGroups(from: items),
@@ -31,22 +30,18 @@ extension FileOperationQueue {
             )
         }
 
-        // One item per request, so an interruption leaves the untransferred remainder in `state`.
-        // Re-sending an item the server already wrote would land it under a numbered suffix.
-        let state = resume ?? RemoteCopyResumeState(items: items)
-        while let source = state.next {
+        var copied: [Location] = []
+        for source in items {
             try checkCancelled()
             let copiedItem = try await provider.copy([source], to: destination)
-            state.recordCopied(copiedItem)
+            copied.append(contentsOf: copiedItem)
             updateProgress(
                 operation: operation,
                 currentItem: URL(fileURLWithPath: source.path),
-                completed: state.copied.count,
+                completed: copied.count,
                 total: items.count
             )
         }
-        let copied = state.copied
-
         if !copied.isEmpty, let undoManager {
             undoManager.registerUndo(withTarget: self) { target in
                 Task { @MainActor in
