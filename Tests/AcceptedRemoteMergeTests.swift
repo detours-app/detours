@@ -123,6 +123,35 @@ final class AcceptedRemoteMergeTests: XCTestCase {
         await fixture.session.disconnect()
     }
 
+    func testLostWorkerAfterTrashDoesNotReconcileReplacedNestedObjectAsSuccess() async throws {
+        let fixture = try await CoordinatorFixture(afterTrashMove: { location in
+            guard case .unix(let raw) = location.path, let path = String(data: raw, encoding: .utf8) else {
+                throw OperationFilesystemError.invalidPath
+            }
+            let moved = URL(fileURLWithPath: path)
+            let child = moved.appendingPathComponent("nested/child")
+            try FileManager.default.moveItem(at: child, to: moved.deletingLastPathComponent().appendingPathComponent("held-child"))
+            try Data("same bytes".utf8).write(to: child)
+            throw OperationContractError.invalidReceipt
+        })
+        defer { fixture.cleanup() }
+        let (source, destination) = try setup(fixture)
+        try FileManager.default.createDirectory(at: source.appendingPathComponent("nested"), withIntermediateDirectories: false)
+        try Data("same bytes".utf8).write(to: source.appendingPathComponent("nested/child"))
+        let plan = try await plan(fixture, source: source, destination: destination, isMove: true)
+        let coordinator = fixture.coordinator()
+        let result = try await coordinator.performBatch(plan.items, operation: fixture.intent.id.operation, selections: plan.selections)
+        XCTAssertEqual(result.items.map(\.outcome), [.committed, .committed, .committed, .unknown])
+        XCTAssertEqual(result.items.last?.result.receipt?.sourceDisposition, .unknown)
+        XCTAssertEqual(try Data(contentsOf: destination.appendingPathComponent("merge/nested/child")), Data("same bytes".utf8))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: source.path))
+        let requests = await fixture.boundary.requests
+        _ = try await coordinator.performBatch(plan.items, operation: fixture.intent.id.operation, selections: plan.selections)
+        let repeated = await fixture.boundary.requests
+        XCTAssertEqual(requests, repeated)
+        await fixture.session.disconnect()
+    }
+
     private func setup(_ fixture: CoordinatorFixture) throws -> (URL, URL) {
         let source = fixture.root.appendingPathComponent("merge")
         let destination = fixture.root.appendingPathComponent("output")

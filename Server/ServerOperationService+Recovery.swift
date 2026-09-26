@@ -52,7 +52,8 @@ extension ServerOperationService {
             ? "The displaced original's current location could not be confirmed." : nil
         do {
             let source = try inspect(payload.location, expected: nil)
-            let target = try inspect(destination, expected: payload.observation)
+            let target = try inspect(destination, expected: payload.observation,
+                                     manifest: sourceMutation ? current.sourceManifest : nil)
             if case .missing = source, case .found(let observed) = target,
                observed.identity == payload.observation.identity, observed.kind == payload.observation.kind,
                observed.linkTarget == payload.observation.linkTarget,
@@ -104,7 +105,7 @@ extension ServerOperationService {
     }
 
     private func inspect(_ location: OperationLocation,
-                         expected: OperationObservation?) throws -> OperationLookup<OperationObservation> {
+                         expected: OperationObservation?, manifest: OperationManifest? = nil) throws -> OperationLookup<OperationObservation> {
         guard location.account == journal.account, case .unix(let bytes) = location.path,
               bytes.first == 47, let slash = bytes.lastIndex(of: 47), slash < bytes.index(before: bytes.endIndex) else {
             throw OperationFilesystemError.invalidPath
@@ -113,6 +114,19 @@ extension ServerOperationService {
         let name = Data(bytes[bytes.index(after: slash)...])
         let directory = try OperationDirectory(path: parent)
         let lookup = try directory.lookup(name)
+        if let manifest, let expected, case .found(let observed) = lookup, observed.identity == expected.identity {
+            let clock = ContinuousClock()
+            let deadline = clock.now.advanced(by: .seconds(10))
+            let actual = try directory.manifest(name) { _ in
+                guard clock.now < deadline else { throw OperationJournalError.busy }
+            }
+            guard manifest.matchesMovedObjects(actual), let root = actual.entries.first?.observation else {
+                throw OperationFilesystemError.identityChanged
+            }
+            return .found(.init(identity: root.identity, kind: root.kind, version: root.version, byteCount: root.byteCount,
+                sha256: root.kind == .file ? root.sha256 : actual.proof.sha256,
+                linkTarget: root.linkTarget, contentVersion: root.contentVersion))
+        }
         if let expected, expected.sha256 != nil, case .found(let observation) = lookup,
            observation.identity == expected.identity, observation.kind == expected.kind {
             let clock = ContinuousClock()
