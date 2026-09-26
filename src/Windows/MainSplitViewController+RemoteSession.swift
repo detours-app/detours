@@ -52,7 +52,7 @@ extension MainSplitViewController {
         let session = RemoteHostSession(transport: client) { state, generation in
             await RemoteConnectionStateStore.shared.setState(state, for: host.id, owner: owner, generation: generation)
         }
-        let watcher = RemoteWatcherClient(hostID: host.id, rpcClient: client)
+        let watcher = RemoteWatcherClient(hostID: host.id, rpcClient: client, session: session)
         await client.bind(session: session, watcher: watcher)
         await rawClient.setEventHandler { [weak watcher] envelope in Task { await watcher?.receive(envelope) } }
         let provider = RemoteFileProvider(hostID: host.id, rpcClient: client,

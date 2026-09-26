@@ -9,6 +9,8 @@ actor RemoteWatcherClient {
 
     private let hostID: UUID
     private let rpcClient: RemoteRPCClient
+    private weak var session: RemoteHostSession?
+    private var lifetimes: [FileProviderWatch: RemoteSessionLifetime] = [:]
     private let pollFallback: RemoteWatcherPollFallback?
     private let pollSnapshotLoader: (@Sendable (Location) async throws -> [LoadedFileEntry])?
     private let inotifyLimitCommand: @Sendable (Error) -> String?
@@ -19,12 +21,14 @@ actor RemoteWatcherClient {
     init(
         hostID: UUID,
         rpcClient: RemoteRPCClient,
+        session: RemoteHostSession? = nil,
         pollFallback: RemoteWatcherPollFallback? = nil,
         pollSnapshotLoader: (@Sendable (Location) async throws -> [LoadedFileEntry])? = nil,
         inotifyLimitCommand: @escaping @Sendable (Error) -> String? = { _ in nil }
     ) {
         self.hostID = hostID
         self.rpcClient = rpcClient
+        self.session = session
         self.pollFallback = pollFallback
         self.pollSnapshotLoader = pollSnapshotLoader
         self.inotifyLimitCommand = inotifyLimitCommand
@@ -50,6 +54,7 @@ actor RemoteWatcherClient {
 
         let remoteToken = UUID()
         let watch = FileProviderWatch(id: UUID(), location: location)
+        let lifetime = try await session?.acquireLifetime(.watch)
 
         do {
             _ = try await rpcClient.send(.watch(path: RemotePath(path), token: remoteToken))
@@ -63,18 +68,23 @@ actor RemoteWatcherClient {
                     loadSnapshot: { try await pollSnapshotLoader(location) },
                     onChange: onChange
                 )
+                lifetimes[watch] = lifetime
                 return watch
             }
+            lifetime?.release()
             throw error
         }
 
         let registration = Registration(watch: watch, remoteToken: remoteToken, onChange: onChange)
         registrationsByWatch[watch] = registration
         registrationsByRemoteToken[remoteToken] = registration
+        lifetimes[watch] = lifetime
         return watch
     }
 
     func unwatch(_ watch: FileProviderWatch) async {
+        let lifetime = lifetimes.removeValue(forKey: watch)
+        defer { lifetime?.release() }
         guard let registration = registrationsByWatch.removeValue(forKey: watch) else {
             await pollFallback?.stop(watch)
             return

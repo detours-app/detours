@@ -31,6 +31,8 @@ actor RemoteSearchChannel {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
+                    let lifetime = try await session?.acquireLifetime(.reader)
+                    defer { lifetime?.release() }
                     let ready = try await session?.ensureReady()
                     try Task.checkCancellation()
                     for try await matches in searchVerifiedConnection(query: query, cap: cap) {

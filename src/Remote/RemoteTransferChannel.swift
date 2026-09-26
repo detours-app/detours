@@ -130,6 +130,8 @@ actor RemoteTransferChannel {
     /// minutes on a large file, which is subtracted from everything else the
     /// app could be doing. A dispatch queue adds threads when they block.
     func download(source: RemotePath, expectedByteCount: Int64, to destination: URL) async throws {
+        let lifetime = try await session?.acquireLifetime(.reader)
+        defer { lifetime?.release() }
         let ready = try await session?.ensureReady()
         try Task.checkCancellation()
         let setup = TransferProcessSetup(

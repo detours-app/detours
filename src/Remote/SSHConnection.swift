@@ -47,8 +47,6 @@ actor SSHConnection {
     private var frameReader = RPCStreamHandler()
     private var streamGeneration: UInt64 = 0
     private var activePaneCount = 0
-    private var inFlightOperationCount = 0
-    private var activeWatchCount = 0
     private var disconnectedForIdle = false
     private var sessionManaged = false
     private var sessionFailure: (@Sendable (SSHConnectionFailureReason) async -> Void)?
@@ -181,26 +179,6 @@ actor SSHConnection {
         scheduleIdleDisconnectIfNeeded()
     }
 
-    func beginInFlightOperation() {
-        inFlightOperationCount += 1
-        scheduleIdleDisconnectIfNeeded()
-    }
-
-    func endInFlightOperation() {
-        inFlightOperationCount = max(0, inFlightOperationCount - 1)
-        scheduleIdleDisconnectIfNeeded()
-    }
-
-    func registerActiveWatch() {
-        activeWatchCount += 1
-        scheduleIdleDisconnectIfNeeded()
-    }
-
-    func unregisterActiveWatch() {
-        activeWatchCount = max(0, activeWatchCount - 1)
-        scheduleIdleDisconnectIfNeeded()
-    }
-
     /// Waits for the next frame from the helper.
     ///
     /// The wait is a blocking pipe read, and it is outstanding for as long as
@@ -301,7 +279,7 @@ actor SSHConnection {
     }
 
     private var hasIdleBlockers: Bool {
-        activePaneCount > 0 || inFlightOperationCount > 0 || activeWatchCount > 0
+        activePaneCount > 0
     }
 
     private func scheduleIdleDisconnectIfNeeded() {

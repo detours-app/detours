@@ -54,6 +54,11 @@ actor RemoteHostSession: RemoteConnectionHandle {
     private var expectedEpoch: UUID?
     private var connectionTask: Task<Ready, Error>?
     private var attempt: RemoteHandshakeAttempt?
+    private let idleGrace: Duration
+    private var lifetimes: [UUID: RemoteSessionLifetimeKind] = [:]
+    private var idleTask: Task<Void, Never>?
+    private var idleRevision: UInt64 = 0
+    private var idleRetirement: Task<Void, Never>?
     private(set) var state: State = .disconnected
 
     init(
@@ -61,6 +66,7 @@ actor RemoteHostSession: RemoteConnectionHandle {
         attemptLimit: Duration = .seconds(10),
         recoveryLimit: Duration = .seconds(60),
         recoveryDelays: [Duration] = [.seconds(1), .seconds(2), .seconds(4), .seconds(8), .seconds(16)],
+        idleGrace: Duration = .seconds(300),
         publish: @escaping @Sendable (SSHConnectionState, UInt64) async -> Void
     ) {
         precondition(attemptLimit > .zero && recoveryLimit > .zero && !recoveryDelays.isEmpty)
@@ -69,10 +75,12 @@ actor RemoteHostSession: RemoteConnectionHandle {
         self.attemptLimit = attemptLimit
         self.recoveryLimit = recoveryLimit
         self.recoveryDelays = recoveryDelays
+        self.idleGrace = idleGrace
         self.publish = publish
     }
 
     func ensureReady() async throws -> Ready {
+        await idleRetirement?.value
         guard !retired else { throw RemoteHostSessionError.retired }
         if case .ready(let ready) = state { return ready }
         if let connectionTask { return try await connectionTask.value }
@@ -109,6 +117,9 @@ actor RemoteHostSession: RemoteConnectionHandle {
     func disconnect() async {
         guard !retired else { return }
         retired = true
+        idleTask?.cancel()
+        lifetimes.removeAll()
+        await idleRetirement?.value
         await retireAttempt()
         state = .disconnected
         await publish(.disconnected, generation)
@@ -116,6 +127,52 @@ actor RemoteHostSession: RemoteConnectionHandle {
 
     func setActivePaneCount(_ count: Int) async {
         await transport.setActivePaneCount(count)
+    }
+
+    func acquireLifetime(_ kind: RemoteSessionLifetimeKind) throws -> RemoteSessionLifetime {
+        guard !retired else { throw RemoteHostSessionError.retired }
+        try Task.checkCancellation()
+        idleRevision += 1
+        idleTask?.cancel()
+        idleTask = nil
+        let id = UUID()
+        lifetimes[id] = kind
+        return RemoteSessionLifetime(owner: self, id: id)
+    }
+
+    func releaseLifetime(_ id: UUID) {
+        guard lifetimes.removeValue(forKey: id) != nil else { return }
+        scheduleIdleRetirement()
+    }
+
+    private func scheduleIdleRetirement() {
+        guard !retired, lifetimes.isEmpty else { return }
+        idleRevision += 1
+        let revision = idleRevision
+        let grace = idleGrace
+        idleTask?.cancel()
+        idleTask = Task { [weak self] in
+            do { try await ContinuousClock().sleep(for: grace) } catch { return }
+            await self?.retireIfIdle(revision: revision)
+        }
+    }
+
+    private func retireIfIdle(revision: UInt64) {
+        guard !retired, lifetimes.isEmpty, idleRevision == revision else { return }
+        idleTask = nil
+        let previous = generation
+        generation += 1
+        let retiredGeneration = generation
+        let previousAttempt = attempt
+        attempt = nil
+        connectionTask?.cancel()
+        connectionTask = nil
+        state = .disconnected
+        idleRetirement = Task {
+            await previousAttempt?.cancel()
+            await transport.retire(generation: previous)
+            await publish(.disconnected, retiredGeneration)
+        }
     }
 
     func transportFailed(generation failedGeneration: UInt64, reason: SSHConnectionFailureReason) async {
@@ -187,6 +244,7 @@ actor RemoteHostSession: RemoteConnectionHandle {
             self.attempt = nil
             connectionTask = nil
             state = .ready(ready)
+            scheduleIdleRetirement()
             await publish(.connected, current)
             return ready
         } catch {

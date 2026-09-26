@@ -55,6 +55,7 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     let renameController = RenameController()
     var providerWatches: [Location: ProviderWatchRecord] = [:]
     var currentRemoteHost: RemoteHost?
+    let remotePaneObservation = RemotePaneObservation()
     var currentRemoteLocation: Location?
     var currentRemoteProvider: (any FileProvider)?
     var remoteInfoWindows: [RemoteInfoWindowController] = []

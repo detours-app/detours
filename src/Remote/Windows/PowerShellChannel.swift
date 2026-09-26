@@ -128,8 +128,11 @@ actor PowerShellChannel: RemoteConnectionHandle {
     func run(_ script: PowerShellScript, operation: String) async throws -> Data {
         if sessionManaged {
             guard let session else { throw RemoteHostSessionError.retired }
+            let lifetime = try await session.acquireLifetime(.reader)
+            defer { lifetime.release() }
             let ready = try await session.ensureReady()
             let reply = try await runRequest(script, operation: operation, generation: ready.generation)
+            try Task.checkCancellation()
             try await session.requireGeneration(ready.generation)
             return reply
         }
@@ -140,6 +143,12 @@ actor PowerShellChannel: RemoteConnectionHandle {
         self.session = session
         sessionManaged = true
         cancelIdleDisconnect()
+    }
+
+    func acquireLifetime(_ kind: RemoteSessionLifetimeKind) async throws -> RemoteSessionLifetime? {
+        guard sessionManaged else { return nil }
+        guard let session else { throw RemoteHostSessionError.retired }
+        return try await session.acquireLifetime(kind)
     }
 
     func readyForAuxiliaryRequest() async throws -> UInt64? {

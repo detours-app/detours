@@ -8,6 +8,7 @@ actor WindowsRemoteProvider: FileProvider {
     private let transferChannel: WindowsTransferChannel
     private let watchChannel: WindowsWatchChannel?
     private var rawPaths: [Location: String] = [:]
+    private var watchLifetimes: [FileProviderWatch: RemoteSessionLifetime] = [:]
 
     func prepareAcceptedUpload(_ localURL: URL, identity: OperationRequestIdentity, sftpAvailable: Bool) async throws -> OperationReceipt {
         try await transferChannel.prepareAcceptedUpload(localURL: localURL, identity: identity, sftpAvailable: sftpAvailable)
@@ -116,6 +117,9 @@ actor WindowsRemoteProvider: FileProvider {
     }
 
     func watch(_ location: Location, onChange: @escaping @Sendable (Location) -> Void) async throws -> FileProviderWatch {
+        let lifetime = try await channel.acquireLifetime(.watch)
+        var retained = false
+        defer { if !retained { lifetime?.release() } }
         let generation = try await channel.readyForAuxiliaryRequest()
         let windowsPath = try windowsPath(from: location)
         if windowsPath.isSyntheticRoot {
@@ -131,6 +135,8 @@ actor WindowsRemoteProvider: FileProvider {
         )
         do {
             try await channel.validateAuxiliaryRequest(generation: generation)
+            watchLifetimes[watch] = lifetime
+            retained = true
             return watch
         } catch {
             await watchChannel.unwatch(watch)
@@ -139,13 +145,18 @@ actor WindowsRemoteProvider: FileProvider {
     }
 
     func unwatch(_ watch: FileProviderWatch) async {
+        let lifetime = watchLifetimes.removeValue(forKey: watch)
+        defer { lifetime?.release() }
         await watchChannel?.unwatch(watch)
     }
 
     /// Tears down every watch on this host, killing each remote watcher process. Used on app
     /// quit so watchers do not orphan on the host when the connection is abandoned.
     func stopWatching() async {
+        let lifetimes = Array(watchLifetimes.values)
+        watchLifetimes.removeAll()
         await watchChannel?.stop()
+        for lifetime in lifetimes { await lifetime.releaseAndWait() }
     }
 
     func invalidateWatchWorkers() async {

@@ -65,6 +65,8 @@ actor WindowsTransferChannel {
     }
 
     func download(remotePath: String, expectedByteCount: Int64, to localURL: URL) async throws {
+        let lifetime = try await powerShellChannel.acquireLifetime(.reader)
+        defer { lifetime?.release() }
         let generation = try await powerShellChannel.readyForAuxiliaryRequest()
         do {
             try await downloadViaSFTP(remotePath: remotePath, expectedByteCount: expectedByteCount, to: localURL)
@@ -99,6 +101,8 @@ actor WindowsTransferChannel {
     }
 
     func prepareAcceptedUpload(localURL: URL, identity: OperationRequestIdentity, sftpAvailable: Bool) async throws -> OperationReceipt {
+        let lifetime = try await powerShellChannel.acquireLifetime(.reader)
+        defer { lifetime?.release() }
         let generation = try await powerShellChannel.readyForAuxiliaryRequest()
         if !sftpAvailable {
             let values = try localURL.resourceValues(forKeys: [.fileSizeKey])

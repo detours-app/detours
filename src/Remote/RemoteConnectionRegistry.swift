@@ -45,6 +45,25 @@ actor RemoteConnectionRegistry {
     private var resources: [UUID: RemoteConnectionResources] = [:]
     private var loading: [UUID: Task<RemoteConnectionResources, Error>] = [:]
     private var owners: [UUID: UUID] = [:]
+    private var paneObservers: [UUID: UUID] = [:]
+    private var paneLifetimes: [UUID: RemoteSessionLifetime] = [:]
+
+    func setPaneObservation(_ id: UUID, hostID: UUID?) async {
+        paneLifetimes.removeValue(forKey: id)?.release()
+        paneObservers[id] = hostID
+        guard let hostID, let session = connections[hostID]?.connection as? RemoteHostSession else { return }
+        await attachPaneLifetime(id, hostID: hostID, session: session)
+    }
+
+    private func attachPaneLifetime(_ id: UUID, hostID: UUID, session: RemoteHostSession) async {
+        guard let lifetime = try? await session.acquireLifetime(.pane) else { return }
+        guard paneObservers[id] == hostID,
+              let current = connections[hostID]?.connection as? RemoteHostSession, current === session else {
+            lifetime.release()
+            return
+        }
+        paneLifetimes[id] = lifetime
+    }
 
     func resources(for hostID: UUID, create: @escaping @Sendable (UUID) async throws -> RemoteConnectionResources) async throws -> RemoteConnectionResources {
         if let task = loading[hostID] { return try await task.value }
@@ -87,6 +106,9 @@ actor RemoteConnectionRegistry {
             throw RemoteHostSessionError.retired
         }
         await register(session, onDisconnect: onDisconnect, windowsChannel: windowsChannel, for: hostID)
+        for (id, observedHost) in paneObservers where observedHost == hostID {
+            await attachPaneLifetime(id, hostID: hostID, session: session)
+        }
         guard owners[hostID] == owner else {
             await session.disconnect()
             throw RemoteHostSessionError.retired
@@ -116,6 +138,9 @@ actor RemoteConnectionRegistry {
         let owner = owners.removeValue(forKey: hostID)
         let removed = connections.removeValue(forKey: hostID)
         activePaneCounts.removeValue(forKey: hostID)
+        for (id, observedHost) in paneObservers where observedHost == hostID {
+            paneLifetimes.removeValue(forKey: id)?.release()
+        }
         await removed?.connection.disconnect()
         await removed?.onDisconnect?()
         if let owner {
@@ -169,6 +194,8 @@ actor RemoteConnectionRegistry {
         owners.removeAll()
         connections.removeAll()
         activePaneCounts.removeAll()
+        paneObservers.removeAll()
+        paneLifetimes.removeAll()
         await withTaskGroup(of: Void.self) { group in
             for entry in registered {
                 group.addTask {
