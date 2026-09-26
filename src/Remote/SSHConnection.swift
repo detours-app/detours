@@ -43,6 +43,7 @@ actor SSHConnection {
     private var stdoutPipe: Pipe?
     private var stderrPipe: Pipe?
     private var lastStderr = ""
+    private var diagnostics: SSHConnectionDiagnostics?
     private var frameReader = RPCStreamHandler()
     private var streamGeneration: UInt64 = 0
     private var activePaneCount = 0
@@ -105,6 +106,7 @@ actor SSHConnection {
         process.standardInput = stdinPipe
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
+        diagnostics = SSHConnectionDiagnostics(pipe: stderrPipe)
         if !askPassBridge.environment().isEmpty {
             process.environment = ProcessInfo.processInfo.environment.merging(askPassBridge.environment()) { _, new in new }
         }
@@ -140,6 +142,13 @@ actor SSHConnection {
         sessionManaged = true
         sessionFailure = onFailure
         cancelIdleDisconnect()
+    }
+
+    func failureReason(for error: Error) -> SSHConnectionFailureReason {
+        let message = diagnostics?.snapshot() ?? lastStderr
+        if !message.isEmpty { return RemoteHostSession.reason(for: SSHProcessFailure(message: message)) }
+        if case .failed(let reason) = state { return reason }
+        return RemoteHostSession.reason(for: error)
     }
 
     func disconnect() {
@@ -249,9 +258,7 @@ actor SSHConnection {
     private func processExited(_ exitedProcess: Process, status: Int32) {
         guard process === exitedProcess else { return }
         cancelIdleDisconnect()
-        lastStderr = stderrPipe.flatMap {
-            String(data: $0.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
-        } ?? ""
+        lastStderr = diagnostics?.snapshot() ?? ""
         retireCurrentProcess(terminate: false)
         stdinPipe = nil
         stdoutPipe = nil

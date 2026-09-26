@@ -4,6 +4,30 @@ import XCTest
 @testable import Detours
 
 final class RemoteHostSessionLiveTests: XCTestCase {
+    func testSSHAuthenticationRejectionStopsWithoutRetryBudget() async throws {
+        let control = try makeControlDirectory()
+        defer { try? FileManager.default.removeItem(at: control) }
+        let host = UUID()
+        let connection = SSHConnection(configuration: .init(hostID: host, sshTarget: "detours-readiness-no-account@devtest"), controlDirectory: control)
+        let raw = SSHRemoteRPCClient(connection: connection)
+        let client = RemoteSessionRPCClient(connection: connection, client: raw)
+        let watcher = RemoteWatcherClient(hostID: host, rpcClient: client)
+        let session = RemoteHostSession(transport: client, publish: { _, _ in })
+        await client.bind(session: session, watcher: watcher)
+        let clock = ContinuousClock()
+        let start = clock.now
+        do {
+            _ = try await session.ensureReady()
+            XCTFail("Nonexistent SSH account became ready")
+        } catch RemoteHostSessionError.failed(.authentication(_)) {
+            XCTAssertLessThan(start.duration(to: clock.now), .seconds(10))
+        } catch {
+            await session.disconnect()
+            throw error
+        }
+        await session.disconnect()
+    }
+
     func testUnixPersistentSessionNegotiatesAndListsAfterReconnect() async throws {
         let control = try makeControlDirectory()
         defer { try? FileManager.default.removeItem(at: control) }

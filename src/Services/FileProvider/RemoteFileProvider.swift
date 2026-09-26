@@ -110,8 +110,11 @@ actor SSHRemoteRPCClient: RemoteRPCClient {
                 receive(envelope)
             } catch {
                 if readerGeneration == generation {
-                    failAllResponses(error)
-                    await failureHandler?(error)
+                    let reason = await connection.failureReason(for: error)
+                    guard readerGeneration == generation else { return }
+                    let failure = RemoteHostSessionError.failed(reason)
+                    failAllResponses(failure)
+                    await failureHandler?(failure)
                 }
                 return
             }
