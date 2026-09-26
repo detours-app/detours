@@ -66,7 +66,7 @@ extension FileOperationQueue {
             conflict: conflict, payloadProof: payload)
         plan.items.append(.init(intent: copy, hostID: plan.hostID, work: .upload(staged), preflightFailure: failure))
         var children = [copy.id]
-        if isMove {
+        if isMove, conflict != .skip {
             let trash = OperationIntent(id: .init(operation: plan.operation, item: UUID()), action: .trash,
                 sources: [observed.location], destination: nil, sourceObservations: proof.map { [$0] } ?? [], conflict: .createNew)
             plan.items.append(.init(intent: trash, hostID: sourceHost, work: .execute, requiresVerified: [copy.id]))

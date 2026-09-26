@@ -36,7 +36,15 @@ final class AcceptedCrossHostFileTests: XCTestCase {
         try await run(.lostTrashReply)
     }
 
-    private enum Scenario: Sendable { case success, queueSuccess, changedPayload, changedSource, lostTrashReply }
+    func testSkippedCrossHostMovePreservesBothFilesWithoutSourceDisposition() async throws {
+        try await run(.skip)
+    }
+
+    func testKeepBothCrossHostMovePreservesExistingDestination() async throws {
+        try await run(.keepBoth)
+    }
+
+    private enum Scenario: Sendable { case success, queueSuccess, changedPayload, changedSource, lostTrashReply, skip, keepBoth }
 
     private func run(_ scenario: Scenario) async throws {
         let source = try await CoordinatorFixture(account: .init(hostIdentity: "source-host", accountIdentity: "source-account"))
@@ -62,6 +70,11 @@ final class AcceptedCrossHostFileTests: XCTestCase {
         let staging = source.root.appendingPathComponent("staging")
         try FileManager.default.createDirectory(at: targetDirectory, withIntermediateDirectories: false)
         try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: false)
+        if scenario == .skip || scenario == .keepBoth {
+            try Data("existing destination".utf8).write(to: targetDirectory.appendingPathComponent("source"))
+            queue.conflictChoiceOverrideForTesting = scenario == .skip ? .skip : .keepBoth
+        }
+        defer { queue.conflictChoiceOverrideForTesting = nil }
         if scenario == .queueSuccess {
             let moved = try await queue.move(items: [.remote(hostID: source.hostID, path: source.source.path)],
                 to: .remote(hostID: destination.hostID, path: targetDirectory.path))
@@ -79,7 +92,7 @@ final class AcceptedCrossHostFileTests: XCTestCase {
         }
         try await queue.planCrossHostFile(.remote(hostID: source.hostID, path: source.source.path),
             directory: .unix(Data(targetDirectory.path.utf8)), isMove: true, stagingDirectory: staging, plan: &plan)
-        XCTAssertEqual(plan.items.map(\.hostID), [destination.hostID, source.hostID])
+        XCTAssertEqual(plan.items.map(\.hostID), scenario == .skip ? [destination.hostID] : [destination.hostID, source.hostID])
         XCTAssertEqual(plan.items[0].intent.sources.first?.account, source.account)
         XCTAssertEqual(plan.items[0].intent.destination?.account, destination.account)
         if scenario == .changedPayload {
@@ -107,6 +120,18 @@ final class AcceptedCrossHostFileTests: XCTestCase {
             XCTAssertEqual(try Data(contentsOf: target), source.bytes)
             let repeated = try await coordinator.performBatch(plan.items, operation: operation, selections: plan.selections)
             XCTAssertEqual(repeated, result)
+        case .skip:
+            try queue.requireSuccessfulBatch(result)
+            XCTAssertEqual(result.items.map(\.outcome), [.notStarted])
+            XCTAssertTrue(result.items.allSatisfy { $0.sent.isEmpty })
+            XCTAssertEqual(try Data(contentsOf: source.source), source.bytes)
+            XCTAssertEqual(try Data(contentsOf: target), Data("existing destination".utf8))
+        case .keepBoth:
+            try queue.requireSuccessfulBatch(result)
+            XCTAssertEqual(result.items.map(\.outcome), [.committed, .committed])
+            XCTAssertFalse(FileManager.default.fileExists(atPath: source.source.path))
+            XCTAssertEqual(try Data(contentsOf: target), Data("existing destination".utf8))
+            XCTAssertEqual(try Data(contentsOf: targetDirectory.appendingPathComponent("source 2")), source.bytes)
         }
         await source.session.disconnect()
         await destination.session.disconnect()
