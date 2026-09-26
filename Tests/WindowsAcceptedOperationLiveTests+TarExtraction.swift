@@ -54,8 +54,6 @@ extension WindowsAcceptedOperationLiveTests {
             $file = [DetoursOperationFiles]::Observe((Join-Path $actual 'folder/data.txt'))
             $hard = [DetoursOperationFiles]::Observe((Join-Path $actual 'folder/hard.txt'))
             @{ hardIdentity = ($file.identity.object -ceq $hard.identity.object).ToString()
-               fileLink = [DetoursOperationFiles]::Observe((Join-Path $actual 'folder/file-link')).kind
-               directoryLink = [DetoursOperationFiles]::Observe((Join-Path $actual 'folder/directory-link')).kind
                expected = [DetoursOperationFiles]::Manifest($legacy).proof.sha256
                actual = [DetoursOperationFiles]::Manifest($actual).proof.sha256
                expectedFileTime = [System.IO.File]::GetLastWriteTimeUtc((Join-Path $legacy 'folder/data.txt')).Ticks.ToString()
@@ -68,8 +66,6 @@ extension WindowsAcceptedOperationLiveTests {
             """), arguments: ["root": root, "format": format])
         let result = try JSONDecoder().decode([String: String].self, from: await channel.run(verify, operation: "CompareTarExtraction"))
         XCTAssertEqual(result["hardIdentity"], "True")
-        XCTAssertEqual(result["fileLink"], "symbolicLink")
-        XCTAssertEqual(result["directoryLink"], "symbolicLink")
         XCTAssertEqual(result["expected"], result["actual"])
         XCTAssertEqual(result["expectedFileTime"], result["actualFileTime"])
         XCTAssertEqual(result["expectedFolderTime"], result["actualFolderTime"])

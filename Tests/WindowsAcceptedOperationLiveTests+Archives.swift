@@ -24,6 +24,7 @@ extension WindowsAcceptedOperationLiveTests {
         do {
             try await exerciseZipCreation(channel: channel, root: root)
             try await exerciseTarCreation(channel: channel, root: root)
+            try await exerciseTarSymbolicLinkRefusal(channel: channel, root: root)
             try await cleanup(channel: channel, root: root)
             await channel.disconnect()
         } catch {

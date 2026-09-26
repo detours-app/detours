@@ -18,8 +18,6 @@ extension WindowsAcceptedOperationLiveTests {
             $folder = Join-Path $Arguments.root 'folder'
             [System.IO.File]::WriteAllText((Join-Path $folder 'data.txt'), 'archive bytes')
             New-Item -ItemType HardLink -Path (Join-Path $folder 'hard.txt') -Target (Join-Path $folder 'data.txt') | Out-Null
-            [DetoursOperationFiles]::CreateArchiveSymbolicLink((Join-Path $folder 'file-link'), 'data.txt', $false) | Out-Null
-            [DetoursOperationFiles]::CreateArchiveSymbolicLink((Join-Path $folder 'directory-link'), 'empty', $true) | Out-Null
             $true
             """), arguments: ["root": root])
         _ = try await channel.run(links, operation: "TarLinkFixtures")
