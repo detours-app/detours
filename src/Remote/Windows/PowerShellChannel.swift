@@ -79,6 +79,9 @@ actor PowerShellChannel: RemoteConnectionHandle {
     }
 
     private let transport: any PowerShellChannelTransport
+    private let independentTransportFactory: (@Sendable () -> any PowerShellChannelTransport)?
+    private var independentTransports: [UUID: any PowerShellChannelTransport] = [:]
+    private var independentTasks: [UUID: Task<Data, Error>] = [:]
     private let hostID: UUID?
     private let idleTimeout: TimeInterval
     private var nextRequestID: UInt64 = 1
@@ -111,6 +114,10 @@ actor PowerShellChannel: RemoteConnectionHandle {
     ) {
         self.hostID = hostID
         self.idleTimeout = idleTimeout
+        independentTransportFactory = {
+            PowerShellProcessTransport(sshTarget: sshTarget, controlDirectory: controlDirectory,
+                hostTrust: hostTrust, executionMode: .oneShot)
+        }
         transport = PowerShellProcessTransport(
             sshTarget: sshTarget,
             controlDirectory: controlDirectory,
@@ -119,8 +126,10 @@ actor PowerShellChannel: RemoteConnectionHandle {
         )
     }
 
-    init(transport: any PowerShellChannelTransport, hostID: UUID? = nil, idleTimeout: TimeInterval = 5 * 60) {
+    init(transport: any PowerShellChannelTransport, hostID: UUID? = nil, idleTimeout: TimeInterval = 5 * 60,
+         independentTransportFactory: (@Sendable () -> any PowerShellChannelTransport)? = nil) {
         self.transport = transport
+        self.independentTransportFactory = independentTransportFactory
         self.hostID = hostID
         self.idleTimeout = idleTimeout
     }
@@ -137,6 +146,65 @@ actor PowerShellChannel: RemoteConnectionHandle {
             return reply
         }
         return try await runRequest(script, operation: operation, generation: nil)
+    }
+
+    func runIndependent(_ script: PowerShellScript, operation: String) async throws -> Data {
+        guard let independentTransportFactory else {
+            throw PowerShellChannelError.invalidResponse("Independent control transport is unavailable")
+        }
+        let lifetime = try await acquireLifetime(.reader)
+        defer { lifetime?.release() }
+        let generation = try await readyForAuxiliaryRequest()
+        let independent = independentTransportFactory()
+        let id = UUID()
+        independentTransports[id] = independent
+        let task = Task {
+            try await self.performIndependentRequest(script, operation: operation, through: independent, generation: generation)
+        }
+        independentTasks[id] = task
+        defer {
+            independentTransports.removeValue(forKey: id)
+            independentTasks.removeValue(forKey: id)
+        }
+        return try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            task.cancel()
+        }
+    }
+
+    private func performIndependentRequest(_ script: PowerShellScript, operation: String,
+                                           through independent: any PowerShellChannelTransport, generation: UInt64?) async throws -> Data {
+        do {
+            try await validateAuxiliaryRequest(generation: generation)
+            try await independent.start(dispatcherBase64: Self.dispatcherBase64)
+            try await validateAuxiliaryRequest(generation: generation)
+            let reply = try await exchange(script, operation: operation, through: independent)
+            await independent.stop()
+            try await validateAuxiliaryRequest(generation: generation)
+            return reply
+        } catch {
+            await independent.stop()
+            throw error
+        }
+    }
+
+    func performAuxiliaryWorker<Value: Sendable>(
+        _ worker: RemoteProcessWorker,
+        kind: RemoteSessionLifetimeKind,
+        body: @escaping @Sendable (RemoteProcessWorker) throws -> Value
+    ) async throws -> Value {
+        if sessionManaged {
+            guard let session else { throw RemoteHostSessionError.retired }
+            return try await session.performOwnedWorker(worker, kind: kind, body: body)
+        }
+        return try await worker.perform(body)
+    }
+
+    private func stopIndependentTransports() async {
+        for task in independentTasks.values { task.cancel() }
+        let active = Array(independentTransports.values)
+        for transport in active { await transport.stop() }
     }
 
     func bind(session: RemoteHostSession) {
@@ -179,6 +247,7 @@ actor PowerShellChannel: RemoteConnectionHandle {
         sessionFailure = nil
         isStarted = false
         await transport.stop()
+        await stopIndependentTransports()
         await transport.closeControlConnection()
     }
 
@@ -213,6 +282,12 @@ actor PowerShellChannel: RemoteConnectionHandle {
 
     private func sendAndReceive(_ script: PowerShellScript, operation: String) async throws -> Data {
         try await startIfNeeded()
+        return try await exchange(script, operation: operation, through: transport)
+    }
+
+    private func exchange(_ script: PowerShellScript, operation: String,
+                          through transport: any PowerShellChannelTransport) async throws -> Data {
+        try Task.checkCancellation()
         let requestID = nextRequestID
         nextRequestID += 1
 
@@ -224,6 +299,7 @@ actor PowerShellChannel: RemoteConnectionHandle {
         )
         let payload = try JSONEncoder.detoursWindows.encode(request)
         try await transport.sendFrame(try RPCStreamHandler.encodeFrame(payload))
+        try Task.checkCancellation()
         let responsePayload = try await transport.readFrame()
         let response = try JSONDecoder.detoursWindows.decode(Response.self, from: responsePayload)
         guard response.id == requestID else {
@@ -264,6 +340,7 @@ actor PowerShellChannel: RemoteConnectionHandle {
         await transport.stop()
         // Close the shared control master so the host's watch and transfer sessions
         // multiplexed over it do not linger after the channel goes away (e.g. on app quit).
+        await stopIndependentTransports()
         await transport.closeControlConnection()
         transition(to: .disconnected)
     }
@@ -274,6 +351,7 @@ actor PowerShellChannel: RemoteConnectionHandle {
         isStarted = false
         cancelIdleDisconnect()
         await transport.stop()
+        await stopIndependentTransports()
         await transport.closeControlConnection()
         transition(to: .failed(reason: .transport("UI test connection dropped")))
         if let generation = sessionGeneration {
@@ -402,76 +480,4 @@ actor PowerShellChannel: RemoteConnectionHandle {
         await transport.stop()
     }
 
-    static let dispatcherBase64 = dispatcherScript.utf16LittleEndianData.base64EncodedString()
-
-    private static let dispatcherScript = #"""
-    $ErrorActionPreference = 'Stop'
-    [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
-    $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
-    # Use file streams for SSH pipes, as PowerShell's SSHProcessMediator does.
-    # https://github.com/PowerShell/PowerShell/issues/14478
-    Add-Type -TypeDefinition @'
-    using System;
-    using System.IO;
-    using System.Runtime.InteropServices;
-    using Microsoft.Win32.SafeHandles;
-    public static class DetoursStandardStreams {
-        [DllImport("kernel32.dll", SetLastError = true)]
-        private static extern IntPtr GetStdHandle(int kind);
-        public static FileStream Open(int kind, FileAccess access) {
-            var handle = new SafeFileHandle(GetStdHandle(kind), false);
-            if (handle.IsInvalid) { throw new IOException("SSH standard stream is unavailable."); }
-            return new FileStream(handle, access, 4096, false);
-        }
-    }
-    '@
-    $stdinStream = [DetoursStandardStreams]::Open(-10, [System.IO.FileAccess]::Read)
-    $stdoutStream = [DetoursStandardStreams]::Open(-11, [System.IO.FileAccess]::Write)
-
-    function Read-Exact([int]$Count) {
-        $buffer = [byte[]]::new($Count)
-        $offset = 0
-        while ($offset -lt $Count) {
-            $read = $stdinStream.Read($buffer, $offset, $Count - $offset)
-            if ($read -le 0) {
-                if ($offset -eq 0) { return $null }
-                throw "Unexpected end of PowerShell request stream."
-            }
-            $offset += $read
-        }
-        return $buffer
-    }
-
-    function Write-Frame([string]$Json) {
-        $bytes = [System.Text.Encoding]::UTF8.GetBytes($Json)
-        $len = [System.BitConverter]::GetBytes([uint32]$bytes.Length)
-        if ([System.BitConverter]::IsLittleEndian) { [array]::Reverse($len) }
-        $stdoutStream.Write($len, 0, 4)
-        $stdoutStream.Write($bytes, 0, $bytes.Length)
-        $stdoutStream.Flush()
-    }
-
-    while ($true) {
-        $lengthBytes = Read-Exact 4
-        if ($null -eq $lengthBytes) { break }
-        if ([System.BitConverter]::IsLittleEndian) { [array]::Reverse($lengthBytes) }
-        $length = [System.BitConverter]::ToUInt32($lengthBytes, 0)
-        $payloadBytes = Read-Exact ([int]$length)
-        $request = [System.Text.Encoding]::UTF8.GetString($payloadBytes) | ConvertFrom-Json
-        try {
-            $script = [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String($request.script))
-            $arguments = $request.argumentsJSON | ConvertFrom-Json
-            $result = & ([scriptblock]::Create($script)) $arguments
-            $resultJson = $result | ConvertTo-Json -Compress -Depth 100
-            if ($null -eq $resultJson) {
-                $resultJson = 'null'
-            } else {
-                $resultJson = [string]$resultJson
-            }
-            Write-Frame (@{ id = [uint64]$request.id; ok = $true; resultJSON = $resultJson } | ConvertTo-Json -Compress -Depth 4)
-        } catch {
-            Write-Frame (@{ id = [uint64]$request.id; ok = $false; error = $_.Exception.Message } | ConvertTo-Json -Compress -Depth 4)
-        }
-    }
-    """#
 }

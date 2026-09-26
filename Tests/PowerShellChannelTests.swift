@@ -2,6 +2,31 @@ import XCTest
 @testable import Detours
 
 final class PowerShellChannelTests: XCTestCase {
+    func testIndependentControlRepliesWhileMainRequestIsBlocked() async throws {
+        let transport = BlockingPowerShellTransport()
+        let control = ScriptedPowerShellTransport()
+        let channel = PowerShellChannel(transport: transport, independentTransportFactory: { control })
+        let first = Task { try await channel.run(PowerShellScript(source: "1"), operation: "Mutation") }
+        try await waitUntil { await transport.isWaitingForRead() }
+        let replied = expectation(description: "Independent control returns before mutation finishes")
+        let request = Task {
+            do {
+                let data = try await channel.runIndependent(PowerShellScript(source: "2"), operation: "Status")
+                XCTAssertEqual(String(data: data, encoding: .utf8), #"{"ok":true}"#)
+                replied.fulfill()
+            } catch { XCTFail("Independent control failed: \(error)") }
+        }
+        await fulfillment(of: [replied], timeout: 1)
+        let stillWaiting = await transport.isWaitingForRead()
+        XCTAssertTrue(stillWaiting)
+        await transport.releaseRead()
+        _ = try await first.value
+        await request.value
+        let sent = await control.sentRequests()
+        XCTAssertEqual(sent.map(\.operation), ["Status"])
+        await channel.disconnect()
+    }
+
     func testQueuedRequestCancelsWithoutWaitingForActiveRequest() async throws {
         let transport = BlockingPowerShellTransport()
         let channel = PowerShellChannel(transport: transport)
@@ -213,6 +238,8 @@ private actor BlockingPowerShellTransport: PowerShellChannelTransport {
         readContinuation?.resume()
         readContinuation = nil
     }
+
+    func isWaitingForRead() -> Bool { readContinuation != nil }
 
     func stop() async {
         stopCount += 1

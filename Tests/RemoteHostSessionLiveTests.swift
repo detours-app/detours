@@ -90,7 +90,7 @@ final class RemoteHostSessionLiveTests: XCTestCase {
                 matches.append(contentsOf: batch)
             }
             XCTAssertFalse(matches.isEmpty, "Search did not find a visible hosts entry")
-            let size = try XCTUnwrap(refreshed.first { $0.name == "hosts" }?.size)
+            let size = try XCTUnwrap(refreshed.first { $0.name == "hosts" }?.fileSize)
             let transfer = RemoteTransferChannel(sshTarget: target, controlDirectory: control, session: session)
             let downloaded = control.appendingPathComponent("hosts-copy")
             try await transfer.download(source: RemotePath("/etc/hosts"), expectedByteCount: size, to: downloaded)

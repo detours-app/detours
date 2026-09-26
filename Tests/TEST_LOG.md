@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry download worker and bounded watcher retirement | `40d2fb1` | FAIL: signed build passed; selected tests could not compile because the new live download assertion used `size` instead of the loaded entry's `fileSize`. Correcting that test field before rerunning; no test result is claimed. |
 | Foundry session-owned search and reader cancellation | `9c1c447` | FAIL: signed build passed; 22 of 23 focused checks passed in 30.155 seconds. Search expected the deployed helper beneath a hidden directory, which the search contract prunes. Correcting the live assertion to search for a visible entry confirmed by listing. Independent readiness cancellation, reader shutdown after pane close, Unix/Windows reconnects and process-worker checks passed. |
 | Foundry restored-tab registered-session correction | `f6f4236` | PASS: signed build and the focused restored-tab test passed in 0.216 seconds. An actual controller registers its session and watcher ownership, remains ready after an unowned session idles, and releases ownership when closed. This resolves the failure in the preceding SSH worker run. |
 | Foundry persistent SSH worker integration | `79ae73b` | FAIL: signed build and 22 of 23 selected checks passed in 26.451 seconds. Real Unix reader teardown, rejected SSH authentication, Unix/Windows reconnects, worker cancellation and watcher tests passed. The restored-tab check observed an idle disconnect while its tab was open; investigating ownership ordering before continuing. |

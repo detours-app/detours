@@ -227,6 +227,8 @@ Testing, filesystem-safety and UI specialists reviewed the same design. Their co
 
 Execution order approved by Marco on 2026-09-25: complete C1-C3, then host mutation support C7-C9, then connection readiness C4-C6, then C10 onward. Readiness depends on the capabilities implemented by C7-C9; task identifiers remain unchanged.
 
+Marco clarified on 2026-09-26 that each code task includes its corresponding tests before moving to the next code task. Implement and run the applicable parts of the T cases alongside their C owners; tick a T case only when its entire stated contract is proven. Cases spanning later owners remain open with partial evidence in the Build Log.
+
 **Phase 1: Establish the shared contract**
 
 - [x] **C1** Add RemoteOperationSupport record, intent, receipt, typed lookup and outcome-reducer types; wire the shared target in Package.swift.
@@ -313,6 +315,8 @@ Use the existing guarded runner and independent prompt sentries for installed ch
 ---
 
 ## Build Log
+
+- **C6, T1, T5, T12-T14 (partial)** Owned process I/O now covers persistent SSH, PowerShell requests and search. At `9c1c447`, the signed Foundry build passed and 22 of 23 focused checks passed: actual blocked reads/writes cancel, a child ignoring termination is reaped, stderr drains concurrently, one readiness caller can cancel without cancelling another, and a reader retains its session after pane closure until disconnect stops it. Unix/Windows readiness and reconnect checks passed; the search assertion incorrectly selected a hidden helper path and is being corrected. At `40d2fb1`, download and watcher-retirement code built, but the new download test failed compilation on an incorrect metadata field. Streaming/SFTP cancellation, independent occupied-worker control, unresolved-record restart and the full live matrices remain open; no T case is marked complete from this partial evidence.
 
 - **C5** Added owned session lifetime tokens for panes, watches, readers and accepted requests/uploads. Repeated release is harmless; final release starts the five-minute grace, and idle shutdown permits a newly verified generation. Pane observations are serialized and independently owned. Removed unused SSH operation/watch counters. At `1128c8f`, the signed Foundry build and 27 checks passed, including active-reader cancellation, pane teardown, watch ownership, idle reopen and live host regressions. The installed launch at `e6ca9b0` passed in 5.536 seconds; its exported screenshot showed both populated panes and sentry/cleanup evidence passed with zero prompts. At `9d8c7bd`, the signed build and 19 accepted-request, transfer, lifetime and live-host checks passed in 10.216 seconds. C6 supplies actual worker cancellation; C10 will retain an operation token across the coordinator workflow.
 
