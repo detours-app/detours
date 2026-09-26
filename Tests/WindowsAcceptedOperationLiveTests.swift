@@ -324,6 +324,14 @@ final class WindowsAcceptedOperationLiveTests: XCTestCase {
     \#(WindowsOperationScripts.backupHandoffHelpers)
     \#(WindowsOperationScripts.treeProofHelpers)
     \#(WindowsOperationScripts.treeCopyHelpers)
+    \#(WindowsOperationScripts.archiveHelpers)
+    $nativeZipFile = ${function:Add-WindowsAcceptedZipFile}
+    function Add-WindowsAcceptedZipFile($Context, $Archive, [string]$Name, $Member) {
+        & $nativeZipFile $Context $Archive $Name $Member
+        if ($Arguments.trashFailure -eq 'zipSourceChanged' -and $Name.EndsWith('/data.txt')) {
+            [System.IO.File]::WriteAllText($Member.sourcePath, 'modified source')
+        }
+    }
     $nativeTreeCopy = ${function:Copy-WindowsTreeFile}
     function Copy-WindowsTreeFile($Context, [string]$Source, [string]$Target, [string]$Name, $Expected) {
         if ($Arguments.trashFailure -eq 'treeCopyFailed' -and $Name.EndsWith('/z.txt')) { throw 'Injected later child read failure.' }

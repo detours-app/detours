@@ -275,9 +275,9 @@ extension WindowsOperationScripts {
         $receipt
     }
     function Invoke-WindowsMutation($Context, [string]$Kind, $Parameters) {
-        if ($Kind -notin @('prepareUpload', 'prepareCopy', 'commit', 'execute')) { throw 'Unsupported Windows operation request.' }
+        if ($Kind -notin @('prepareUpload', 'prepareCopy', 'prepareArchive', 'commit', 'execute')) { throw 'Unsupported Windows operation request.' }
         if ($Context.record.receipt.phase -eq 'terminal') { return $Context.record.receipt }
-        if ($Context.record.receipt.phase -eq 'readyToCommit' -and $Kind -in @('prepareUpload', 'prepareCopy')) { return $Context.record.receipt }
+        if ($Context.record.receipt.phase -eq 'readyToCommit' -and $Kind -in @('prepareUpload', 'prepareCopy', 'prepareArchive')) { return $Context.record.receipt }
         if ($Context.record.receipt.phase -in @('preparing', 'committing')) {
             Resolve-WindowsOperation $Context
             return $Context.record.receipt
@@ -285,6 +285,7 @@ extension WindowsOperationScripts {
         try {
             Assert-WindowsOperationActive $Context
             if ($Kind -in @('prepareUpload', 'prepareCopy')) { return Prepare-WindowsPayload $Context $Kind $Parameters }
+            if ($Kind -eq 'prepareArchive') { return Prepare-WindowsArchive $Context $Parameters }
             if ($Kind -eq 'execute' -and $Context.record.intent.action -eq 'trash') { return Invoke-WindowsTrash $Context }
             Commit-WindowsMutation $Context $Kind
         } catch {
