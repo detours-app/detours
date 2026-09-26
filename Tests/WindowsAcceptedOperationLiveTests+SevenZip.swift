@@ -55,6 +55,10 @@ extension WindowsAcceptedOperationLiveTests {
         let setup = try PowerShellScript(source: """
             param($Arguments)
             [System.IO.File]::WriteAllBytes((Join-Path $Arguments.root 'folder/zero.bin'), [byte[]]::new(0))
+            $referent = Join-Path $Arguments.root 'junction-target'
+            [System.IO.Directory]::CreateDirectory($referent) | Out-Null
+            [System.IO.File]::WriteAllText((Join-Path $referent 'data.txt'), 'junction target bytes')
+            New-Item -ItemType Junction -Path (Join-Path $Arguments.root 'folder/junction') -Target $referent -ErrorAction Stop | Out-Null
             $true
             """, arguments: ["root": root])
         _ = try await channel.run(setup, operation: "SevenZipFixtureSources")
@@ -105,13 +109,19 @@ extension WindowsAcceptedOperationLiveTests {
                actual = [DetoursOperationFiles]::Manifest($actual).proof.sha256
                bytes = [System.IO.File]::ReadAllText((Join-Path $actual 'folder/data.txt'))
                empty = [System.IO.Directory]::Exists((Join-Path $actual 'folder/empty')).ToString()
-               zero = ([System.IO.FileInfo]::new((Join-Path $actual 'folder/zero.bin'))).Length.ToString() }
+               zero = ([System.IO.FileInfo]::new((Join-Path $actual 'folder/zero.bin'))).Length.ToString()
+               junctionBytes = [System.IO.File]::ReadAllText((Join-Path $actual 'folder/junction/data.txt'))
+               originalLink = ([DetoursOperationFiles]::Observe((Join-Path $Arguments.root 'folder/junction'))).kind
+               originalBytes = [System.IO.File]::ReadAllText((Join-Path $Arguments.root 'junction-target/data.txt')) }
             """), arguments: ["root": root])
         let result = try JSONDecoder().decode([String: String].self, from: await channel.run(verify, operation: "CompareSevenZipContents"))
         XCTAssertEqual(result["expected"], result["actual"])
         XCTAssertEqual(result["bytes"], "archive bytes")
         XCTAssertEqual(result["empty"], "True")
         XCTAssertEqual(result["zero"], "0")
+        XCTAssertEqual(result["junctionBytes"], "junction target bytes")
+        XCTAssertEqual(result["originalLink"], "symbolicLink")
+        XCTAssertEqual(result["originalBytes"], "junction target bytes")
         let cancelledID = try await accept("cancelled.7z")
         guard case .receipt(let cancellable) = try await send(.prepareArchive(identity: cancelledID, password: nil)) else { return XCTFail("No cancellable 7z") }
         XCTAssertEqual(cancellable.phase, .readyToCommit, cancellable.failure ?? "")
@@ -120,7 +130,6 @@ extension WindowsAcceptedOperationLiveTests {
         XCTAssertEqual(cancelled.outcome, .failedUnchanged, cancelled.failure ?? "")
         XCTAssertTrue(cancelled.recovery.isEmpty)
         try await exerciseSevenZipExtraction(channel: channel, root: root)
-        try await exerciseSevenZipJunctionFixture(channel: channel, root: root)
         try await exerciseSevenZipSymbolicLinkRefusal(channel: channel, root: root)
     }
 }
