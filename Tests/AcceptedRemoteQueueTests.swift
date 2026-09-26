@@ -131,11 +131,34 @@ final class AcceptedRemoteQueueTests: XCTestCase {
         await fixture.session.disconnect()
     }
 
+    func testLegacyDisconnectDoesNotCancelAcceptedTransfer() async throws {
+        let fixture = try await CoordinatorFixture(pauseAfterPreparation: true)
+        defer { fixture.cleanup() }
+        let queue = try await configure(fixture)
+        let destination = try destination(fixture)
+        let source = source(fixture)
+        let transfer = Task { try await queue.copy(items: [source], to: destination) }
+        try await fixture.boundary.waitUntilPaused()
+        queue.handleSSHConnectionStateChange(.init(hostID: fixture.hostID, oldState: .connected,
+            newState: .failed(reason: .transport("legacy monitor lost contact"))))
+        XCTAssertFalse(queue.isRemoteHostPausedForTesting(fixture.hostID))
+        await fixture.boundary.resume()
+        let copied = try await transfer.value
+        XCTAssertEqual(copied, [destination.appendingPathComponent("source")])
+        let result = try XCTUnwrap(queue.remoteOperationResults.values.first)
+        XCTAssertFalse(result.record.cancellationRequested)
+        XCTAssertEqual(result.items.first?.outcome, .committed)
+        await fixture.session.disconnect()
+    }
+
     private func configure(_ fixture: CoordinatorFixture) async throws -> FileOperationQueue {
         let queue = FileOperationQueue.shared
         let provider = RemoteFileProvider(hostID: fixture.hostID, rpcClient: AcceptedProviderRPC(service: fixture.boundary.service),
                                           transferChannel: RemoteTransferChannel(sshTarget: "unused"))
-        queue.registerRemoteFileProvider(provider, for: fixture.hostID)
+        let endpoint = RemoteOperationCoordinator.Endpoint(session: fixture.session,
+            request: { try await fixture.boundary.send($0) },
+            upload: { _, _ in throw FileProviderError.unsupportedOperation("unused") })
+        queue.registerRemoteFileProvider(provider, for: fixture.hostID, operationEndpoint: endpoint)
         queue.acceptedCoordinator = fixture.coordinator()
         return queue
     }

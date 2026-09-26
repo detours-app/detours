@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry accepted queue conflicts and moves | `ca5ebe5` | PASS: signed build and all 36 focused checks passed in 1.021 seconds. Keep Both preserves the original and publishes the numbered destination; same-host move confirms source disposition and retains undo registration. |
 | Foundry accepted queue integration | `f5a395e` | PASS: signed build and all 34 queue, provider, batch, coordinator, store and disconnection checks passed in 1.039 seconds. Public copy retains earlier undo after a missing later source; denied/disconnected lookups send no acceptance, Skip preserves the existing file, and a lost commit reply is checked without replay. Resolves the missing test import from the preceding run. |
 | Foundry accepted queue integration compilation | `cb955ba` | FAIL: signed build passed, but the new queue tests could not access the helper's internal reply method because their file omitted the detours_server testable import. No tests ran. Adding that import before repeating the same focused selection. |
 | Foundry accepted providers and typed lookup | `6138e19` | PASS: signed build and all nine provider/batch checks passed in 0.261 seconds. Unix uploads at zero bytes, 1 MiB minus one and 1 MiB require acceptance and separate commit. Unix invalid UTF-8 and Windows Unicode paths round-trip; denied/disconnected/missing remain distinct, and a destination created after missing lookup is preserved. |

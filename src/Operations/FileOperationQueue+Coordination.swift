@@ -330,10 +330,12 @@ extension FileOperationQueue {
     }
 
     private func firstPausedHost(in hostIDs: Set<UUID>) -> UUID? {
-        hostIDs.first { pausedRemoteHosts.contains($0) }
+        hostIDs.first { remoteOperationEndpoints[$0] == nil && pausedRemoteHosts.contains($0) }
     }
 
     func handleSSHConnectionStateChange(_ change: SSHConnectionStateChange) {
+        // Verified sessions own recovery and distinguish transport loss from user cancellation.
+        guard remoteOperationEndpoints[change.hostID] == nil else { return }
         switch change.newState {
         case .failed:
             // Windows hosts use a per-request oneShot model that reconnects transparently, so a
