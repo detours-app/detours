@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry recorded child merges | `c0bcd2b` | PASS: signed build and all 25 merge, queue, batch and store checks passed in 0.585 seconds. Actual filesystem cases preserve unrelated destination contents and the complete source after later-child failure or Skip; complete merge moves retain recorded source Trash. Earlier undo registration and immutable folder-to-child results remain available. |
 | Foundry source-content proof and Windows tree disposition | `2cf4d86` | PASS: both helpers and the signed app built; all 19 focused checks passed in 30.214 seconds with no skips. Unix proofs cover actual file bytes, changed nested children, empty folders, selected links and account rejection. The live Windows folder Trash/restore test uses captured tree proof successfully. |
 | devtest helper source-proof rebuild | `2cf4d86` | PASS: the Linux helper rebuilt and all 140 container checks passed (18 process checks and 122 filesystem/archive/journal checks). Foundry app and focused adapter verification continue in the same run. |
 | Foundry source-disposition cancellation and Skip | `db5e26d` | PASS: signed build and all eight source-disposition checks passed in 0.173 seconds. Cancellation after real destination commit leaves both copies and sends no source Trash request; Skip also leaves source untouched, and stored verification dependencies cannot be removed. |
