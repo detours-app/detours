@@ -397,6 +397,9 @@ extension FileOperationQueue {
         operationPauseMessage = nil
         remoteHostNames = [:]
         remoteFileProviders = [:]
+        remoteOperationEndpoints = [:]
+        acceptedCoordinator = nil
+        remoteOperationResults = [:]
         currentOperation = nil
         lastFinishedOperation = nil
         lastReceivedProgress = nil

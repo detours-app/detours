@@ -237,7 +237,7 @@ struct CoordinatorTransport: RemoteHostSessionTransport {
 }
 
 actor CoordinatorBoundary {
-    enum Kind { case accept, prepare, commit, execute, status, cancel }
+    enum Kind { case lookup, accept, prepare, commit, execute, status, cancel }
     enum Failure: Error { case lostReply, notPersisted, timeout }
     let service: ServerOperationService
     let store: RemoteOperationStore
@@ -255,6 +255,10 @@ actor CoordinatorBoundary {
     }
 
     func send(_ request: OperationRequest) async throws -> OperationReply {
+        if case .lookup = request {
+            requests.append(.lookup)
+            return try await service.reply(to: request)
+        }
         let identity: OperationRequestIdentity
         let kind: Kind
         let step: RemoteOperationStore.Step?

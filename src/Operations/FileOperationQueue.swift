@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import RemoteOperationSupport
 
 /// Type-erased cancellable handle for a Task, so we can store tasks with different Success types.
 struct AnyCancellableTask: Sendable {
@@ -145,6 +146,9 @@ final class FileOperationQueue {
     var currentCancelFlag: CancelFlag?
     var currentProcess: Process?
     var remoteFileProviders: [UUID: any FileProvider] = [:]
+    var remoteOperationEndpoints: [UUID: RemoteOperationCoordinator.Endpoint] = [:]
+    var acceptedCoordinator: RemoteOperationCoordinator?
+    var remoteOperationResults: [UUID: RemoteOperationStore.Snapshot] = [:]
     var remoteHostNames: [UUID: String] = [:]
     var pausedRemoteHosts: Set<UUID> = []
     var currentRemoteOperationHosts: Set<UUID> = []
@@ -177,13 +181,16 @@ final class FileOperationQueue {
 
     // MARK: - Public API
 
-    func registerRemoteFileProvider(_ provider: any FileProvider, for hostID: UUID, displayName: String? = nil) {
+    func registerRemoteFileProvider(_ provider: any FileProvider, for hostID: UUID, displayName: String? = nil,
+                                    operationEndpoint: RemoteOperationCoordinator.Endpoint? = nil) {
         remoteFileProviders[hostID] = provider
         remoteHostNames[hostID] = displayName ?? RemoteHostStore.shared.host(id: hostID)?.displayName
+        if let operationEndpoint { remoteOperationEndpoints[hostID] = operationEndpoint }
     }
 
     func unregisterRemoteFileProvider(for hostID: UUID) {
         remoteFileProviders.removeValue(forKey: hostID)
+        remoteOperationEndpoints.removeValue(forKey: hostID)
         remoteHostNames.removeValue(forKey: hostID)
         pausedRemoteHosts.remove(hostID)
     }

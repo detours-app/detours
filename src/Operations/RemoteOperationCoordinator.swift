@@ -20,6 +20,7 @@ actor RemoteOperationCoordinator {
         let intent: OperationIntent
         let hostID: UUID
         let work: Work
+        var preflightFailure: RemoteOperationStore.PreflightFailure?
     }
 
     private let store: RemoteOperationStore
@@ -58,7 +59,8 @@ actor RemoteOperationCoordinator {
 
     func recordPlannedItem(_ planned: PlannedItem) async throws {
         if let existing = try itemIfPresent(planned.intent.id) {
-            guard existing.hostID == planned.hostID, existing.result.intent == planned.intent else {
+            guard existing.hostID == planned.hostID, existing.result.intent == planned.intent,
+                  existing.preflightFailure == planned.preflightFailure else {
                 throw OperationContractError.intentMismatch
             }
             return
@@ -73,7 +75,7 @@ actor RemoteOperationCoordinator {
         let result = OperationOutcomeReducer(intent: planned.intent, account: ready.handshake.account,
                                              epoch: ready.handshake.epoch,
                                              intentDigest: try OperationContentProof.data(planned.intent.canonicalData()).sha256)
-        snapshot.items.append(.init(hostID: planned.hostID, result: result))
+        snapshot.items.append(.init(hostID: planned.hostID, result: result, preflightFailure: planned.preflightFailure))
         try store.save(snapshot)
     }
 
@@ -102,7 +104,7 @@ actor RemoteOperationCoordinator {
                 try store.save(snapshot)
                 return snapshot.items[position].result
             }
-            if !previous.sent.isEmpty || previous.result.cancellationRequested || intent.conflict == .skip {
+            if !previous.sent.isEmpty || previous.result.cancellationRequested || intent.conflict == .skip || previous.preflightFailure != nil {
                 return previous.result
             }
         }

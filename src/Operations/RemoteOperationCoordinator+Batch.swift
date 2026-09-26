@@ -9,7 +9,8 @@ extension RemoteOperationCoordinator {
         let previous = try snapshot(operation)
         if previous.items.contains(where: { !$0.sent.isEmpty }) {
             guard previous.record.intents == plan.map(\.intent),
-                  previous.items.map(\.hostID) == plan.map(\.hostID) else {
+                  previous.items.map(\.hostID) == plan.map(\.hostID),
+                  previous.items.map(\.preflightFailure) == plan.map(\.preflightFailure) else {
                 throw OperationContractError.intentMismatch
             }
             return previous
@@ -24,6 +25,8 @@ extension RemoteOperationCoordinator {
                 try await cancel(operation)
                 break
             }
+            if planned.preflightFailure == .disconnected { break }
+            if planned.preflightFailure != nil { continue }
             let result = try await perform(planned.intent, hostID: planned.hostID, work: planned.work)
             if result.outcome == .unknown {
                 // A request error may have a conclusive failed-unchanged host receipt. Only that

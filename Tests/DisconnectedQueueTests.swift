@@ -35,7 +35,7 @@ final class DisconnectedQueueTests: XCTestCase {
         let item = Location.remote(hostID: hostID, path: "/home/marco/project/a.txt")
         let destination = Location.remote(hostID: hostID, path: "/home/marco/target")
         let operation = Task { @MainActor in
-            _ = try await queue.copy(items: [item], to: destination)
+            _ = try await queue.enqueue(remoteHosts: [hostID]) { try await provider.copy([item], to: destination) }
         }
 
         await waitUntil {
@@ -68,7 +68,7 @@ final class DisconnectedQueueTests: XCTestCase {
         let item = Location.remote(hostID: hostID, path: "/home/marco/project/a.txt")
         let destination = Location.remote(hostID: hostID, path: "/home/marco/target")
         let operation = Task { @MainActor in
-            _ = try await queue.copy(items: [item], to: destination)
+            _ = try await queue.enqueue(remoteHosts: [hostID]) { try await provider.copy([item], to: destination) }
         }
 
         await waitUntil {
@@ -97,7 +97,7 @@ final class DisconnectedQueueTests: XCTestCase {
         let item = Location.remote(hostID: hostID, path: "/home/marco/project/a.txt")
         let destination = Location.remote(hostID: hostID, path: "/home/marco/target")
         let operation = Task { @MainActor in
-            _ = try await queue.copy(items: [item], to: destination)
+            _ = try await queue.enqueue(remoteHosts: [hostID]) { try await provider.copy([item], to: destination) }
         }
 
         await waitUntil {

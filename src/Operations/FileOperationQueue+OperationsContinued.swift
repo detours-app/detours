@@ -22,26 +22,10 @@ extension FileOperationQueue {
         defer { finishOperation() }
 
         try checkCancelled()
-        let provider = try remoteProvider(for: destinationHostID)
-        if let windows = provider as? WindowsRemoteProvider {
-            return try await performWindowsTransfer(
-                items: items, to: destination, provider: windows,
-                isMove: false, undoManager: undoManager
-            )
-        }
-
-        var copied: [Location] = []
-        for source in items {
-            try checkCancelled()
-            let copiedItem = try await provider.copy([source], to: destination)
-            copied.append(contentsOf: copiedItem)
-            updateProgress(
-                operation: operation,
-                currentItem: URL(fileURLWithPath: source.path),
-                completed: copied.count,
-                total: items.count
-            )
-        }
+        let result = try await performAcceptedRemoteTransfer(items: items, to: destination, isMove: false)
+        let copied = try await acceptedLocations(result)
+        updateProgress(operation: operation, currentItem: copied.last.map { Location.remoteFileURL($0.path) },
+                       completed: copied.count, total: items.count)
         if !copied.isEmpty, let undoManager {
             undoManager.registerUndo(withTarget: self) { target in
                 Task { @MainActor in
@@ -57,6 +41,7 @@ extension FileOperationQueue {
             undoManager.setActionName(actionName)
         }
 
+        try requireSuccessfulBatch(result)
         return copied
     }
 
@@ -76,14 +61,8 @@ extension FileOperationQueue {
         defer { finishOperation() }
 
         try checkCancelled()
-        let provider = try remoteProvider(for: destinationHostID)
-        if let windows = provider as? WindowsRemoteProvider {
-            return try await performWindowsTransfer(
-                items: items, to: destination, provider: windows,
-                isMove: true, undoManager: undoManager
-            )
-        }
-        let moved = try await provider.move(items, to: destination)
+        let result = try await performAcceptedRemoteTransfer(items: items, to: destination, isMove: true)
+        let moved = try await acceptedLocations(result)
         updateProgress(
             operation: operation,
             currentItem: moved.last.map { URL(fileURLWithPath: $0.path) },
@@ -91,8 +70,8 @@ extension FileOperationQueue {
             total: items.count
         )
 
-        if moved.count == items.count, let undoManager {
-            let originalItems = items
+        if !moved.isEmpty, let undoManager {
+            let originalItems = try await acceptedLocations(result, sources: true)
             let movedItems = moved
             undoManager.registerUndo(withTarget: self) { target in
                 Task { @MainActor in
@@ -124,6 +103,7 @@ extension FileOperationQueue {
             undoManager.setActionName(actionName)
         }
 
+        try requireSuccessfulBatch(result)
         return moved
     }
 

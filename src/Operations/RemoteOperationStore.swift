@@ -8,12 +8,22 @@ final class RemoteOperationStore: @unchecked Sendable {
         case accept, prepare, commit, execute
     }
 
+    enum PreflightFailure: String, Codable, Sendable {
+        case sourceMissing, denied, disconnected, unsupported
+    }
+
     struct Item: Codable, Equatable, Sendable {
         let hostID: UUID
         var result: OperationOutcomeReducer
         var sent: Set<Step> = []
         var pending: Step?
         var hostAccepted = false
+        var preflightFailure: PreflightFailure?
+
+        var outcome: OperationOutcome {
+            if let preflightFailure { return preflightFailure == .disconnected ? .notStarted : .failedUnchanged }
+            return result.outcome
+        }
 
         var identity: OperationRequestIdentity {
             OperationRequestIdentity(id: result.intent.id, account: result.account,
@@ -156,6 +166,7 @@ final class RemoteOperationStore: @unchecked Sendable {
         for item in snapshot.items {
             guard item.pending.map({ item.sent.contains($0) }) ?? true,
                   !item.hostAccepted || item.sent.contains(.accept),
+                  item.preflightFailure == nil || (item.sent.isEmpty && !item.result.submitted && item.result.receipt == nil),
                   !snapshot.record.cancellationRequested || item.result.cancellationRequested else {
                 throw StoreError.unsafeRecord
             }
@@ -169,6 +180,7 @@ final class RemoteOperationStore: @unchecked Sendable {
         }
         for (old, new) in zip(previous.items, next.items) {
             guard old.hostID == new.hostID, old.result.intent == new.result.intent,
+                  old.preflightFailure == new.preflightFailure,
                   old.identity == new.identity, old.sent.isSubset(of: new.sent),
                   !old.hostAccepted || new.hostAccepted,
                   !old.result.submitted || new.result.submitted,

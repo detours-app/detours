@@ -96,7 +96,7 @@ final class AcceptedProviderTests: XCTestCase {
     }
 }
 
-private struct AcceptedProviderRPC: RemoteRPCClient {
+struct AcceptedProviderRPC: RemoteRPCClient {
     let service: ServerOperationService
     func send(_ message: RPCMessage) async throws -> [Data] {
         guard case .operation(let request) = message else { throw OperationContractError.invalidReceipt }
