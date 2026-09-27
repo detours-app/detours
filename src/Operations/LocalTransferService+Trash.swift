@@ -35,7 +35,7 @@ extension LocalTransferService {
         let workspace = try OperationWorkspace(parent: directory, id: identity.id, plannedName: name)
         try journal.recordWorkspace(workspace.record, ownership: ownership)
         try journal.recordManifests(identity.id, source: before, payload: nil, ownership: ownership)
-        let held = OperationLocation(account: journal.account, path: .unix(try workspace.directory.childPath(Data("source".utf8))))
+        let held = OperationLocation(account: journal.account, path: .unix(try workspace.directory.childPath(target.name)))
         do {
             let commit = try await journal.acquireCommit()
             defer { withExtendedLifetime(commit) {} }
@@ -49,20 +49,20 @@ extension LocalTransferService {
                           knownLocation: workspaceLocation, possibleLocations: [workspaceLocation]),
                 ])
             try journal.record(uncertain, ownership: ownership)
-            _ = try directory.moveExclusive(target.name, to: workspace.directory, named: Data("source".utf8), expected: expected)
+            _ = try directory.moveExclusive(target.name, to: workspace.directory, named: target.name, expected: expected)
         } catch {
             return try record(identity, phase: .terminal, outcome: .unknown, ownership: ownership, failure: String(describing: error))
         }
         try afterSourceMove?(held)
-        let actual = try workspace.directory.manifest(Data("source".utf8), progress: { _ in })
+        let actual = try workspace.directory.manifest(target.name, progress: { _ in })
         guard before.matchesMovedObjects(actual) else {
-            let observed = try workspace.directory.observe(Data("source".utf8))
+            let observed = try workspace.directory.observe(target.name)
             let reference = OperationRecoveryReference(identity: observed.identity, purpose: .source, original: source,
                 knownLocation: held, possibleLocations: [held])
             do {
                 let commit = try await journal.acquireCommit()
                 defer { withExtendedLifetime(commit) {} }
-                _ = try workspace.directory.moveExclusive(Data("source".utf8), to: directory, named: target.name, expected: observed)
+                _ = try workspace.directory.moveExclusive(target.name, to: directory, named: target.name, expected: observed)
                 try workspace.removeScratch()
                 let restored = OperationReceipt(id: identity.id, account: journal.account, epoch: journal.epoch,
                     intentDigest: identity.intentDigest, revision: 3, phase: .terminal, outcome: .partial,
