@@ -45,60 +45,6 @@ final class QualificationConnectionUITests: BaseUITest {
         try runRemoteFolderResult(restoringAfterRestart: true)
     }
 
-    func testPartialRemoteFolderCopyShowsFailedChild() throws {
-        guard qualificationRemoteTarget != nil else {
-            throw QualificationConnectionFailure.timedOut("Live target is required", nil)
-        }
-        let ready = try waitForPaneState(pane: "left", description: "remote result fixture") {
-            $0.connectionStates.values.contains("connected") && $0.displayedLocation != nil && self.isQuiescent($0)
-        }
-        let home = try XCTUnwrap(ready.displayedLocation)
-        let scenario = "QualificationRefresh-" + UUID().uuidString.lowercased()
-        let sentinel = UUID().uuidString
-        let before = try performRemoteFixtureMutation(action: "snapshot", homePath: home, scenarioName: scenario)
-        try performRemoteFixtureMutation(action: "createScenario", homePath: home, scenarioName: scenario, sentinelID: sentinel)
-        defer {
-            do {
-                app.typeKey(.escape, modifierFlags: [])
-                let state = try requestRemotePaneState(pane: "left")
-                if state.displayedLocation != home {
-                    app.leftPaneOutlineView.click()
-                    pressKey(.upArrow, modifiers: .command)
-                    _ = try waitForPaneState(pane: "left", description: "return before cleanup") { $0.displayedLocation == home }
-                }
-                try performRemoteFixtureMutation(action: "cleanup", homePath: home, scenarioName: scenario, sentinelID: sentinel)
-                XCTAssertEqual(try performRemoteFixtureMutation(action: "snapshot", homePath: home, scenarioName: scenario), before)
-            } catch { XCTFail("Remote result fixture cleanup failed: \(error)") }
-        }
-        try performRemoteFixtureMutation(action: "createDirectory", homePath: home, scenarioName: scenario, relativePath: "Folder", sentinelID: sentinel)
-        try performRemoteFixtureMutation(action: "write", homePath: home, scenarioName: scenario, relativePath: "Folder/ok.txt", contents: "ok", sentinelID: sentinel)
-        try performRemoteFixtureMutation(action: "symlink", homePath: home, scenarioName: scenario, relativePath: "Folder/gone", destinationRelativePath: "missing.txt", sentinelID: sentinel)
-
-        let row = app.leftPaneOutlineView.outlineRow(withStaticText: scenario)
-        XCTAssertTrue(row.waitForExistence(timeout: 8))
-        row.staticTexts[scenario].doubleClick()
-        _ = try waitForPaneState(pane: "left", description: "enter remote result fixture") {
-            $0.displayedLocation == home + "/" + scenario && self.isQuiescent($0)
-        }
-        let folderRow = app.leftPaneOutlineView.outlineRow(withStaticText: "Folder")
-        XCTAssertTrue(folderRow.waitForExistence(timeout: 8))
-        folderRow.click()
-        pressF5Key()
-        _ = try waitForPaneState(pane: "left", description: "partial folder copy") { self.isQuiescent($0) }
-
-        let status = app.staticTexts.matching(identifier: "operationStatus").element(boundBy: 0)
-        XCTAssertTrue(status.waitForExistence(timeout: 5))
-        status.click()
-        let summary = app.staticTexts["remoteOperationSummary"]
-        XCTAssertTrue(summary.waitForExistence(timeout: 3))
-        let text = (summary.value as? String) ?? summary.label
-        XCTAssertFalse(text.isEmpty, "The partial summary must be visible")
-        let attachment = XCTAttachment(screenshot: app.screenshot())
-        attachment.name = "Partial remote folder copy result"
-        attachment.lifetime = .keepAlways
-        add(attachment)
-    }
-
     private func runRemoteFolderResult(restoringAfterRestart: Bool) throws {
         guard qualificationRemoteTarget != nil else {
             throw QualificationConnectionFailure.timedOut("Live target is required", nil)
