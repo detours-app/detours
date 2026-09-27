@@ -102,106 +102,48 @@ extension FileOperationQueue {
     }
 
     func performRemoteDelete(items: [Location], undoManager: UndoManager? = nil) async throws {
-        guard let groups = remoteGroups(from: items) else {
+        guard remoteGroups(from: items) != nil else {
             throw FileProviderError.unsupportedOperation("Mixed local and remote delete is not implemented yet")
         }
-
         RemoteTrashExplainer.showIfNeeded()
-
         let operation = FileOperation.delete(items: items.map { URL(fileURLWithPath: $0.path) })
         startOperation(operation, totalCount: items.count)
         defer { finishOperation() }
-
-        var trashedItems: [TrashedItem] = []
-        var completed = 0
-
-        for (hostID, hostItems) in groups {
-            try checkCancelled()
-            if let current = hostItems.first {
-                updateProgress(
-                    operation: operation,
-                    currentItem: URL(fileURLWithPath: current.path),
-                    completed: completed,
-                    total: items.count
-                )
-            }
-
-            let provider = try remoteProvider(for: hostID)
-            let trashed = try await provider.trash(hostItems)
-            trashedItems.append(contentsOf: trashed)
-            completed += hostItems.count
-
-            if let current = hostItems.last {
-                updateProgress(
-                    operation: operation,
-                    currentItem: URL(fileURLWithPath: current.path),
-                    completed: completed,
-                    total: items.count
-                )
-            }
-        }
-
-        guard !trashedItems.isEmpty, let undoManager else { return }
-
-        undoManager.registerUndo(withTarget: self) { target in
-            Task { @MainActor in
-                do {
-                    let restored = try await target.restoreRemoteTrashedItems(trashedItems)
-                    target.announceRestored(restored)
-                    undoManager.registerUndo(withTarget: target) { redoTarget in
-                        Task { @MainActor in
-                            do {
-                                try await redoTarget.performRemoteDelete(items: restored, undoManager: nil)
-                            } catch {
-                                redoTarget.presentError(error)
+        let result = try await performAcceptedRemoval(items, permanently: false)
+        let completed = result.items.filter { $0.outcome == .committed }.count
+        updateProgress(operation: operation, currentItem: items.last.map { Location.remoteFileURL($0.path) },
+                       completed: completed, total: items.count)
+        if completed > 0, let undoManager {
+            undoManager.registerUndo(withTarget: self) { target in
+                Task { @MainActor in
+                    do {
+                        let restored = try await target.restoreAcceptedTrash(result)
+                        target.announceRestored(restored)
+                        undoManager.registerUndo(withTarget: target) { redoTarget in
+                            Task { @MainActor in
+                                do { try await redoTarget.performRemoteDelete(items: restored, undoManager: nil) } catch { redoTarget.presentError(error) }
                             }
                         }
-                    }
-                } catch {
-                    target.presentError(error)
+                    } catch { target.presentError(error) }
                 }
             }
+            let firstName = items.first?.lastPathComponent ?? ""
+            undoManager.setActionName(completed == 1 ? "Delete \"\(firstName)\"" : "Delete \(completed) Items")
         }
-
-        let firstName = trashedItems.first?.originalLocation.lastPathComponent ?? ""
-        let actionName = trashedItems.count == 1 ? "Delete \"\(firstName)\"" : "Delete \(trashedItems.count) Items"
-        undoManager.setActionName(actionName)
+        try requireSuccessfulBatch(result)
     }
 
     func performRemoteDeleteImmediately(items: [Location]) async throws {
-        guard let groups = remoteGroups(from: items) else {
+        guard remoteGroups(from: items) != nil else {
             throw FileProviderError.unsupportedOperation("Mixed local and remote delete is not implemented yet")
         }
-
         let operation = FileOperation.deleteImmediately(items: items.map { URL(fileURLWithPath: $0.path) })
         startOperation(operation, totalCount: items.count)
         defer { finishOperation() }
-
-        var completed = 0
-        for (hostID, hostItems) in groups {
-            try checkCancelled()
-            if let current = hostItems.first {
-                updateProgress(
-                    operation: operation,
-                    currentItem: URL(fileURLWithPath: current.path),
-                    completed: completed,
-                    total: items.count
-                )
-            }
-
-            let provider = try remoteProvider(for: hostID)
-            try await provider.delete(hostItems)
-            completed += hostItems.count
-
-            if let current = hostItems.last {
-                updateProgress(
-                    operation: operation,
-                    currentItem: URL(fileURLWithPath: current.path),
-                    completed: completed,
-                    total: items.count
-                )
-            }
-        }
+        let result = try await performAcceptedRemoval(items, permanently: true)
+        updateProgress(operation: operation, currentItem: items.last.map { Location.remoteFileURL($0.path) },
+                       completed: result.items.filter { $0.outcome == .committed }.count, total: items.count)
+        try requireSuccessfulBatch(result)
     }
 
     func performDeleteImmediately(items: [URL]) async throws {

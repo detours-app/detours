@@ -47,9 +47,12 @@ extension FileOperationQueue {
     }
 
     func performAcceptedMutation(_ planned: RemoteOperationCoordinator.PlannedItem) async throws -> RemoteOperationStore.Snapshot {
+        try await performAcceptedPlan([planned], operation: planned.intent.id.operation)
+    }
+
+    func performAcceptedPlan(_ plan: [RemoteOperationCoordinator.PlannedItem], operation: UUID) async throws -> RemoteOperationStore.Snapshot {
         let coordinator = try operationCoordinator()
-        let operation = planned.intent.id.operation
-        let task = Task { try await coordinator.performBatch([planned], operation: operation) }
+        let task = Task { try await coordinator.performBatch(plan, operation: operation) }
         currentIOCancellable = AnyCancellableTask(task)
         defer { currentIOCancellable = nil }
         do {
