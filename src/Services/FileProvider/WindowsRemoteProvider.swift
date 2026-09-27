@@ -14,6 +14,10 @@ actor WindowsRemoteProvider: FileProvider {
         try await transferChannel.prepareAcceptedUpload(localURL: localURL, identity: identity, sftpAvailable: sftpAvailable)
     }
 
+    func sftpAvailable() async -> Bool {
+        await transferChannel.sftpAvailable()
+    }
+
     func operationRequest(_ request: OperationRequest) async throws -> OperationReply {
         let lifetime = try await channel.acquireLifetime(.operation)
         defer { lifetime?.release() }

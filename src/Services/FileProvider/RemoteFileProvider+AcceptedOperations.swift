@@ -37,7 +37,7 @@ extension RemoteFileProvider {
 
 extension WindowsRemoteProvider {
     func prepareAcceptedUpload(_ localURL: URL, identity: OperationRequestIdentity) async throws -> OperationReceipt {
-        let sftpAvailable = await transferChannel.sftpAvailable()
+        let sftpAvailable = await sftpAvailable()
         return try await prepareAcceptedUpload(localURL, identity: identity, sftpAvailable: sftpAvailable)
     }
 
