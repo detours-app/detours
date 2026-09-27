@@ -9,12 +9,12 @@ extension WindowsRemoteProvider {
 
     static let driveListScript = PowerShellScript.prelude(
         operationBody: """
-        Get-PSDrive -PSProvider FileSystem | ForEach-Object {
+        [System.IO.DriveInfo]::GetDrives() | ForEach-Object {
             [pscustomobject]@{
-                Name = $_.Name
-                Root = $_.Root
-                Free = if ($null -eq $_.Free) { $null } else { [int64]$_.Free }
-                Used = if ($null -eq $_.Used) { $null } else { [int64]$_.Used }
+                Name = $_.Name.Substring(0, 1)
+                Root = $_.RootDirectory.FullName
+                Free = if ($_.IsReady) { [int64]$_.AvailableFreeSpace } else { $null }
+                Used = if ($_.IsReady) { [int64]($_.TotalSize - $_.AvailableFreeSpace) } else { $null }
             }
         }
         """
