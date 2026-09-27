@@ -186,7 +186,6 @@ final class QualificationConnectionUITests: BaseUITest {
         pressF5Key()
         _ = try waitForPaneState(pane: "left", description: "remote copy in flight") { $0.operationRunning }
 
-        try performRemoteFixtureMutation(action: "cancelOperation", homePath: home, scenarioName: scenario, sentinelID: sentinel)
         app.menuBars.firstMatch.menuBarItems["Window"].click()
         app.menuItems["Remote Operations..."].click()
         let window = app.windows["Remote Operations"]
@@ -195,6 +194,9 @@ final class QualificationConnectionUITests: BaseUITest {
             .firstMatch
         XCTAssertTrue(record.waitForExistence(timeout: 10))
         record.click()
+        let cancel = app.buttons["cancelRemoteResult"]
+        XCTAssertTrue(cancel.waitForExistence(timeout: 5))
+        cancel.click()
         let summary = app.staticTexts["remoteOperationSummary"]
         XCTAssertTrue(summary.waitForExistence(timeout: 5))
         XCTAssertEqual((summary.value as? String) ?? summary.label, "Cancelling. Checking what finished...")

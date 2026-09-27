@@ -137,9 +137,10 @@ final class FileOperationQueue {
     /// transfer through the same control the user has.
     private let remoteOperationHoldForTesting = RemoteOperationHoldForTesting()
 
-    func installRemoteOperationHoldForTesting() {
+    func installRemoteOperationHoldForTesting() async throws {
         remoteOperationHoldForTesting.arm()
-        heavyOperationGateForTesting = { [hold = remoteOperationHoldForTesting] in await hold.wait() }
+        let gate: @Sendable () async -> Void = { [hold = remoteOperationHoldForTesting] in await hold.wait() }
+        await operationCoordinator().setTestHoldBeforeFirstItem(gate)
     }
 
     func releaseRemoteOperationHoldForTesting() {
