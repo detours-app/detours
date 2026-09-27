@@ -278,7 +278,7 @@ All tests, fixture writes, builds and screenshots run on Foundry. Each test entr
 - [x] **T9** Fail a real later child in both a new folder and existing Windows merge, and distinguish ordinary transfer failure from planned nested-link omissions; assert publication rules, exact child results, preserved sources/unrelated contents and committed-item undo (A3, A8).
 - [x] **T10** Exercise batch success then known failure, unknown result, user Skip and cancellation; confirm the stated continue/stop policy and exactly-once undo registration from repeated receipts (A3, A4).
 - [x] **T11** Test destination-committed/source-present moves, changed source, lost source-Trash reply, selected-link moves and conflicting undo/restore names; compare the source-observation manifest and preserve the only confirmed copy and original link recovery (A5, A7, A10).
-- [ ] **T12** Close the final pane during actual work, expire idle time, finish/cancel the worker and restart the client; live ownership drains exactly once while unresolved records survive (A9, A12).
+- [x] **T12** Close the final pane during actual work, expire idle time, finish/cancel the worker and restart the client; live ownership drains exactly once while unresolved records survive (A9, A12).
 
 ### Live adapters and installed app
 
@@ -315,6 +315,8 @@ Use the existing guarded runner and independent prompt sentries for installed ch
 ---
 
 ## Build Log
+
+- **T12** Closing the final pane during work, expiring the idle grace, finishing or cancelling the worker and restarting the client are exercised: the last owner starts the idle grace and the session can reopen, detaching one pane does not release another, an accepted operation keeps its ownership across the idle grace until commit finishes, teardown stops owned readers once, a restored tab keeps its connection active and releases it on close, and unresolved records survive a restart. At `8f7d8394`, the 17 lifetime, teardown, restored-connection and recovery checks plus the coordinator ownership check passed on Foundry.
 
 - **T11** Destination-committed and source-present moves, a changed source, a lost source-Trash reply, selected-link moves and conflicting undo or restore names are exercised: the source-observation manifest is compared before disposition, a changed or uncertain source keeps the only confirmed copy, a lost Trash reply retains the destination and reports unknown, selected links move as links, and restore never overwrites a competing name. At `d12eb86c`, the 29 source-disposition, cross-host, trash and preparation checks plus the live cross-host and same-host link moves passed on Foundry.
 
