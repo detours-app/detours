@@ -268,7 +268,7 @@ All tests, fixture writes, builds and screenshots run on Foundry. Each test entr
 ### Deterministic and filesystem contract tests
 
 - [x] **T1** Drive RemoteHostSession itself through process start without handshake, repeated exits, authentication rejection, late generation callbacks, unregister and clock advancement; ready is never premature and one recovery budget is enforced (A1, A9).
-- [ ] **T2** Exercise actual journal acceptance/receipts with duplicate identities, changed intent, interrupted snapshot writes, missing/corrupt records, epoch changes, acknowledgment and tombstone lookup; sent mutations never become safe to replay (A2, A9).
+- [x] **T2** Exercise actual journal acceptance/receipts with duplicate identities, changed intent, interrupted snapshot writes, missing/corrupt records, epoch changes, acknowledgment and tombstone lookup; sent mutations never become safe to replay (A2, A9).
 - [ ] **T3** Test receipt loss and restart around actual filesystem commit, including the file-change/receipt-write interval; reconcile a provable identity once and preserve unknown otherwise (A2, A3).
 - [ ] **T4** Run two helper processes and competing Windows workers against one account journal; prove item exclusion, short namespace-only commit serialization, unrelated commit progress during hashing and status/cancel availability while a worker is occupied (A2, A4).
 - [ ] **T5** Cancel actual RPC, streaming and SFTP workers during byte transfer, before commit and after destination commit; prohibit source disposition when cancellation wins its authorization check, and report actual committed/unknown results when cancelling an already-started source-Trash step (A4, A7).
@@ -315,6 +315,8 @@ Use the existing guarded runner and independent prompt sentries for installed ch
 ---
 
 ## Build Log
+
+- **T2** The actual helper journal is exercised directly: a repeated accept returns the accepted record while a changed intent is refused, missing and corrupt records and a reset epoch remain errors, acknowledgment and tombstone lookup retain the terminal result, and an unknown receipt is reconciled without resubmission. The added interrupted-snapshot case writes a temporary beside the record and proves it is never read as a record and that the accepted intent survives a reopen, so a sent mutation cannot be reset to a state that is safe to replay. At `036d4906`, all nine journal checks passed on Foundry.
 
 - **C18** Reconciled the remote guide, the user guide and the reliability review with implemented behaviour and recorded verification. Both guides now describe verified readiness, the bounded recovery budget and its wording, per-item results (confirmed, skipped, failed and unknown separately), cancellation wording, Check Result, Restore Original, source-retained move copies and the independent Remote Operations window, and they correct the previous claim that interrupted remote copies resume. The review records a per-finding status with its proving run and keeps every unproved limit: the live Linux and Windows matrices, the SFTP late-writer case, native Trash handoff, interrupted installed journeys and the Windows host timeout. Documentation only; validated with markdownlint.
 
