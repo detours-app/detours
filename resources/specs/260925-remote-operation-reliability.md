@@ -255,7 +255,7 @@ Marco clarified on 2026-09-26 that each code task includes its corresponding tes
 **Phase 4: Expose the same truth throughout the app**
 
 - [x] **C15** Update RemoteOperationError, OperationDetailPopover, StatusBarView, PaneViewController operation/remote-host extensions and MainSplitViewController pane wiring to consume stable result snapshots.
-- [ ] **C16** Restore unfinished operation records on startup, run one bounded status pass and keep unresolved details accessible independently of tab restoration and later operations.
+- [x] **C16** Restore unfinished operation records on startup, run one bounded status pass and keep unresolved details accessible independently of tab restoration and later operations.
 - [ ] **C17** Replace simulator-only cancellation/backoff closure tests with dependency controls around the actual implementation, and extend guarded fixtures for receipt and filesystem evidence.
 - [ ] **C18** Reconcile the remote guide, user guide and review finding status with implemented behaviour and recorded verification, retaining any unproved limits.
 
@@ -315,6 +315,8 @@ Use the existing guarded runner and independent prompt sentries for installed ch
 ---
 
 ## Build Log
+
+- **C16** Startup loads retained operation records, checks unresolved items through one bounded, cancellable status pass and exposes every saved result in an independent Remote Operations window reached from the Window menu, so details survive tab restoration, local navigation and later operations. The window lists results that still carry items, puts unresolved ones first and rebinds an open selection as revisions arrive; each detail stays bound to its operation and offers status-only Check Result, receipt-bound Undo and non-replacing Restore Original. Record rows now carry an explicit rectangle hit shape, so selecting a row by its centre opens its details. At `68244863`, the signed Foundry build and all 36 recovery, presentation, store, session and local-transfer checks passed, and the guarded installed journey for `testSavedRemoteResultSurvivesRestartAndLocalNavigation` passed in 35.562 seconds with one test, zero failures/skips, zero consent events and verified cleanup: it restored the saved Folder result after returning to local navigation, opened its devtest host, destination, confirmed location and Undo, then reversed the created folder while preserving the local pane.
 
 - **C15** Status and details consume revisioned operation snapshots, count selected items rather than transfer phases and retain confirmed, partial, unknown, cancellation and source-retained outcomes. Details stay bound to their operation across later work, show recorded and recovery locations, and expose status-only Check Result, receipt-bound undo and non-replacing Restore Original. Confirmed reversals disable repeated Undo without another host mutation. Connection banners distinguish readiness, recovery and exhaustion; item details explain typed preflight failures and remote errors no longer advise ambiguous mutation retries. At `7cef30d2`, the signed build and 66 focused checks passed. At `bf6311a9`, all 19 additional undo/display checks passed. At `3bbc9e09`, all 23 banner/display/refresh checks and the guarded installed folder result/Undo journey passed, with zero prompts/skips, verified cleanup and an inspected screenshot showing devtest and readable paths. Startup restoration and independent retained-results access remain C16; interrupted installed journeys remain T16.
 
