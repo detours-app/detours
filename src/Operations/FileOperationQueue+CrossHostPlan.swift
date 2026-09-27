@@ -19,8 +19,8 @@ extension FileOperationQueue {
         var conflict = OperationIntent.Conflict.createNew
         let proof: OperationObservation?
         if case .found(let value) = observed.result { proof = value } else { proof = nil }
-        if let proof, proof.kind != .file || proof.sha256 == nil {
-            throw FileProviderError.unsupportedOperation("This transfer requires a verified regular file.")
+        if let proof, proof.sha256 == nil {
+            throw FileProviderError.unsupportedOperation("This transfer requires verified source content.")
         }
         if failure == nil {
             switch target.result {
@@ -48,28 +48,56 @@ extension FileOperationQueue {
         }
         let staged = stagingDirectory.appendingPathComponent(UUID().uuidString)
         var payload: OperationContentProof?
+        var treeProof: OperationContentProof?
+        var original: OperationManifest?
+        var work = RemoteOperationCoordinator.Work.upload(staged)
+        var omissions: [(URL, Error)] = []
         if failure == nil, conflict != .skip, let proof {
-            try await sourceProvider.download(source, to: staged)
-            let directory = try OperationDirectory(path: Data(stagingDirectory.path.utf8))
-            let downloaded = try directory.proveFile(Data(staged.lastPathComponent.utf8), progress: { _ in
-                try Task.checkCancellation()
-            })
-            let after = try await coordinator.lookup(sourcePath, hostID: sourceHost, proveContent: true)
-            guard case .found(let afterProof) = after.result, afterProof == proof, downloaded.byteCount == proof.byteCount,
-                  downloaded.sha256 == proof.sha256, let digest = downloaded.sha256 else {
-                throw OperationFilesystemError.identityChanged
+            if proof.kind == .file {
+                try await sourceProvider.download(source, to: staged)
+                let parent = try OperationDirectory(path: Data(stagingDirectory.path.utf8))
+                let downloaded = try parent.proveFile(Data(staged.lastPathComponent.utf8), progress: { _ in try Task.checkCancellation() })
+                guard downloaded.byteCount == proof.byteCount, downloaded.sha256 == proof.sha256,
+                      let digest = downloaded.sha256 else { throw OperationFilesystemError.identityChanged }
+                payload = .init(byteCount: downloaded.byteCount, sha256: digest)
+            } else {
+                guard case .found(let manifest) = try await coordinator.sourceManifest(sourcePath, hostID: sourceHost).result,
+                      manifest.entries.first?.observation.identity == proof.identity, manifest.proof.sha256 == proof.sha256 else {
+                    throw OperationFilesystemError.identityChanged
+                }
+                original = manifest
+                if sourceProvider.supportsSymbolicLinks && destinationProvider.supportsSymbolicLinks {
+                    omissions = try await SymlinkTransferWalker(provider: sourceProvider).stage(source, to: staged)
+                } else {
+                    try await stageLocation(source, provider: sourceProvider, to: staged)
+                }
+                let prepared = try prepareStagedTransfer(staged, in: stagingDirectory)
+                (payload, treeProof, work) = prepared
+                guard case .found(let current) = try await coordinator.sourceManifest(sourcePath, hostID: sourceHost).result,
+                      current == manifest else { throw OperationFilesystemError.identityChanged }
             }
-            payload = .init(byteCount: downloaded.byteCount, sha256: digest)
+            let after = try await coordinator.lookup(sourcePath, hostID: sourceHost, proveContent: true)
+            guard case .found(let current) = after.result, current == proof else { throw OperationFilesystemError.identityChanged }
         }
         let copy = OperationIntent(id: .init(operation: plan.operation, item: UUID()), action: .copy,
             sources: [observed.location], destination: target.location, sourceObservations: proof.map { [$0] } ?? [],
-            conflict: conflict, payloadProof: payload)
-        plan.items.append(.init(intent: copy, hostID: plan.hostID, work: .upload(staged), preflightFailure: failure))
+            conflict: conflict, payloadProof: payload, sourceManifest: original, treeProof: treeProof)
+        plan.items.append(.init(intent: copy, hostID: plan.hostID, work: work, preflightFailure: failure))
         var children = [copy.id]
+        for (path, error) in omissions {
+            let omittedPath = try await sourceProvider.operationPath(.remote(hostID: sourceHost, path: path.path))
+            let omitted = OperationIntent(id: .init(operation: plan.operation, item: UUID()), action: .copy,
+                sources: [.init(account: observed.location.account, path: omittedPath)], destination: nil,
+                sourceObservations: [], conflict: .createNew)
+            let reason: RemoteOperationStore.PreflightFailure
+            if let error = error as? FileOperationError, case .linkLoops = error { reason = .linkLoop } else { reason = .linkTargetMissing }
+            plan.items.append(.init(intent: omitted, hostID: sourceHost, work: .execute, preflightFailure: reason))
+            children.append(omitted.id)
+        }
         if isMove, conflict != .skip {
             let trash = OperationIntent(id: .init(operation: plan.operation, item: UUID()), action: .trash,
-                sources: [observed.location], destination: nil, sourceObservations: proof.map { [$0] } ?? [], conflict: .createNew)
-            plan.items.append(.init(intent: trash, hostID: sourceHost, work: .execute, requiresVerified: [copy.id]))
+                sources: [observed.location], destination: nil, sourceObservations: proof.map { [$0] } ?? [], conflict: .createNew, sourceManifest: original)
+            plan.items.append(.init(intent: trash, hostID: sourceHost, work: .execute, requiresVerified: children))
             children.append(trash.id)
         }
         plan.selections.append(.init(id: .init(operation: plan.operation, item: UUID()), action: isMove ? .move : .copy,

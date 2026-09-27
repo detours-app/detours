@@ -2,6 +2,8 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry imported-tree publication | `b3a2280` | FAIL: signed build and all 13 Unix/protocol/archive checks passed. The live Windows import test timed out with “The remote process stopped making progress”; 14 checks completed in 12.537 seconds. Checking Windows reachability before attributing the failure to import logic. |
+| devtest imported-tree helper rebuild | `b3a2280` | PASS: all 140 container checks passed, comprising 18 process checks in 11.895 seconds and 122 filesystem/archive/journal checks in 16.908 seconds. Linux helper rebuilt; Foundry build and focused checks continue. |
 | Foundry source recovery manifest | `649cf5e` | PASS: signed build and all 25 focused checks passed in 0.716 seconds. Recovery rejects an identical-byte nested replacement after the actual Trash move, retains the verified destination, and sends no replay. |
 | devtest source recovery rebuild | `649cf5e` | PASS: all 140 container checks passed, comprising 18 process checks in 11.987 seconds and 122 filesystem/archive/journal checks in 17.031 seconds; both helpers rebuilt. |
 | Foundry source identity and actual Trash verification | `4d87d28` | PASS: signed build and all 33 focused checks passed in 57.785 seconds. Actual changed Trash content is restored while the verified destination remains; identical-byte nested replacements after copies prevent folder disposal. Both live Windows cases passed, including complete/failed merges and original-child manifest enforcement. Cross-host file and recorded Trash/restore regressions remain green. |

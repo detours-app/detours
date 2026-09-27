@@ -576,7 +576,7 @@ extension FileOperationQueue {
         return successes
     }
 
-    private func stageLocation(_ location: Location, provider: any FileProvider, to localURL: URL) async throws {
+    func stageLocation(_ location: Location, provider: any FileProvider, to localURL: URL) async throws {
         let entry = try await provider.stat(location)
         if entry.isDirectory {
             try FileManager.default.createDirectory(at: localURL, withIntermediateDirectories: true)
