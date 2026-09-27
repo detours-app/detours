@@ -2,6 +2,7 @@ import AppKit
 import XCTest
 import RemoteOperationSupport
 @testable import Detours
+@testable import detours_server
 
 /// T19 and T11/T17 lifecycle pieces: the copy/move matrix across local and
 /// remote panes updates source and destination panes, selects every
@@ -56,8 +57,8 @@ final class CopyMoveMatrixTests: XCTestCase {
         return (splitVC, window)
     }
 
-    /// The app's UI-test remote provider for reads, bound to a real accepted-operation service
-    /// whose journal and commit rules the coordinator uses, so copy and move run through it.
+    /// The app's UI-test remote provider for reads, bound to the real helper service so copy and
+    /// move run through the coordinator with recorded operation paths and native move support.
     private func installRemoteTab(
         in pane: PaneViewController,
         base: URL,
@@ -66,13 +67,23 @@ final class CopyMoveMatrixTests: XCTestCase {
         let host = RemoteHost(displayName: "Matrix \(registeredHostIDs.count)", sshTarget: "matrix@localhost")
         let provider = UITestRemoteProvider(hostID: host.id, base: base)
         let account = OperationAccount(hostIdentity: host.id.uuidString, accountIdentity: "matrix")
-        let journal = try await OperationJournal(
-            root: base.standardizedFileURL.appendingPathComponent(".detours-operation-journal", isDirectory: true),
-            account: account)
-        let service = LocalTransferService(journal: journal)
-        await provider.bindOperationService(service)
+        let root = base.standardizedFileURL
+        let service = try await ServerOperationService(
+            root: root.appendingPathComponent(".detours-operation-host", isDirectory: true),
+            account: account, homeDirectory: root)
+        let session = RemoteHostSession(transport: CoordinatorTransport(service: service),
+            idleGrace: .milliseconds(30), publish: { _, _ in })
+        let upload: @Sendable (URL, OperationRequestIdentity) async throws -> OperationReceipt = { url, identity in
+            guard case .receipt(let receipt) = try await service.reply(
+                to: .prepareUpload(identity: identity, contents: Data(contentsOf: url))) else {
+                throw OperationContractError.invalidReceipt
+            }
+            return receipt
+        }
+        await provider.bindOperationService(request: { try await service.reply(to: $0) }, upload: upload)
         FileOperationQueue.shared.registerRemoteFileProvider(provider, for: host.id, displayName: host.displayName,
-            operationEndpoint: service.endpoint())
+            operationEndpoint: RemoteOperationCoordinator.Endpoint(session: session,
+                request: { try await service.reply(to: $0) }, upload: upload))
         registeredHostIDs.append(host.id)
         let fileList = try XCTUnwrap(pane.selectedTab).fileListViewController
         fileList.loadRemoteDirectory(host: host, path: path, provider: provider)

@@ -475,26 +475,31 @@ actor UITestRemoteProvider: FileProvider {
 
     // MARK: - Accepted operations
 
-    private var operationService: LocalTransferService?
+    private var operationRequestHandler: (@Sendable (OperationRequest) async throws -> OperationReply)?
+    private var uploadHandler: (@Sendable (URL, OperationRequestIdentity) async throws -> OperationReceipt)?
 
-    /// Binds the accepted-operation service whose journal and commit rules the coordinator uses,
+    /// Binds the accepted-operation handlers whose journal and commit rules the coordinator uses,
     /// with operation paths mapped into this provider's confined root.
-    func bindOperationService(_ service: LocalTransferService) {
-        operationService = service
+    func bindOperationService(
+        request: @escaping @Sendable (OperationRequest) async throws -> OperationReply,
+        upload: @escaping @Sendable (URL, OperationRequestIdentity) async throws -> OperationReceipt
+    ) {
+        operationRequestHandler = request
+        uploadHandler = upload
     }
 
     func operationRequest(_ request: OperationRequest) async throws -> OperationReply {
-        guard let operationService else {
+        guard let operationRequestHandler else {
             throw FileProviderError.unsupportedOperation("UI-test remote host has no operation service.")
         }
-        return try await operationService.reply(request)
+        return try await operationRequestHandler(request)
     }
 
     func prepareAcceptedUpload(_ localURL: URL, identity: OperationRequestIdentity) async throws -> OperationReceipt {
-        guard let operationService else {
+        guard let uploadHandler else {
             throw FileProviderError.unsupportedOperation("UI-test remote host has no operation service.")
         }
-        return try await LocalTransferPublication.prepare(localURL, identity: identity, journal: operationService.journal)
+        return try await uploadHandler(localURL, identity)
     }
 
     func operationPath(_ location: Location) async throws -> OperationLocation.Path {
