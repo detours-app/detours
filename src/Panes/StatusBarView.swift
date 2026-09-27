@@ -228,6 +228,21 @@ final class StatusBarView: NSView {
         postAccessibilityAnnouncement(message)
     }
 
+    func showRemoteResult(_ result: RemoteOperationPresentation) {
+        let changed = label.stringValue != result.summary
+        completionWorkItem?.cancel()
+        completionWorkItem = nil
+        mode = .paused
+        progressBar.isHidden = true
+        progressLabel.isHidden = true
+        label.isHidden = false
+        label.stringValue = result.summary
+        label.textColor = statusTextColor(for: ThemeManager.shared.currentTheme)
+        label.lineBreakMode = .byTruncatingMiddle
+        needsDisplay = true
+        if changed { postAccessibilityAnnouncement(result.summary) }
+    }
+
     func showCompletion(message: String) {
         completionWorkItem?.cancel()
         mode = .completion

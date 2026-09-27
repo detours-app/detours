@@ -3,6 +3,12 @@ import AppKit
 extension PaneViewController {
     private func showDetailPopover() {
         let queue = FileOperationQueue.shared
+        if let result = remoteResultPresentation {
+            let popover = OperationDetailPopover(result: result)
+            popover.show(relativeTo: statusBar.bounds, of: statusBar, preferredEdge: .maxY)
+            detailPopover = popover
+            return
+        }
         guard let operation = queue.currentOperation ?? queue.lastFinishedOperation else { return }
         let progress = queue.lastReceivedProgress ?? FileOperationProgress(
             operation: operation,
@@ -17,6 +23,30 @@ extension PaneViewController {
         }
         popover.show(relativeTo: statusBar.bounds, of: statusBar, preferredEdge: .maxY)
         detailPopover = popover
+    }
+
+    func showRemoteResult(_ result: RemoteOperationPresentation) {
+        guard !result.snapshot.items.isEmpty else { return }
+        detailPopover?.update(result)
+        let queue = FileOperationQueue.shared
+        guard queue.currentRemoteResultID == result.id || remoteResultPresentation?.id == result.id else { return }
+        remoteResultPresentation = result
+        ensureOperationStatusBarVisible()
+        statusBar.onProgressClick = { [weak self] in self?.showDetailPopover() }
+        statusBar.showRemoteResult(result)
+    }
+
+    private func ensureOperationStatusBarVisible() {
+        if statusBar.isHidden {
+            operationStatusBarForceShown = true
+            statusBar.isHidden = false
+            statusBarBottomConstraint?.isActive = false
+            tabContainerBottomConstraint?.isActive = false
+            tabContainerBottomConstraint = tabContainer.bottomAnchor.constraint(equalTo: statusBar.topAnchor)
+            statusBarBottomConstraint = statusBar.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+            tabContainerBottomConstraint?.isActive = true
+            statusBarBottomConstraint?.isActive = true
+        }
     }
 
     func closeDetailPopover() {
@@ -43,6 +73,7 @@ extension PaneViewController {
             statusBarBottomConstraint?.isActive = true
         }
 
+        remoteResultPresentation = nil
         statusBar.showProgress(progress, isDestination: isDestination)
         statusBar.onProgressClick = { [weak self] in
             self?.showDetailPopover()
@@ -55,16 +86,7 @@ extension PaneViewController {
     }
 
     func showOperationPaused(_ message: String) {
-        if statusBar.isHidden {
-            operationStatusBarForceShown = true
-            statusBar.isHidden = false
-            statusBarBottomConstraint?.isActive = false
-            tabContainerBottomConstraint?.isActive = false
-            tabContainerBottomConstraint = tabContainer.bottomAnchor.constraint(equalTo: statusBar.topAnchor)
-            statusBarBottomConstraint = statusBar.bottomAnchor.constraint(equalTo: view.bottomAnchor)
-            tabContainerBottomConstraint?.isActive = true
-            statusBarBottomConstraint?.isActive = true
-        }
+        ensureOperationStatusBarVisible()
 
         statusBar.showPaused(message: message)
         statusBar.onProgressClick = { [weak self] in

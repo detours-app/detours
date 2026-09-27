@@ -306,6 +306,7 @@ extension FileOperationQueue {
         hostIDs: Set<UUID>,
         _ work: @escaping () async throws -> T
     ) async throws -> T {
+        currentRemoteResultID = nil
         guard !hostIDs.isEmpty else {
             return try await work()
         }
@@ -402,6 +403,9 @@ extension FileOperationQueue {
         remoteOperationEndpoints = [:]
         acceptedCoordinator = nil
         remoteOperationResults = [:]
+        activeRemoteResultIDs = []
+        currentRemoteResultID = nil
+        onRemoteResultUpdate = nil
         currentOperation = nil
         lastFinishedOperation = nil
         lastReceivedProgress = nil

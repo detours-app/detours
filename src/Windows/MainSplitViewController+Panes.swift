@@ -7,6 +7,11 @@ extension MainSplitViewController {
     func setupActivityCallbacks() {
         let queue = FileOperationQueue.shared
 
+        queue.onRemoteResultUpdate = { [weak self] result in
+            self?.leftPane.showRemoteResult(result)
+            self?.rightPane.showRemoteResult(result)
+        }
+
         queue.onOperationStart = { [weak self] operation, totalCount in
             guard let self else { return }
             let progress = FileOperationProgress(
@@ -44,6 +49,11 @@ extension MainSplitViewController {
 
         queue.onOperationFinish = { [weak self] operation, error in
             guard let self else { return }
+            if let id = queue.currentRemoteResultID, let snapshot = queue.remoteOperationResults[id], !snapshot.items.isEmpty {
+                self.leftPane.showRemoteResult(queue.remotePresentation(snapshot))
+                self.rightPane.showRemoteResult(queue.remotePresentation(snapshot))
+                return
+            }
 
             if let error {
                 if let opError = error as? FileOperationError, case .cancelled = opError {

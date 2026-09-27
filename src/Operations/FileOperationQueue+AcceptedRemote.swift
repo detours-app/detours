@@ -4,12 +4,10 @@ import RemoteOperationSupport
 
 struct RemoteBatchFailure: LocalizedError {
     let snapshot: RemoteOperationStore.Snapshot
+    var recoverySuggestion: String? { "Open operation details to check the recorded result and available recovery actions." }
 
     var errorDescription: String? {
-        let completed = snapshot.items.filter { $0.outcome == .committed }.count
-        let unknown = snapshot.items.filter { $0.outcome == .unknown }.count
-        if unknown > 0 { return "\(completed) items completed; the result of \(unknown) items could not be confirmed." }
-        return "\(completed) items completed; some requested changes were not completed."
+        RemoteOperationPresentation(snapshot: snapshot, active: false, hostNames: [:]).summary
     }
 }
 
@@ -45,6 +43,8 @@ extension FileOperationQueue {
         let provider = try remoteProvider(for: hostID)
         let coordinator = try operationCoordinator()
         let operation = try await coordinator.create()
+        await beginRemoteResult(operation, coordinator: coordinator)
+        defer { finishRemoteResult(operation) }
         var plan = RemoteTransferPlan(hostID: hostID, operation: operation, mergeDirectories: isWindowsDestination(destination))
         let directory = try await provider.operationPath(destination)
         let staging = FileManager.default.temporaryDirectory.appendingPathComponent("detours-transfer-\(UUID().uuidString)")

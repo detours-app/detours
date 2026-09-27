@@ -38,11 +38,24 @@ actor RemoteOperationCoordinator {
 
     func create() throws -> UUID {
         let operation = UUID()
-        try store.save(.init(operation: operation))
+        try save(.init(operation: operation))
         return operation
     }
 
     func snapshot(_ operation: UUID) throws -> RemoteOperationStore.Snapshot { try store.load(operation) }
+
+    private var resultObserver: (@Sendable (RemoteOperationStore.Snapshot) -> Void)?
+
+    func observeResults(_ observer: @escaping @Sendable (RemoteOperationStore.Snapshot) -> Void) {
+        resultObserver = observer
+    }
+
+    @discardableResult
+    private func save(_ snapshot: RemoteOperationStore.Snapshot) throws -> RemoteOperationStore.Snapshot {
+        let saved = try store.save(snapshot)
+        resultObserver?(saved)
+        return saved
+    }
 
     func recordSelections(_ selections: [OperationIntent], operation: UUID) throws {
         var snapshot = try store.load(operation)
@@ -52,7 +65,7 @@ actor RemoteOperationCoordinator {
             throw OperationContractError.intentMismatch
         }
         snapshot.selections = recorded
-        try store.save(snapshot)
+        try save(snapshot)
     }
 
     func lookup(_ path: OperationLocation.Path, hostID: UUID, proveContent: Bool = false) async throws
@@ -120,7 +133,7 @@ actor RemoteOperationCoordinator {
                                              intentDigest: try OperationContentProof.data(planned.intent.canonicalData()).sha256)
         snapshot.items.append(.init(hostID: planned.hostID, result: result, preflightFailure: planned.preflightFailure,
             requiresVerified: planned.requiresVerified.isEmpty ? nil : planned.requiresVerified))
-        try store.save(snapshot)
+        try save(snapshot)
     }
 
     func restore() throws -> [RemoteOperationStore.Snapshot] {
@@ -129,7 +142,7 @@ actor RemoteOperationCoordinator {
             for index in next.items.indices where next.items[index].pending != nil {
                 next.items[index].result.loseContact()
             }
-            return next == saved ? saved : try store.save(next)
+            return next == saved ? saved : try save(next)
         }
     }
 
@@ -151,7 +164,7 @@ actor RemoteOperationCoordinator {
                 var snapshot = try store.load(intent.id.operation)
                 let position = try index(intent.id, in: snapshot)
                 snapshot.items[position].result.loseContact()
-                try store.save(snapshot)
+                try save(snapshot)
                 return snapshot.items[position].result
             }
             if !previous.sent.isEmpty || previous.result.cancellationRequested || intent.conflict == .skip || previous.preflightFailure != nil {
@@ -173,7 +186,7 @@ actor RemoteOperationCoordinator {
                 try ready.handshake.validate(expectedAccount: previous.result.account, expectedEpoch: previous.result.epoch)
             } else {
                 snapshot.items.append(.init(hostID: hostID, result: result))
-                try store.save(snapshot)
+                try save(snapshot)
             }
             if intent.conflict == .skip { return result }
             do {
@@ -211,7 +224,7 @@ actor RemoteOperationCoordinator {
                 if failed.items[index].pending != nil || !(error is CancellationError || error as? OperationContractError == .cancelled) {
                     failed.items[index].result.loseContact()
                 }
-                try store.save(failed)
+                try save(failed)
                 if failed.items[index].sent.isEmpty { throw error }
                 return failed.items[index].result
             }
@@ -239,7 +252,7 @@ actor RemoteOperationCoordinator {
         } catch {
             var snapshot = try store.load(id.operation)
             snapshot.items[try index(id, in: snapshot)].result.loseContact()
-            try store.save(snapshot)
+            try save(snapshot)
             throw error
         }
         return try item(id).result
@@ -249,7 +262,7 @@ actor RemoteOperationCoordinator {
         var snapshot = try store.load(operation)
         snapshot.record.requestCancellation()
         for index in snapshot.items.indices { snapshot.items[index].result.requestCancellation() }
-        snapshot = try store.save(snapshot)
+        snapshot = try save(snapshot)
         var failure: Error?
         for item in snapshot.items where !item.sent.isEmpty {
             do {
@@ -263,7 +276,7 @@ actor RemoteOperationCoordinator {
                 failure = error
                 var current = try store.load(operation)
                 current.items[try index(item.identity.id, in: current)].result.loseContact()
-                try store.save(current)
+                try save(current)
             }
         }
         if let failure { throw failure }
@@ -272,7 +285,7 @@ actor RemoteOperationCoordinator {
     func takeUndoRegistration(_ id: OperationItemID) throws -> OperationReceipt? {
         var snapshot = try store.load(id.operation)
         let receipt = snapshot.items[try index(id, in: snapshot)].result.takeUndoRegistration()
-        if receipt != nil { try store.save(snapshot) }
+        if receipt != nil { try save(snapshot) }
         return receipt
     }
 
@@ -305,7 +318,7 @@ actor RemoteOperationCoordinator {
         item.sent.insert(step)
         item.pending = step
         snapshot.items[position] = item
-        try store.save(snapshot)
+        try save(snapshot)
         // Persist before the transport can write its first byte. Any failed exchange remains non-replayable.
         let reply = try await send(item.identity)
         try consume(reply, id: id, completed: step)
@@ -337,7 +350,7 @@ actor RemoteOperationCoordinator {
             item.result.loseContact()
         }
         snapshot.items[position] = item
-        try store.save(snapshot)
+        try save(snapshot)
     }
 
     private func validate(_ item: RemoteOperationStore.Item, endpoint: Endpoint) async throws {

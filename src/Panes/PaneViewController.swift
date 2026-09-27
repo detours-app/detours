@@ -51,6 +51,7 @@ final class PaneViewController: NSViewController {
     let tabContainer = NSView()
     let statusBar = StatusBarView()
     var detailPopover: OperationDetailPopover?
+    var remoteResultPresentation: RemoteOperationPresentation?
     var operationStatusBarForceShown = false
 
     var tabs: [PaneTab] = []

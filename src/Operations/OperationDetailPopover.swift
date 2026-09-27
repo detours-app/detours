@@ -13,11 +13,13 @@ final class ProgressModel {
 
 @MainActor
 final class OperationDetailPopover: NSPopover {
-    private let model: ProgressModel
+    private var model: ProgressModel?
+    private var resultModel: RemoteResultModel?
     private var onCancel: (() -> Void)?
 
     init(progress: FileOperationProgress, onCancel: @escaping () -> Void) {
-        self.model = ProgressModel(progress: progress)
+        let model = ProgressModel(progress: progress)
+        self.model = model
         self.onCancel = onCancel
         super.init()
 
@@ -32,13 +34,26 @@ final class OperationDetailPopover: NSPopover {
         contentViewController = viewController
     }
 
+    init(result: RemoteOperationPresentation) {
+        let resultModel = RemoteResultModel(result)
+        self.resultModel = resultModel
+        super.init()
+        behavior = .semitransient
+        contentSize = NSSize(width: 480, height: 400)
+        let controller = NSViewController()
+        controller.view = NSHostingView(rootView: RemoteOperationDetailView(model: resultModel))
+        contentViewController = controller
+    }
+
+    func update(_ result: RemoteOperationPresentation) { resultModel?.update(result) }
+
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
     func update(_ progress: FileOperationProgress) {
-        model.progress = progress
+        model?.progress = progress
     }
 }
 

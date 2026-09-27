@@ -131,7 +131,7 @@ extension PaneViewController {
     private func showReconnectBanner(for host: RemoteHost) {
         // Honor a manual dismissal until the host actually reconnects.
         guard dismissedReconnectHostID != host.id else { return }
-        reconnectBannerLabel.stringValue = "Connection lost for \(host.displayName)"
+        reconnectBannerLabel.stringValue = "Couldn't reconnect to \(host.displayName)."
         reconnectBanner.isHidden = false
         reconnectBannerHeightConstraint?.constant = 30
     }

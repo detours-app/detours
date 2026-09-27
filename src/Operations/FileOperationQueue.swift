@@ -148,7 +148,16 @@ final class FileOperationQueue {
     var remoteFileProviders: [UUID: any FileProvider] = [:]
     var remoteOperationEndpoints: [UUID: RemoteOperationCoordinator.Endpoint] = [:]
     var acceptedCoordinator: RemoteOperationCoordinator?
-    var remoteOperationResults: [UUID: RemoteOperationStore.Snapshot] = [:]
+    var remoteOperationResults: [UUID: RemoteOperationStore.Snapshot] = [:] {
+        didSet {
+            for (id, snapshot) in remoteOperationResults where oldValue[id] != snapshot {
+                onRemoteResultUpdate?(remotePresentation(snapshot))
+            }
+        }
+    }
+    var onRemoteResultUpdate: ((RemoteOperationPresentation) -> Void)?
+    var activeRemoteResultIDs: Set<UUID> = []
+    var currentRemoteResultID: UUID?
     var remoteHostNames: [UUID: String] = [:]
     var pausedRemoteHosts: Set<UUID> = []
     var currentRemoteOperationHosts: Set<UUID> = []
