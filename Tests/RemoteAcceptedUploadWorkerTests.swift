@@ -24,7 +24,12 @@ final class RemoteAcceptedUploadWorkerTests: XCTestCase {
         XCTAssertFalse(worker.process.isRunning)
         let expectedHandshake = Data([3]) + (try OperationStreamHandshake(identity: identity).encoded())
         let expected = try RPCStreamHandler.encodeFrame(expectedHandshake) + payload
-        XCTAssertEqual(try Data(contentsOf: received), expected)
+        let receivedData = try Data(contentsOf: received)
+        if receivedData != expected {
+            let firstDifference = zip(receivedData, expected).enumerated().first { $0.element.0 != $0.element.1 }?.offset
+            let differenceCount = zip(receivedData, expected).reduce(0) { $0 + ($1.0 == $1.1 ? 0 : 1) }
+            XCTFail("received != expected; firstDifference=\(firstDifference.map(String.init) ?? "none") differences=\(differenceCount) received=\(receivedData.count) expected=\(expected.count) frame=\(expectedHandshake.count)")
+        }
     }
 
     func testCancellationStopsStreamingWriterAndReaderAfterActualBytes() async throws {
