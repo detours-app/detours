@@ -88,7 +88,11 @@ public enum OperationRequest: Codable, Equatable, Sendable {
                    requiredCapabilities: Set(OperationCapability.allCases))
     }
 
-    public func encoded() throws -> Data { try JSONEncoder().encode(self) }
+    public func encoded() throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return try encoder.encode(self)
+    }
     public static func decode(_ data: Data) throws -> Self { try JSONDecoder().decode(Self.self, from: data) }
 }
 
@@ -105,7 +109,11 @@ public enum OperationReply: Codable, Equatable, Sendable {
     case receipt(OperationReceipt)
     case incompatible(OperationCompatibilityError)
 
-    public func encoded() throws -> Data { try JSONEncoder().encode(self) }
+    public func encoded() throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return try encoder.encode(self)
+    }
     public static func decode(_ data: Data) throws -> Self { try JSONDecoder().decode(Self.self, from: data) }
 }
 
@@ -128,7 +136,11 @@ public struct OperationStreamHandshake: Codable, Equatable, Sendable {
         self.identity = identity
     }
 
-    public func encoded() throws -> Data { try JSONEncoder().encode(self) }
+    public func encoded() throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return try encoder.encode(self)
+    }
 
     public static func decode(_ data: Data) throws -> Self {
         let handshake = try JSONDecoder().decode(Self.self, from: data)
