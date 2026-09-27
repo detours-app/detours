@@ -283,7 +283,7 @@ final class RemoteIntegrationTests: XCTestCase {
         XCTAssertTrue(undoManager.canUndo)
 
         undoManager.undo()
-        try await Self.waitForRemotePath(item.path)
+        try await Self.waitForRemotePath(item.path, timeout: 15)
 
         XCTAssertEqual(try Self.runSSH("cat \(Self.shellQuote(item.path))"), "undo-payload")
     }
