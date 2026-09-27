@@ -159,6 +159,7 @@ actor WindowsFakeFSTransport: PowerShellChannelTransport {
 }
 
 struct WindowsConflictFakeSFTP: WindowsSFTPClient {
+    func isAvailable() async -> Bool { true }
     func download(remotePath: String, to localURL: URL) async throws {}
     func upload(localURL: URL, remotePath: String) async throws {}
 }

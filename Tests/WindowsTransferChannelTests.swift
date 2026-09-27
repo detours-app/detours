@@ -75,6 +75,44 @@ final class WindowsTransferChannelTests: XCTestCase {
         XCTAssertEqual(kinds, ["prepareIngress"])
     }
 
+    func testProviderChoosesFallbackOnlyOnUnavailableCapability() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let local = try createTestFile(in: temp, name: "upload", content: "payload")
+        let (identity, receipt) = acceptedFixture(phase: .readyToCommit)
+        let response = try XCTUnwrap(String(bytes: OperationReply.receipt(receipt).encoded(), encoding: .utf8))
+        let transport = TransferScriptTransport(responses: ["AcceptedUpload": response])
+        let channel = PowerShellChannel(transport: transport)
+        let transfer = WindowsTransferChannel(powerShellChannel: channel, sftpClient: UnavailableWindowsSFTPClient())
+        let provider = WindowsRemoteProvider(hostID: UUID(), channel: channel, transferChannel: transfer)
+
+        let result = try await provider.prepareAcceptedUpload(local, identity: identity)
+
+        XCTAssertEqual(result, receipt)
+        let kinds = await transport.requestKinds
+        XCTAssertEqual(kinds, ["prepareUpload"], "An unavailable host selects the bounded fallback before any payload moves")
+    }
+
+    func testProviderUsesIngressWhenSFTPAvailable() async throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+        let local = try createTestFile(in: temp, name: "upload", content: "payload")
+        let (identity, receipt) = acceptedFixture(phase: .preparing)
+        let response = try XCTUnwrap(String(bytes: OperationReply.receipt(receipt).encoded(), encoding: .utf8))
+        let transport = TransferScriptTransport(responses: ["AcceptedUpload": response])
+        let channel = PowerShellChannel(transport: transport)
+        let sftp = RecordingWindowsSFTPClient()
+        let transfer = WindowsTransferChannel(powerShellChannel: channel, sftpClient: sftp)
+        let provider = WindowsRemoteProvider(hostID: UUID(), channel: channel, transferChannel: transfer)
+
+        _ = try? await provider.prepareAcceptedUpload(local, identity: identity)
+
+        let uploads = await sftp.uploads
+        XCTAssertEqual(uploads, 1, "An available host must upload payload through SFTP ingress")
+        let kinds = await transport.requestKinds
+        XCTAssertEqual(kinds, ["prepareIngress", "sealIngress"])
+    }
+
     private func acceptedFixture(phase: OperationPhase) -> (OperationRequestIdentity, OperationReceipt) {
         let identity = OperationRequestIdentity(id: .init(operation: UUID(), item: UUID()),
             account: .init(hostIdentity: "windows", accountIdentity: "user"), epoch: UUID(), intentDigest: "intent")
@@ -182,6 +220,8 @@ private actor PartialScriptedSFTP: WindowsSFTPClient {
 
     init(byteCounts: [Int]) { self.byteCounts = byteCounts }
 
+    func isAvailable() async -> Bool { true }
+
     func download(remotePath: String, to localURL: URL) async throws {
         let count = index < byteCounts.count ? byteCounts[index] : 0
         index += 1
@@ -192,6 +232,20 @@ private actor PartialScriptedSFTP: WindowsSFTPClient {
 }
 
 private struct FailingWindowsSFTPClient: WindowsSFTPClient {
+    func isAvailable() async -> Bool { false }
+
+    func download(remotePath: String, to localURL: URL) async throws {
+        throw RemoteTransferError.processFailed("sftp unavailable")
+    }
+
+    func upload(localURL: URL, remotePath: String) async throws {
+        throw RemoteTransferError.processFailed("sftp unavailable")
+    }
+}
+
+private struct UnavailableWindowsSFTPClient: WindowsSFTPClient {
+    func isAvailable() async -> Bool { false }
+
     func download(remotePath: String, to localURL: URL) async throws {
         throw RemoteTransferError.processFailed("sftp unavailable")
     }
@@ -262,6 +316,7 @@ private extension JSONEncoder {
 
 private actor RecordingWindowsSFTPClient: WindowsSFTPClient {
     private(set) var uploads = 0
+    func isAvailable() async -> Bool { true }
     func download(remotePath: String, to localURL: URL) async throws {}
     func upload(localURL: URL, remotePath: String) async throws { uploads += 1 }
 }

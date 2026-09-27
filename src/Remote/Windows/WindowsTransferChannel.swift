@@ -28,6 +28,7 @@ enum WindowsTransferError: Error, Equatable, LocalizedError {
 }
 
 protocol WindowsSFTPClient: Sendable {
+    func isAvailable() async -> Bool
     func download(remotePath: String, to localURL: URL) async throws
     func upload(localURL: URL, remotePath: String) async throws
 }
@@ -36,6 +37,7 @@ actor WindowsTransferChannel {
     private let powerShellChannel: PowerShellChannel
     private let sftpClient: any WindowsSFTPClient
     private let fallbackThreshold: Int64
+    private var sftpAvailability: Bool?
 
     init(
         sshTarget: String,
@@ -99,6 +101,16 @@ actor WindowsTransferChannel {
 
     func upload(localURL: URL, remotePath: String, byteCount: Int64) async throws {
         throw WindowsTransferError.acceptedOperationRequired
+    }
+
+    /// Reports whether the host can serve the SFTP subsystem, once per channel. The result is a
+    /// dependency control: a caller selects the bounded PowerShell fallback only on an explicit
+    /// unavailable result before any payload moves, never after a transfer error.
+    func sftpAvailable() async -> Bool {
+        if let sftpAvailability { return sftpAvailability }
+        let available = await sftpClient.isAvailable()
+        sftpAvailability = available
+        return available
     }
 
     func prepareAcceptedUpload(localURL: URL, identity: OperationRequestIdentity, sftpAvailable: Bool) async throws -> OperationReceipt {
@@ -237,6 +249,33 @@ final class ProcessWindowsSFTPClient: WindowsSFTPClient, @unchecked Sendable {
         ]) {
             let data = try await channel.runIndependent(script, operation: "TransferProgress")
             return try JSONDecoder.detoursWindows.decode(Int64.self, from: data)
+        }
+    }
+
+    func isAvailable() async -> Bool {
+        do {
+            _ = try await powerShellChannel.readyForAuxiliaryRequest()
+            try hostTrust.prepareKnownHostsFile()
+            let process = processFactory()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/sftp")
+            process.arguments = [
+                "-b", "-",
+                "-o", "ControlMaster=auto",
+                "-o", "ControlPath=\(controlDirectory.path)/%C",
+            ] + hostTrust.sshArguments + [sshTarget]
+            let worker = RemoteProcessWorker(process: process)
+            try await powerShellChannel.performAuxiliaryWorker(worker, kind: .reader) { worker in
+                try worker.start()
+                try worker.write(Data("pwd\n".utf8))
+                worker.closeInput()
+                guard try worker.waitForExit() == 0 else {
+                    worker.finishDiagnostics()
+                    throw RemoteTransferError.processFailed(worker.diagnostics)
+                }
+            }
+            return true
+        } catch {
+            return false
         }
     }
 
