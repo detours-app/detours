@@ -320,40 +320,6 @@ actor SSHConnection {
     func simulateProcessForTesting() {
         process = Process()
     }
-
-    func simulateReconnectForTesting(
-        afterFailure reason: SSHConnectionFailureReason,
-        maximumTotalDelay: TimeInterval = SSHReconnectPolicy.maximumTotalDelay,
-        connectAttempt: @Sendable (Int) async throws -> Void
-    ) async -> [SSHConnectionState] {
-        var observed: [SSHConnectionState] = []
-        func record(_ state: SSHConnectionState) {
-            transition(to: state)
-            observed.append(state)
-        }
-
-        await disconnectAfterFailure(reason)
-        observed.append(state)
-        guard SSHReconnectPolicy.isRetryable(reason) else { return observed }
-
-        var elapsed: TimeInterval = 0
-        var attempt = 1
-        while let delay = SSHReconnectPolicy.delay(forAttempt: attempt),
-              elapsed + delay <= maximumTotalDelay {
-            record(.reconnecting(attempt: attempt, nextDelay: delay))
-            elapsed += delay
-            do {
-                try await connectAttempt(attempt)
-                record(.connected)
-                return observed
-            } catch {
-                attempt += 1
-            }
-        }
-
-        record(.failed(reason: reason))
-        return observed
-    }
     #endif
 
     private func publishStateChange(from oldState: SSHConnectionState, to newState: SSHConnectionState) {

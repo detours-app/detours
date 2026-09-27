@@ -141,12 +141,52 @@ final class RemoteHostSessionTests: XCTestCase {
         do { try await session.requireGeneration(first); XCTFail("Old generation remained usable") } catch RemoteHostSessionError.obsoleteGeneration {}
         await session.disconnect()
     }
+
+    func testRecoveryPublishesInjectedDelaysInOrderAndClampsAtTheLast() async throws {
+        let transport = ExitingHostTransport()
+        let states = SessionStateRecorder()
+        let session = RemoteHostSession(transport: transport,
+            attemptLimit: .milliseconds(10), recoveryLimit: .milliseconds(200),
+            recoveryDelays: [.milliseconds(4), .milliseconds(6), .milliseconds(8)],
+            publish: { await states.append($0, generation: $1) })
+        do { _ = try await session.ensureReady(); XCTFail("Exiting helpers became ready") } catch RemoteHostSessionError.failed(.processExited(255)) {}
+
+        let delays = await states.reconnectingDelays()
+        XCTAssertGreaterThanOrEqual(delays.count, 3)
+        XCTAssertEqual(Array(delays.prefix(3)), [0.004, 0.006, 0.008])
+        XCTAssertEqual(delays.last, 0.008, "The delay sequence must clamp at its last injected value")
+        let connected = await states.containsConnected()
+        XCTAssertFalse(connected)
+        await session.disconnect()
+    }
+
+    func testAuthenticationFailureStopsWithoutRecovery() async throws {
+        let transport = ControlledHostTransport()
+        let states = SessionStateRecorder()
+        let session = RemoteHostSession(transport: transport, recoveryDelays: [.milliseconds(1)],
+            publish: { await states.append($0, generation: $1) })
+        let request = Task { try await session.ensureReady() }
+        let generation = await transport.nextStarted()
+        await transport.complete(generation: generation, reply: .failure(RemoteHostSessionError.failed(.authentication("rejected"))))
+        do { _ = try await request.value; XCTFail("Rejected account became ready") } catch RemoteHostSessionError.failed(.authentication(_)) {}
+        let count = await transport.startedCount()
+        XCTAssertEqual(count, 1, "A rejected account must not spend the recovery budget")
+        let delays = await states.reconnectingDelays()
+        XCTAssertTrue(delays.isEmpty)
+        await session.disconnect()
+    }
 }
 
 private actor SessionStateRecorder {
     private var values: [SSHConnectionState] = []
     func append(_ value: SSHConnectionState, generation: UInt64) { values.append(value) }
     func containsConnected() -> Bool { values.contains(.connected) }
+    func reconnectingDelays() -> [TimeInterval] {
+        values.compactMap { state in
+            if case .reconnecting(_, let delay) = state { return delay }
+            return nil
+        }
+    }
 }
 
 private actor ExitingHostTransport: RemoteHostSessionTransport {

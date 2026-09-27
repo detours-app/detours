@@ -2,45 +2,97 @@ import XCTest
 @testable import Detours
 
 final class RemoteTransferChannelTests: XCTestCase {
-    func testPartialFileDeletedOnCancel() async throws {
+    func testActualDownloadRemovesPartialOnCancel() throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
 
         let destination = temp.appendingPathComponent("download.bin")
-        let partial = RemoteTransferChannel.partialURL(for: destination)
-        let channel = RemoteTransferChannel(sshTarget: "example")
-
-        do {
-            try await channel.receiveDownloadForTesting(
-                chunks: [Data(repeating: 1, count: 8), Data(repeating: 2, count: 8)],
-                expectedByteCount: 16,
-                destination: destination,
-                cancelAfterBytes: 10
+        var delivered = 0
+        XCTAssertThrowsError(try RemoteTransferChannel.receiveDownloadBytes(
+            expectedByteCount: 16,
+            destination: destination,
+            source: .init(
+                read: { _ in
+                    if delivered >= 8 { throw CancellationError() }
+                    delivered += 8
+                    return Data(repeating: 1, count: 8)
+                },
+                readOneExtraByte: { Data() },
+                waitForExit: { 0 },
+                processFailure: { RemoteTransferError.processFailed("unexpected") }
             )
-            XCTFail("Expected cancellation")
-        } catch is CancellationError {
-            XCTAssertFalse(FileManager.default.fileExists(atPath: partial.path))
-            XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path))
+        )) { error in
+            XCTAssertTrue(error is CancellationError)
         }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path))
+        XCTAssertTrue(partialFiles(in: temp).isEmpty)
     }
 
-    func testAtomicRenameOnSuccess() async throws {
+    func testActualDownloadPublishesVerifiedBytesAndRefusesToReplace() throws {
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
 
         let destination = temp.appendingPathComponent("download.bin")
-        let partial = RemoteTransferChannel.partialURL(for: destination)
-        let channel = RemoteTransferChannel(sshTarget: "example")
         let payload = Data("complete payload".utf8)
-
-        try await channel.receiveDownloadForTesting(
-            chunks: [Data(payload.prefix(8)), Data(payload.dropFirst(8))],
+        var offset = 0
+        try RemoteTransferChannel.receiveDownloadBytes(
             expectedByteCount: Int64(payload.count),
-            destination: destination
+            destination: destination,
+            source: .init(
+                read: { maximumBytes in
+                    guard offset < payload.count else { return Data() }
+                    let count = min(maximumBytes, payload.count - offset)
+                    defer { offset += count }
+                    return payload.subdata(in: offset..<(offset + count))
+                },
+                readOneExtraByte: { Data() },
+                waitForExit: { 0 },
+                processFailure: { RemoteTransferError.processFailed("unexpected") }
+            )
         )
-
-        XCTAssertFalse(FileManager.default.fileExists(atPath: partial.path))
         XCTAssertEqual(try Data(contentsOf: destination), payload)
+        XCTAssertTrue(partialFiles(in: temp).isEmpty)
+
+        XCTAssertThrowsError(try RemoteTransferChannel.receiveDownloadBytes(
+            expectedByteCount: Int64(payload.count),
+            destination: destination,
+            source: .init(
+                read: { _ in payload },
+                readOneExtraByte: { Data([0]) },
+                waitForExit: { 0 },
+                processFailure: { RemoteTransferError.processFailed("unexpected") }
+            )
+        )) { error in
+            XCTAssertEqual(error as? RemoteTransferError, .byteCountMismatch(expected: Int64(payload.count), actual: Int64(payload.count + 1)))
+        }
+        XCTAssertEqual(try Data(contentsOf: destination), payload)
+        XCTAssertTrue(partialFiles(in: temp).isEmpty)
+    }
+
+    func testActualDownloadRejectsNonZeroExit() throws {
+        let temp = try createTempDirectory()
+        defer { cleanupTempDirectory(temp) }
+
+        let destination = temp.appendingPathComponent("download.bin")
+        XCTAssertThrowsError(try RemoteTransferChannel.receiveDownloadBytes(
+            expectedByteCount: 4,
+            destination: destination,
+            source: .init(
+                read: { Data(repeating: 7, count: 4) },
+                readOneExtraByte: { Data() },
+                waitForExit: { 7 },
+                processFailure: { RemoteTransferError.processFailed("boom") }
+            )
+        )) { error in
+            XCTAssertEqual(error as? RemoteTransferError, .processFailed("boom"))
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path))
+        XCTAssertTrue(partialFiles(in: temp).isEmpty)
+    }
+
+    private func partialFiles(in directory: URL) -> [String] {
+        (try? FileManager.default.contentsOfDirectory(atPath: directory.path))?
+            .filter { $0.hasPrefix(".detours-partial-") } ?? []
     }
 
     func testThresholdRoutesSmallToRPC() {

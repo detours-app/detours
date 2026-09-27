@@ -454,32 +454,6 @@ final class QualificationWorkflowTests: XCTestCase {
             let connectedState = await connection.state
             XCTAssertEqual(connectedState, .connected)
 
-            let reconnectStates = await connection.simulateReconnectForTesting(
-                afterFailure: .transport("qualification link loss"),
-                maximumTotalDelay: 3,
-                connectAttempt: { attempt in
-                    if attempt < 2 { throw QualificationConnectionFailure.retry }
-                }
-            )
-            XCTAssertEqual(
-                reconnectStates,
-                [
-                    .failed(reason: .transport("qualification link loss")),
-                    .reconnecting(attempt: 1, nextDelay: 1),
-                    .reconnecting(attempt: 2, nextDelay: 2),
-                    .connected,
-                ]
-            )
-
-            let authenticationStates = await connection.simulateReconnectForTesting(
-                afterFailure: .authentication("qualification rejection"),
-                connectAttempt: { _ in throw QualificationConnectionFailure.unexpectedAuthenticationRetry }
-            )
-            XCTAssertEqual(
-                authenticationStates,
-                [.failed(reason: .authentication("qualification rejection"))]
-            )
-
             await connection.simulateProcessForTesting()
             let generationBeforeDisconnect = await connection.streamGenerationForTesting()
             await connection.disconnect()
@@ -782,11 +756,6 @@ private enum QualificationWorkflowFailure: LocalizedError {
             return "\(command) exited \(status): \(detail)"
         }
     }
-}
-
-private enum QualificationConnectionFailure: Error {
-    case retry
-    case unexpectedAuthenticationRetry
 }
 
 @MainActor

@@ -142,6 +142,29 @@ actor RemoteTransferChannel {
     }
 
     private static func receiveDownload(worker: RemoteProcessWorker, expectedByteCount: Int64, destination: URL) throws {
+        try receiveDownloadBytes(
+            expectedByteCount: expectedByteCount,
+            destination: destination,
+            source: DownloadByteSource(
+                read: { try worker.read(maximumBytes: $0, timeout: .seconds(30)) },
+                readOneExtraByte: { try worker.read(maximumBytes: 1, timeout: .seconds(10)) },
+                waitForExit: { try worker.waitForExit() },
+                processFailure: {
+                    worker.finishDiagnostics()
+                    return RemoteTransferError.processFailed(worker.diagnostics)
+                }
+            )
+        )
+    }
+
+    /// Writes exactly `expectedByteCount` bytes from `source` into a private partial beside
+    /// `destination`, then publishes it without replacing an existing file. The byte source is a
+    /// dependency control so tests drive the production loop rather than a copy of it.
+    static func receiveDownloadBytes(
+        expectedByteCount: Int64,
+        destination: URL,
+        source: DownloadByteSource
+    ) throws {
         let partial = destination.deletingLastPathComponent()
             .appendingPathComponent(".detours-partial-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -154,18 +177,17 @@ actor RemoteTransferChannel {
             defer { try? handle.close() }
             while written < expectedByteCount {
                 let remaining = Int(min(64 * 1024, expectedByteCount - written))
-                let chunk = try worker.read(maximumBytes: remaining, timeout: .seconds(30))
+                let chunk = try source.read(remaining)
                 guard !chunk.isEmpty else { break }
                 try handle.write(contentsOf: chunk)
                 written += Int64(chunk.count)
             }
-            let extra = try worker.read(maximumBytes: 1, timeout: .seconds(10))
+            let extra = try source.readOneExtraByte()
             guard extra.isEmpty else {
                 throw RemoteTransferError.byteCountMismatch(expected: expectedByteCount, actual: written + Int64(extra.count))
             }
-            guard try worker.waitForExit() == 0 else {
-                worker.finishDiagnostics()
-                throw RemoteTransferError.processFailed(worker.diagnostics)
+            guard try source.waitForExit() == 0 else {
+                throw source.processFailure()
             }
             guard written == expectedByteCount else {
                 throw RemoteTransferError.byteCountMismatch(expected: expectedByteCount, actual: written)
@@ -175,6 +197,13 @@ actor RemoteTransferChannel {
             try? FileManager.default.removeItem(at: partial)
             throw error
         }
+    }
+
+    struct DownloadByteSource {
+        var read: (_ maximumBytes: Int) throws -> Data
+        var readOneExtraByte: () throws -> Data
+        var waitForExit: () throws -> Int32
+        var processFailure: () -> Error
     }
 
     func upload(source localURL: URL, destination: RemotePath, byteCount: Int64) async throws {
@@ -258,57 +287,6 @@ actor RemoteTransferChannel {
         }
     }
 
-    func receiveDownloadForTesting(
-        chunks: [Data],
-        expectedByteCount: Int64,
-        destination: URL,
-        cancelAfterBytes: Int64? = nil
-    ) async throws {
-        let partial = Self.partialURL(for: destination)
-        try? FileManager.default.removeItem(at: partial)
-        guard FileManager.default.createFile(atPath: partial.path, contents: nil) else {
-            throw CocoaError(.fileWriteUnknown)
-        }
-
-        var written: Int64 = 0
-
-        do {
-            let handle = try FileHandle(forWritingTo: partial)
-            defer { try? handle.close() }
-
-            for chunk in chunks {
-                if let cancelAfterBytes, written >= cancelAfterBytes {
-                    throw CancellationError()
-                }
-
-                let remainingBeforeCancel = cancelAfterBytes.map { max(0, $0 - written) }
-                if let remainingBeforeCancel, remainingBeforeCancel < Int64(chunk.count) {
-                    let prefix = chunk.prefix(Int(remainingBeforeCancel))
-                    try handle.write(contentsOf: prefix)
-                    written += Int64(prefix.count)
-                    throw CancellationError()
-                }
-
-                try handle.write(contentsOf: chunk)
-                written += Int64(chunk.count)
-            }
-
-            guard written == expectedByteCount else {
-                throw RemoteTransferError.byteCountMismatch(expected: expectedByteCount, actual: written)
-            }
-
-            try Self.movePartial(partial, to: destination)
-        } catch {
-            try? FileManager.default.removeItem(at: partial)
-            throw error
-        }
-    }
-
-    static func partialURL(for destination: URL) -> URL {
-        destination.deletingLastPathComponent()
-            .appendingPathComponent(destination.lastPathComponent + ".detours-partial")
-    }
-
     #if DEBUG
     func sshArgumentsForTesting() -> [String] {
         sshArguments()
@@ -324,6 +302,11 @@ actor RemoteTransferChannel {
             remoteCommand,
             "--transfer",
         ]
+    }
+
+    static func partialURL(for destination: URL) -> URL {
+        destination.deletingLastPathComponent()
+            .appendingPathComponent(destination.lastPathComponent + ".detours-partial")
     }
 
     private static func movePartial(_ partial: URL, to destination: URL) throws {
