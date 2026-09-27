@@ -44,7 +44,7 @@ enum UITestRemoteFixtureMutator {
                 throw error
             }
             return nil
-        case "createDirectory", "write", "move", "remove", "gitInit", "symlink", "stat", "cleanup":
+        case "createDirectory", "write", "move", "remove", "gitInit", "symlink", "stat", "fingerprint", "cleanup":
             guard let sentinelID = command.sentinelID, UUID(uuidString: sentinelID) != nil else {
                 throw MutationError.invalidSentinel
             }
@@ -133,6 +133,25 @@ enum UITestRemoteFixtureMutator {
                 )
                 let entry = try await provider.stat(location)
                 return [entry.isSymbolicLink ? "link" : entry.isDirectory ? "directory" : "file"]
+            case "fingerprint":
+                // Reports byte-exact filesystem evidence for the host's current file: its kind,
+                // byte count and SHA-256, read inside the app so a sandboxed runner can compare
+                // payloads without writing into the guarded fixture.
+                let location = try validatedChildLocation(
+                    command.relativePath,
+                    scenarioPath: scenarioPath,
+                    hostID: hostID
+                )
+                let entry = try await provider.stat(location)
+                if entry.isSymbolicLink { return ["link"] }
+                if entry.isDirectory { return ["directory"] }
+                let temporary = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("detours-fixture-fingerprint-" + UUID().uuidString)
+                defer { try? FileManager.default.removeItem(at: temporary) }
+                try await provider.download(location, to: temporary)
+                let size = (try? temporary.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
+                let digest = try ServerDeployer.sha256Hex(of: temporary)
+                return ["file", String(size), digest]
             case "cleanup":
                 try await trashFixture(scenario, hostID: hostID)
             default:
