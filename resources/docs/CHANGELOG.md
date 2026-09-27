@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.14.0 - 2026-09-27
+
+### Features
+
+- **Interrupted remote work keeps its results, its recovery and its undo** - Remote copies, moves, deletes, archives, extractions and editor saves now run as accepted operations that are written down before they touch the host, so a lost reply can no longer produce a duplicate change or report that nothing happened. A new Remote Operations window, opened from the Window menu, lists the saved operations and each item's outcome, with confirmed, skipped, failed and still unknown reported separately, along with the confirmed and recovery locations. An operation keeps its details after the tab closes, after you navigate elsewhere and after Detours restarts. From the details you can check an interrupted operation without changing anything, undo the changes it confirmed, or restore a retained original without overwriting a file that took its place.
+- **Cancelling remote work stops it cleanly and says what finished** - Cancellation now stops further work, records what had already committed and leaves anything it could not confirm as unknown rather than guessing. The operation says when it is cancelling and checking what finished, and the result keeps every confirmed change and its undo. A move that kept its source says so, and a failure reports where the retained or temporary files are.
+- **Connecting and recovering a host reads as what it is doing** - A host is shown as connected only once it can answer, automatic recovery works within a bounded budget, and the connection banner distinguishes readiness, recovery and exhaustion. Unrelated local work stays usable while a host recovers.
+
+### Fixes
+
+- **Remote browsing stays usable on a busy host** - Git status checks left their processes behind, and enough of them could exhaust the helper and stall the host. Completed Git processes are released again.
+- **Copying to an existing remote name never overwrites it unasked** - A replacement only happens when you choose it, including when the destination appears while the copy is still running, and a copy that cannot publish its result leaves the earlier item intact.
+
 ## 1.13.1 - 2026-09-22
 
 ### Features
