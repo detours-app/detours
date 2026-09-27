@@ -36,9 +36,13 @@ enum UITestRemoteFixtureMutator {
             guard !existing.contains(where: { $0.location == scenario }) else {
                 throw MutationError.scenarioExists(scenarioPath)
             }
-            _ = try await FileOperationQueue.shared.createFolder(in: home, name: command.scenarioName)
+            _ = try await PaneFileOperationCoordinator.shared.perform(affecting: [home]) {
+                try await FileOperationQueue.shared.createFolder(in: home, name: command.scenarioName)
+            }
             do {
-                _ = try await FileOperationQueue.shared.createFile(in: scenario, name: sentinelName, content: Data(sentinelID.utf8))
+                _ = try await PaneFileOperationCoordinator.shared.perform(affecting: [scenario]) {
+                    try await FileOperationQueue.shared.createFile(in: scenario, name: sentinelName, content: Data(sentinelID.utf8))
+                }
             } catch {
                 try await trashFixture(scenario, hostID: hostID)
                 throw error
