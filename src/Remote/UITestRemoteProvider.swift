@@ -472,6 +472,44 @@ actor UITestRemoteProvider: FileProvider {
 
     func gitStatus(for directory: Location) async -> [Location: GitStatus] { [:] }
 
+    // MARK: - Accepted operations
+
+    private var operationService: LocalTransferService?
+
+    /// Binds the accepted-operation service whose journal and commit rules the coordinator uses,
+    /// with operation paths mapped into this provider's confined root.
+    func bindOperationService(_ service: LocalTransferService) {
+        operationService = service
+    }
+
+    func operationRequest(_ request: OperationRequest) async throws -> OperationReply {
+        guard let operationService else {
+            throw FileProviderError.unsupportedOperation("UI-test remote host has no operation service.")
+        }
+        return try await operationService.reply(request)
+    }
+
+    func prepareAcceptedUpload(_ localURL: URL, identity: OperationRequestIdentity) async throws -> OperationReceipt {
+        guard let operationService else {
+            throw FileProviderError.unsupportedOperation("UI-test remote host has no operation service.")
+        }
+        return try await LocalTransferPublication.prepare(localURL, identity: identity, journal: operationService.journal)
+    }
+
+    func operationPath(_ location: Location) async throws -> OperationLocation.Path {
+        let path = try remotePath(from: location)
+        let trimmed = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let url = trimmed.isEmpty ? base : base.appendingPathComponent(trimmed)
+        return .unix(Data(url.standardizedFileURL.path.utf8))
+    }
+
+    func displayLocation(_ path: OperationLocation.Path) async throws -> Location {
+        guard case .unix(let bytes) = path, let string = String(data: bytes, encoding: .utf8) else {
+            throw FileProviderError.unsupportedOperation("UI-test remote host cannot display a non-Unix operation path.")
+        }
+        return remoteLocation(for: URL(fileURLWithPath: string))
+    }
+
     func archiveCreate(
         _ items: [Location],
         format: ArchiveFormat,
