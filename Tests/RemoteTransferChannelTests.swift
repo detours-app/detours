@@ -78,7 +78,7 @@ final class RemoteTransferChannelTests: XCTestCase {
             expectedByteCount: 4,
             destination: destination,
             source: .init(
-                read: { Data(repeating: 7, count: 4) },
+                read: { _ in Data(repeating: 7, count: 4) },
                 readOneExtraByte: { Data() },
                 waitForExit: { 7 },
                 processFailure: { RemoteTransferError.processFailed("boom") }
