@@ -140,7 +140,7 @@ final class FileOperationQueue {
     func installRemoteOperationHoldForTesting() async throws {
         remoteOperationHoldForTesting.arm()
         let gate: @Sendable () async -> Void = { [hold = remoteOperationHoldForTesting] in await hold.wait() }
-        await operationCoordinator().setTestHoldBeforeFirstItem(gate)
+        try await operationCoordinator().setTestHoldBeforeFirstItem(gate)
     }
 
     func releaseRemoteOperationHoldForTesting() {

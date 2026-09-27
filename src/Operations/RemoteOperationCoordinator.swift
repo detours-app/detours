@@ -30,7 +30,7 @@ actor RemoteOperationCoordinator {
     private var active: Set<OperationItemID> = []
     var activeBatches: Set<UUID> = []
     #if DEBUG
-    private var testHoldBeforeFirstItem: (@Sendable () async -> Void)?
+    var testHoldBeforeFirstItem: (@Sendable () async -> Void)?
 
     func setTestHoldBeforeFirstItem(_ gate: @escaping @Sendable () async -> Void) {
         testHoldBeforeFirstItem = gate
