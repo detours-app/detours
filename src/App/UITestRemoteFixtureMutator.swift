@@ -65,7 +65,10 @@ enum UITestRemoteFixtureMutator {
                     scenarioPath: scenarioPath,
                     hostID: hostID
                 )
-                try await provider.createDirectory(at: location, withIntermediateDirectories: false)
+                _ = try await PaneFileOperationCoordinator.shared.perform(affecting: [location.deletingLastPathComponent()]) {
+                    try await FileOperationQueue.shared.createFolder(in: location.deletingLastPathComponent(),
+                        name: location.lastPathComponent)
+                }
             case "write":
                 guard let contents = command.contents else { throw MutationError.missingContents }
                 let location = try validatedChildLocation(
@@ -73,7 +76,10 @@ enum UITestRemoteFixtureMutator {
                     scenarioPath: scenarioPath,
                     hostID: hostID
                 )
-                try await upload(Data(contents.utf8), to: location, provider: provider)
+                _ = try await PaneFileOperationCoordinator.shared.perform(affecting: [location.deletingLastPathComponent()]) {
+                    try await FileOperationQueue.shared.createFile(in: location.deletingLastPathComponent(),
+                        name: location.lastPathComponent, content: Data(contents.utf8))
+                }
             case "move":
                 let source = try validatedChildLocation(
                     command.relativePath,
@@ -88,14 +94,18 @@ enum UITestRemoteFixtureMutator {
                 guard source.deletingLastPathComponent() == destination.deletingLastPathComponent() else {
                     throw MutationError.crossDirectoryMove
                 }
-                _ = try await provider.rename(source, to: lastPathComponent(destination.path))
+                _ = try await PaneFileOperationCoordinator.shared.perform(affecting: [source.deletingLastPathComponent()]) {
+                    try await FileOperationQueue.shared.rename(item: source, to: lastPathComponent(destination.path))
+                }
             case "remove":
                 let location = try validatedChildLocation(
                     command.relativePath,
                     scenarioPath: scenarioPath,
                     hostID: hostID
                 )
-                try await provider.delete([location])
+                try await PaneFileOperationCoordinator.shared.perform(affecting: [location.deletingLastPathComponent()]) {
+                    try await FileOperationQueue.shared.delete(items: [location])
+                }
             case "gitInit":
                 guard UITestEnvironment.realRemoteContext != "WINDOWS_TARGET",
                       let target = UITestEnvironment.realRemoteTarget else {
@@ -247,26 +257,6 @@ enum UITestRemoteFixtureMutator {
         try await provider.download(location, to: temporary)
         let actual = try String(contentsOf: temporary, encoding: .utf8)
         guard actual == expected else { throw MutationError.sentinelMismatch(scenarioPath) }
-    }
-
-    private static func upload(
-        _ data: Data,
-        to location: Location,
-        provider: any FileProvider
-    ) async throws {
-        if let windowsProvider = provider as? WindowsRemoteProvider {
-            try await windowsProvider.writeSmallControlFile(
-                data,
-                to: location,
-                hidden: lastPathComponent(location.path).hasPrefix(".")
-            )
-            return
-        }
-        let temporary = FileManager.default.temporaryDirectory
-            .appendingPathComponent("detours-remote-upload-" + UUID().uuidString)
-        defer { try? FileManager.default.removeItem(at: temporary) }
-        try data.write(to: temporary)
-        try await provider.upload(temporary, to: location)
     }
 
     private static func lastPathComponent(_ path: String) -> String {
