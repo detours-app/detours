@@ -78,9 +78,7 @@ extension LocalTransferService {
                 original: reference.original, knownLocation: nil, possibleLocations: [location])
             current = try record(identity, phase: phase, outcome: outcome, ownership: ownership,
                 recovery: current.recovery.filter { $0 != reference } + [unknown])
-            var returned: NSURL?
-            try FileManager.default.trashItem(at: original, resultingItemURL: &returned)
-            guard let result = returned as URL? else { throw OperationContractError.invalidReceipt }
+            guard let result = try trashItem(original) else { throw OperationContractError.invalidReceipt }
             let known = OperationLocation(account: journal.account, path: .unix(Data(result.path.utf8)))
             let returnedReference = OperationRecoveryReference(identity: reference.identity, purpose: reference.purpose,
                 original: reference.original, knownLocation: nil, possibleLocations: [location, known])

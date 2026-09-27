@@ -5,10 +5,20 @@ import RemoteOperationSupport
 struct LocalTransferService: Sendable {
     let journal: OperationJournal
     let afterSourceMove: (@Sendable (OperationLocation) throws -> Void)?
+    let trashItem: @Sendable (URL) throws -> URL?
 
-    init(journal: OperationJournal, afterSourceMove: (@Sendable (OperationLocation) throws -> Void)? = nil) {
+    static let systemTrashItem: @Sendable (URL) throws -> URL? = { url in
+        var returned: NSURL?
+        try FileManager.default.trashItem(at: url, resultingItemURL: &returned)
+        return returned as URL?
+    }
+
+    init(journal: OperationJournal,
+         afterSourceMove: (@Sendable (OperationLocation) throws -> Void)? = nil,
+         trashItem: @escaping @Sendable (URL) throws -> URL? = LocalTransferService.systemTrashItem) {
         self.journal = journal
         self.afterSourceMove = afterSourceMove
+        self.trashItem = trashItem
     }
 
     func endpoint() -> RemoteOperationCoordinator.Endpoint {
