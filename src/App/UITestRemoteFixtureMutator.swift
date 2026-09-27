@@ -44,7 +44,7 @@ enum UITestRemoteFixtureMutator {
                 throw error
             }
             return nil
-        case "createDirectory", "write", "move", "remove", "gitInit", "symlink", "stat", "fingerprint", "cleanup":
+        case "createDirectory", "write", "move", "remove", "gitInit", "symlink", "stat", "fingerprint", "receipts", "cleanup":
             guard let sentinelID = command.sentinelID, UUID(uuidString: sentinelID) != nil else {
                 throw MutationError.invalidSentinel
             }
@@ -152,6 +152,17 @@ enum UITestRemoteFixtureMutator {
                 let size = (try? temporary.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
                 let digest = try ServerDeployer.sha256Hex(of: temporary)
                 return ["file", String(size), digest]
+            case "receipts":
+                // Reports the app's recorded remote operation receipts as stable text, so a
+                // guarded journey can assert receipt evidence from inside the app.
+                let queue = FileOperationQueue.shared
+                return queue.remoteOperationResults.values
+                    .sorted { $0.record.operation.uuidString < $1.record.operation.uuidString }
+                    .flatMap { snapshot -> [String] in
+                        let presentation = queue.remotePresentation(snapshot)
+                        return ["operation " + snapshot.record.operation.uuidString + " " + presentation.summary]
+                            + snapshot.items.map { presentation.status($0) }
+                    }
             case "cleanup":
                 try await trashFixture(scenario, hostID: hostID)
             default:
