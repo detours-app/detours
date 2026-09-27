@@ -103,9 +103,9 @@ enum UITestRemoteFixtureMutator {
                     scenarioPath: scenarioPath,
                     hostID: hostID
                 )
-                try await PaneFileOperationCoordinator.shared.perform(affecting: [location.deletingLastPathComponent()]) {
-                    try await FileOperationQueue.shared.delete(items: [location])
-                }
+                // The user-facing delete path shows the one-time remote Trash explainer, which would
+                // block a guarded run; the fixture removes through the accepted batch instead.
+                try await trashFixture(location, hostID: hostID)
             case "gitInit":
                 guard UITestEnvironment.realRemoteContext != "WINDOWS_TARGET",
                       let target = UITestEnvironment.realRemoteTarget else {
