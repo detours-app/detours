@@ -161,7 +161,11 @@ extension PaneViewController {
             return
         }
 
-        showConnectionBanner(for: host, state: RemoteConnectionStateStore.shared.state(for: host.id))
+        guard let state = RemoteConnectionStateStore.shared.state(for: host.id) else {
+            hideReconnectBanner()
+            return
+        }
+        showConnectionBanner(for: host, state: state)
     }
 
     private func selectedReconnectHost() -> RemoteHost? {
@@ -182,7 +186,8 @@ extension PaneViewController {
             .failed(reason: .transport("UI test connection dropped")),
             for: host.id
         )
-        showConnectionBanner(for: host, state: RemoteConnectionStateStore.shared.state(for: host.id))
+        guard let state = RemoteConnectionStateStore.shared.state(for: host.id) else { return false }
+        showConnectionBanner(for: host, state: state)
         return true
     }
 
