@@ -43,6 +43,11 @@ extension FileOperationQueue {
             let plan = try await coordinator.undoPlan(original, operation: operation, removingCreatedItem: removingCreatedItem)
             guard !plan.isEmpty else { throw FileProviderError.unsupportedOperation("No confirmed change is currently safe to undo.") }
             let result = try await self.performAcceptedPlan(plan, operation: operation)
+            for restored in result.items where restored.result.intent.action == .restore && restored.outcome == .committed {
+                guard let originalID = restored.result.intent.reverses else { continue }
+                _ = try await coordinator.checkResult(originalID)
+                self.remoteOperationResults[originalID.operation] = try await coordinator.snapshot(originalID.operation)
+            }
             try self.requireSuccessfulBatch(result)
             return result
         }

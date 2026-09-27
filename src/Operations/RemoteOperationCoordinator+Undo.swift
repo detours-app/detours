@@ -18,6 +18,7 @@ extension RemoteOperationCoordinator {
               item.result.intent.action != .permanentDelete, !receipt.effects.isEmpty,
               receipt.sourceDisposition != .unknown,
               receipt.recovery.allSatisfy({ $0.purpose == .scratch || $0.knownLocation != nil }) else { return false }
+        if item.result.intent.action == .trash && !receipt.recovery.contains(where: { $0.purpose == .sourceTrash }) { return false }
         return !snapshot.items.contains { dependent in
             (dependent.requiresVerified ?? []).contains(item.identity.id) &&
                 (dependent.outcome == .unknown || dependent.result.receipt?.sourceDisposition == .unknown)

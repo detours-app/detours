@@ -104,6 +104,25 @@ final class AcceptedUndoTests: XCTestCase {
         guard case .unix(let bytes) = retained.path else { return XCTFail("Expected Unix recovery path") }
         let path = try XCTUnwrap(String(bytes: bytes, encoding: .utf8))
         XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: path)), fixture.bytes)
+        let refreshed = try XCTUnwrap(queue.remoteOperationResults[result.record.operation]?.items.first)
+        XCTAssertFalse(RemoteOperationCoordinator.canRestoreOriginal(refreshed))
+    }
+
+    func testRestoredTrashNoLongerOffersConsumedRecovery() async throws {
+        let fixture = try await CoordinatorFixture()
+        defer { fixture.cleanup() }
+        let queue = configure(fixture)
+        let output = fixture.root.appendingPathComponent("output")
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: false)
+        let copied = try await queue.copy(items: [.remote(hostID: fixture.hostID, path: fixture.source.path)],
+            to: .remote(hostID: fixture.hostID, path: output.path))
+        XCTAssertEqual(copied.count, 1)
+        let original = try XCTUnwrap(queue.remoteOperationResults.values.first)
+        let trashed = try await queue.undoAcceptedOperation(original)
+        _ = try await queue.undoAcceptedOperation(trashed)
+        let refreshed = try XCTUnwrap(queue.remoteOperationResults[trashed.record.operation])
+        XCTAssertTrue(refreshed.items.allSatisfy { !RemoteOperationCoordinator.canUndo($0, in: refreshed) })
+        XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: copied[0].path)), fixture.bytes)
     }
 
     func testCreationRenameAndArchiveCallersRegisterReceiptBoundUndo() async throws {
