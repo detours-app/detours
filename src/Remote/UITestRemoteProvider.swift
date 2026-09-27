@@ -1,6 +1,7 @@
 import CryptoKit
 import DetoursProcess
 import Foundation
+import RemoteOperationSupport
 
 enum UITestRemoteCallPhase: String, Codable, Sendable {
     case started
