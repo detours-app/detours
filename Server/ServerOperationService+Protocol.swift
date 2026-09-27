@@ -86,6 +86,8 @@ extension ServerOperationService {
             return .receipt(try await prepareUpload(identity, contents: contents))
         case .prepareCopy(let identity):
             return .receipt(try await prepareCopy(identity))
+        case .prepareImportedTree(let identity):
+            return .receipt(try await prepareImportedTree(identity))
         case .prepareArchive(let identity, let password):
             return .receipt(try await prepareArchive(identity, password: password))
         case .commit(let identity):

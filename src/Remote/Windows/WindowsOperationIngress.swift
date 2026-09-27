@@ -5,7 +5,7 @@ extension WindowsOperationScripts {
     function Invoke-WindowsIngress($Context, [string]$Kind) {
         $intent = $Context.record.intent
         if ($intent.action -notin @('copy', 'editorUpload') -or $null -eq $intent.payloadProof) { throw 'Invalid accepted ingress.' }
-        if ($Context.record.receipt.phase -in @('terminal', 'readyToCommit')) { return $Context.record.receipt }
+        if ($Context.record.receipt.phase -in @('terminal', 'readyToCommit', 'payloadReceived')) { return $Context.record.receipt }
         if ($Kind -eq 'prepareIngress' -and $Context.record.windowsIngressReady) { return $Context.record.receipt }
         if ($Context.record.windowsIngressSealing) {
             Resolve-WindowsOperation $Context
@@ -60,7 +60,8 @@ extension WindowsOperationScripts {
                 throw 'Operation ingress content verification failed.'
             }
             Assert-WindowsOperationActive $Context
-            $receipt = New-WindowsReceipt $Context 'readyToCommit' 'running'
+            $phase = if ($null -eq $intent.treeProof) { 'readyToCommit' } else { 'payloadReceived' }
+            $receipt = New-WindowsReceipt $Context $phase 'running'
             $receipt.preparedPayload = @{ location = (Get-WindowsOperationLocation $payload $Context.account); observation = $proof }
             $receipt.contentVerified = $true
             Save-WindowsReceipt $Context $receipt

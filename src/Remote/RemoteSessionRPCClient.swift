@@ -42,7 +42,7 @@ actor RemoteSessionRPCClient: RemoteRPCClient, RemoteHostSessionTransport {
         let progress = RemoteMeasuredProgress()
         let identity: OperationRequestIdentity?
         switch request {
-        case .prepareUpload(let value, _), .prepareCopy(let value), .prepareArchive(let value, _), .execute(let value):
+        case .prepareUpload(let value, _), .prepareCopy(let value), .prepareImportedTree(let value), .prepareArchive(let value, _), .execute(let value):
             identity = value
         default: identity = nil
         }

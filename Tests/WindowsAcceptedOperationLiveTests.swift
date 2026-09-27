@@ -332,6 +332,7 @@ final class WindowsAcceptedOperationLiveTests: XCTestCase {
     \#(WindowsOperationScripts.archiveHelpers)
     \#(WindowsOperationScripts.zipPlanHelpers)
     \#(WindowsOperationScripts.zipExtractionHelpers)
+    \#(WindowsOperationScripts.treeImportHelpers)
     \#(WindowsOperationScripts.deletionHelpers)
     \#(WindowsArchiveScripts.externalToolHelpers)
     \#(WindowsOperationScripts.archiveProcessHelpers)

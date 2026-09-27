@@ -20,6 +20,11 @@ public enum OperationPublication {
                 throw OperationContractError.invalidReceipt
             }
         } else if !ready.contentVerified { throw OperationContractError.invalidReceipt }
+        if let expected = intent.treeProof {
+            guard payload.observation.kind == .directory, accepted.payloadManifest?.proof == expected else {
+                throw OperationContractError.invalidReceipt
+            }
+        }
         if !native, payload.observation.kind == .file, payload.observation.sha256 == nil {
             throw OperationContractError.invalidReceipt
         }

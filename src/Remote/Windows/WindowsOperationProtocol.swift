@@ -53,6 +53,7 @@ extension WindowsOperationScripts {
     \#(archiveHelpers)
     \#(zipPlanHelpers)
     \#(zipExtractionHelpers)
+    \#(treeImportHelpers)
     \#(deletionHelpers)
     \#(WindowsArchiveScripts.externalToolHelpers)
     \#(archiveProcessHelpers)
@@ -134,7 +135,7 @@ extension WindowsOperationScripts {
         if ($kind -eq 'handshake') {
             if ($parameters.version -ne 2) { return @{ incompatible = @{ _0 = @{ protocolVersion = @{ expected = 2; actual = $parameters.version } } } } }
             if ($parameters.schemaVersion -ne 1) { return @{ incompatible = @{ _0 = @{ journalSchema = @{ expected = 1; actual = $parameters.schemaVersion } } } } }
-            $capabilities = @('receipts', 'status', 'cancellation', 'ownedTemporaryObjects', 'nonReplacingCommit', 'sourceProof', 'sourceManifest')
+            $capabilities = @('receipts', 'status', 'cancellation', 'ownedTemporaryObjects', 'nonReplacingCommit', 'sourceProof', 'sourceManifest', 'treeImport')
             $missing = @($parameters.requiredCapabilities | Where-Object { $_ -notin $capabilities })
             if ($missing.Count -gt 0) { return @{ incompatible = @{ _0 = @{ missingCapabilities = @{ _0 = $missing } } } } }
             return @{ handshake = @{ _0 = @{ version = 2; schemaVersion = 1; capabilities = $capabilities; account = $Account; epoch = $epoch } } }

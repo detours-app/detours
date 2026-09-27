@@ -16,7 +16,7 @@ final class RemoteOperationProtocolTests: XCTestCase {
             .handshake, .lookup(location), .sourceProof(location), .sourceManifest(location),
             .accept(identity: identity, intent: intent), .status(identity),
             .prepareUpload(identity: identity, contents: Data([0, 255])), .commit(identity), .execute(identity),
-            .prepareCopy(identity), .prepareArchive(identity: identity, password: "transient fixture secret"),
+            .prepareCopy(identity), .prepareImportedTree(identity), .prepareArchive(identity: identity, password: "transient fixture secret"),
             .cancel(identity), .acknowledge(identity: identity, retainingUndo: true),
         ]
         for request in requests {

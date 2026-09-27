@@ -9,7 +9,8 @@ struct ServerArchiveExtractionPlan: Sendable {
     let directories: [Data]
     let hardLinks: [UInt32: UInt32]
 
-    init(_ members: [SevenZipArchiveReader.Member]) throws {
+    init(_ members: [SevenZipArchiveReader.Member], rootName: String = "payload") throws {
+        guard rootName == "payload" || rootName == "tree" else { throw SevenZipArchiveError.invalidEntry }
         self.members = members
         var names: [UInt32: [String]] = [:]
         var indexed: [String: UInt32] = [:]
@@ -37,7 +38,7 @@ struct ServerArchiveExtractionPlan: Sendable {
         var outputs: [UInt32: Data] = [:]
         var directories = Set<Data>()
         var hardLinks: [UInt32: UInt32] = [:]
-        if roots.count > 1 { directories.insert(Data("payload".utf8)) }
+        if roots.count > 1 { directories.insert(Data(rootName.utf8)) }
         for member in members {
             guard let parts = names[member.index] else { continue }
             for count in 1..<parts.count {
@@ -46,10 +47,10 @@ struct ServerArchiveExtractionPlan: Sendable {
                 }
             }
             let relative = roots.count == 1 ? Array(parts.dropFirst()) : parts
-            let target = Data((["payload"] + relative).joined(separator: "/").utf8)
+            let target = Data(([rootName] + relative).joined(separator: "/").utf8)
             paths[member.index] = target
             for count in 0..<relative.count {
-                directories.insert(Data((["payload"] + relative.prefix(count)).joined(separator: "/").utf8))
+                directories.insert(Data(([rootName] + relative.prefix(count)).joined(separator: "/").utf8))
             }
             if member.directory {
                 directories.insert(target)

@@ -59,7 +59,7 @@ struct ServerOperationService: Sendable {
         let ownership = try await journal.acquireItem(identity.id)
         defer { withExtendedLifetime(ownership) {} }
         let accepted = try journal.read(identity.id)
-        if let receipt = accepted.receipt, [.readyToCommit, .committed, .terminal].contains(receipt.phase) { return receipt }
+        if let receipt = accepted.receipt, [.payloadReceived, .readyToCommit, .committed, .terminal].contains(receipt.phase) { return receipt }
         guard let proof = accepted.intent?.payloadProof else { throw OperationContractError.invalidReceipt }
         return try await prepareOwned(accepted, ownership: ownership, input: input, proof: proof)
     }
@@ -230,7 +230,7 @@ struct ServerOperationService: Sendable {
             ]
             receipt = OperationReceipt(
                 id: intent.id, account: journal.account, epoch: journal.epoch, intentDigest: accepted.intentDigest,
-                revision: receipt.revision + 1, phase: .readyToCommit, outcome: .running,
+                revision: receipt.revision + 1, phase: intent.treeProof == nil ? .readyToCommit : .payloadReceived, outcome: .running,
                 contentVerified: true, preparedPayload: OperationEffect(location: location, observation: observation),
                 measuredBytes: measuredBefore + received * 2, recovery: recovery
             )

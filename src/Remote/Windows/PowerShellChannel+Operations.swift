@@ -10,7 +10,7 @@ extension PowerShellChannel {
         case .shared(let request):
             switch request {
             case .status, .cancel: return try await runIndependent(script, operation: operation)
-            case .prepareUpload(let value, _), .prepareCopy(let value), .prepareArchive(let value, _), .execute(let value):
+            case .prepareUpload(let value, _), .prepareCopy(let value), .prepareImportedTree(let value), .prepareArchive(let value, _), .execute(let value):
                 identity = value
             default: identity = nil
             }

@@ -118,7 +118,7 @@ actor WindowsTransferChannel {
             return try await acceptedReceipt(WindowsOperationArguments(.prepareUpload(identity: identity, contents: contents)), identity: identity)
         }
         let allocation = try await acceptedReceipt(.init(ingress: .prepareIngress(identity)), identity: identity)
-        if allocation.phase == .terminal || allocation.phase == .readyToCommit { return allocation }
+        if [.terminal, .readyToCommit, .payloadReceived].contains(allocation.phase) { return allocation }
         guard allocation.phase == .preparing, let payload = allocation.preparedPayload,
               payload.location.account == identity.account, case .windows(let ingress) = payload.location.path else {
             throw WindowsTransferError.invalidAcceptedUpload

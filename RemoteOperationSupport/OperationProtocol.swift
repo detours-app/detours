@@ -8,6 +8,7 @@ public enum OperationCapability: String, Codable, CaseIterable, Hashable, Sendab
     case nonReplacingCommit
     case sourceProof
     case sourceManifest
+    case treeImport
 }
 
 public enum OperationCompatibilityError: Error, Codable, Equatable, Sendable {
@@ -72,6 +73,7 @@ public enum OperationRequest: Codable, Equatable, Sendable {
     case accept(identity: OperationRequestIdentity, intent: OperationIntent)
     case prepareUpload(identity: OperationRequestIdentity, contents: Data)
     case prepareCopy(OperationRequestIdentity)
+    case prepareImportedTree(OperationRequestIdentity)
     case prepareArchive(identity: OperationRequestIdentity, password: String?)
     case commit(OperationRequestIdentity)
     case execute(OperationRequestIdentity)

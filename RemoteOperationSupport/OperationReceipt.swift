@@ -1,7 +1,7 @@
 import Foundation
 
 public enum OperationPhase: String, Codable, Sendable {
-    case accepted, preparing, readyToCommit, committing, committed, rollingBack, terminal
+    case accepted, preparing, payloadReceived, readyToCommit, committing, committed, rollingBack, terminal
 }
 
 public enum OperationOutcome: String, Codable, Sendable {

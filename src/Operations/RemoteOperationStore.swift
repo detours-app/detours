@@ -5,7 +5,7 @@ import RemoteOperationSupport
 /// Client records contain intent and evidence, never payloads, passwords or transport commands.
 final class RemoteOperationStore: @unchecked Sendable {
     enum Step: String, Codable, Hashable, Sendable {
-        case accept, prepare, commit, execute
+        case accept, prepare, expandUpload, commit, execute
     }
 
     enum PreflightFailure: String, Codable, Sendable {

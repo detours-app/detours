@@ -2,6 +2,8 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry source recovery manifest | `649cf5e` | PASS: signed build and all 25 focused checks passed in 0.716 seconds. Recovery rejects an identical-byte nested replacement after the actual Trash move, retains the verified destination, and sends no replay. |
+| devtest source recovery rebuild | `649cf5e` | PASS: all 140 container checks passed, comprising 18 process checks in 11.987 seconds and 122 filesystem/archive/journal checks in 17.031 seconds; both helpers rebuilt. |
 | Foundry source identity and actual Trash verification | `4d87d28` | PASS: signed build and all 33 focused checks passed in 57.785 seconds. Actual changed Trash content is restored while the verified destination remains; identical-byte nested replacements after copies prevent folder disposal. Both live Windows cases passed, including complete/failed merges and original-child manifest enforcement. Cross-host file and recorded Trash/restore regressions remain green. |
 | devtest source-disposition manifest rebuild | `4d87d28` | PASS: all 140 container checks passed (18 process checks in 11.884 seconds and 122 filesystem/archive/journal checks in 21.881 seconds); both helpers rebuilt. Foundry app and focused source-disposition/live Windows checks continue in the same run. |
 | Foundry staged-folder payload bytes | `3d405f5` | PASS: signed build and both focused checks passed in 0.018 seconds. Independently decoded ZIP contents preserve Unicode file bytes, empty folders, zero-byte files and the exact native readlink bytes. The earlier nine-versus-eight-byte difference was the test literal, not altered archive content. A child changed during compression refuses a verified payload. |

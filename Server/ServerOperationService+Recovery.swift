@@ -51,6 +51,11 @@ extension ServerOperationService {
         var failure: String? = recovery.contains { $0.purpose == .displacedOriginal && $0.knownLocation == nil }
             ? "The displaced original's current location could not be confirmed." : nil
         do {
+            if let expected = intent.treeProof {
+                guard payload.observation.kind == .directory, current.payloadManifest?.proof == expected else {
+                    throw OperationContractError.invalidReceipt
+                }
+            }
             let source = try inspect(payload.location, expected: nil)
             let target = try inspect(destination, expected: payload.observation,
                                      manifest: sourceMutation ? current.sourceManifest : nil)

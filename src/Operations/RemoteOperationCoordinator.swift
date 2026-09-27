@@ -13,6 +13,7 @@ actor RemoteOperationCoordinator {
         case execute
         case copy
         case upload(URL)
+        case uploadTree(URL)
         case archive(password: String?)
     }
 
@@ -170,8 +171,13 @@ actor RemoteOperationCoordinator {
                     try await submit(intent.id, step: .execute, endpoint: endpoint) { identity in
                         try await endpoint.request(.execute(identity))
                     }
-                case .copy, .upload, .archive:
+                case .copy, .upload, .uploadTree, .archive:
                     try await prepare(intent.id, work: work, endpoint: endpoint)
+                    if case .uploadTree = work, try item(intent.id).result.receipt?.phase == .payloadReceived {
+                        try await submit(intent.id, step: .expandUpload, endpoint: endpoint) { identity in
+                            try await endpoint.request(.prepareImportedTree(identity))
+                        }
+                    }
                     let prepared = try item(intent.id)
                     if prepared.result.receipt?.phase == .readyToCommit {
                         try await submit(intent.id, step: .commit, endpoint: endpoint) { identity in
@@ -259,7 +265,7 @@ actor RemoteOperationCoordinator {
         try await submit(id, step: .prepare, endpoint: endpoint) { identity in
             switch work {
             case .copy: return try await endpoint.request(.prepareCopy(identity))
-            case .upload(let source): return .receipt(try await endpoint.upload(source, identity))
+            case .upload(let source), .uploadTree(let source): return .receipt(try await endpoint.upload(source, identity))
             case .archive(let password): return try await endpoint.request(.prepareArchive(identity: identity, password: password))
             case .execute: throw OperationContractError.invalidReceipt
             }

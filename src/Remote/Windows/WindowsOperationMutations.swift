@@ -98,7 +98,7 @@ extension WindowsOperationScripts {
     }
     function Resolve-WindowsOperation($Context) {
         $previous = $Context.record.receipt
-        if ($null -eq $previous -or $previous.phase -in @('terminal', 'readyToCommit')) { return }
+        if ($null -eq $previous -or $previous.phase -in @('terminal', 'readyToCommit', 'payloadReceived')) { return }
         if ($Context.record.intent.action -eq 'permanentDelete') { Resolve-WindowsDeletion $Context; return }
         if ($Context.record.windowsIngressReady -and -not $Context.record.windowsIngressSealing) { return }
         $receipt = New-WindowsReceipt $Context 'terminal' 'unknown'
@@ -112,6 +112,11 @@ extension WindowsOperationScripts {
                 $expected = if ($null -ne $previous.preparedPayload) { $previous.preparedPayload.observation } else { $previous.effects[0].observation }
                 $actual = $lookup.found._0
                 try {
+                    if ($null -ne $Context.record.intent.treeProof -and ($actual.kind -ne 'directory' -or
+                        $Context.record.payloadManifest.proof.sha256 -cne $Context.record.intent.treeProof.sha256 -or
+                        $Context.record.payloadManifest.proof.byteCount -ne $Context.record.intent.treeProof.byteCount)) {
+                        throw 'Imported folder is not verified.'
+                    }
                     if ($actual.kind -eq 'file') { $actual = (Get-WindowsContentProof $destination) }
                     elseif ($null -ne $expected.sha256) {
                         $manifest = Get-WindowsTreeProof $destination
@@ -182,13 +187,20 @@ extension WindowsOperationScripts {
         $observed = (Get-WindowsContentProof $payload)
         if ($observed.byteCount -ne $proof.byteCount -or $observed.sha256 -cne $proof.sha256) { throw 'Operation payload verification failed.' }
         Assert-WindowsOperationActive $Context
-        $receipt = New-WindowsReceipt $Context 'readyToCommit' 'running'
+        $phase = if ($null -eq $intent.treeProof) { 'readyToCommit' } else { 'payloadReceived' }
+        $receipt = New-WindowsReceipt $Context $phase 'running'
         $receipt.preparedPayload = @{ location = (Get-WindowsOperationLocation $payload $Context.account); observation = $observed }
         $receipt.contentVerified = $true
         Save-WindowsReceipt $Context $receipt
     }
     function Commit-WindowsMutation($Context, [string]$Kind, [bool]$Replacing = $false) {
         $intent = $Context.record.intent
+        if ($null -ne $intent.treeProof -and ($Kind -ne 'commit' -or
+            $Context.record.receipt.preparedPayload.observation.kind -ne 'directory' -or
+            $Context.record.payloadManifest.proof.sha256 -cne $intent.treeProof.sha256 -or
+            $Context.record.payloadManifest.proof.byteCount -ne $intent.treeProof.byteCount)) {
+            throw 'Imported folder is not verified.'
+        }
         if (-not $Replacing -and @($intent.conflict.PSObject.Properties.Name) -contains 'replace') {
             return Invoke-WindowsReplacement $Context $Kind
         }
@@ -276,15 +288,17 @@ extension WindowsOperationScripts {
         $receipt
     }
     function Invoke-WindowsMutation($Context, [string]$Kind, $Parameters) {
-        if ($Kind -notin @('prepareUpload', 'prepareCopy', 'prepareArchive', 'commit', 'execute')) { throw 'Unsupported Windows operation request.' }
+        if ($Kind -notin @('prepareUpload', 'prepareCopy', 'prepareArchive', 'prepareImportedTree', 'commit', 'execute')) { throw 'Unsupported Windows operation request.' }
         if ($Context.record.receipt.phase -eq 'terminal') { return $Context.record.receipt }
-        if ($Context.record.receipt.phase -eq 'readyToCommit' -and $Kind -in @('prepareUpload', 'prepareCopy', 'prepareArchive')) { return $Context.record.receipt }
+        if ($Context.record.receipt.phase -eq 'readyToCommit' -and $Kind -in @('prepareUpload', 'prepareCopy', 'prepareArchive', 'prepareImportedTree')) { return $Context.record.receipt }
+        if ($Context.record.receipt.phase -eq 'payloadReceived' -and $Kind -eq 'prepareUpload') { return $Context.record.receipt }
         if ($Context.record.receipt.phase -in @('preparing', 'committing')) {
             Resolve-WindowsOperation $Context
             return $Context.record.receipt
         }
         try {
             Assert-WindowsOperationActive $Context
+            if ($Kind -eq 'prepareImportedTree') { return Prepare-WindowsImportedTree $Context }
             if ($Kind -in @('prepareUpload', 'prepareCopy')) { return Prepare-WindowsPayload $Context $Kind $Parameters }
             if ($Kind -eq 'prepareArchive') { return Prepare-WindowsArchive $Context $Parameters }
             if ($Kind -eq 'execute' -and $Context.record.intent.action -eq 'permanentDelete') { return Invoke-WindowsDeletion $Context }
