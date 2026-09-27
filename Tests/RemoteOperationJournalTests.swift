@@ -88,6 +88,28 @@ final class RemoteOperationJournalTests: XCTestCase {
         XCTAssertThrowsError(try journal.accept(intent, digest: "digest", ownership: ownership))
     }
 
+    func testInterruptedSnapshotWriteLeavesTheLastDurableState() async throws {
+        let root = try temporaryRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let journal = try await OperationJournal(root: root, account: account)
+        let intent = makeIntent()
+        let ownership = try await journal.acquireItem(intent.id)
+        let accepted = try journal.accept(intent, digest: "digest", ownership: ownership)
+
+        // A snapshot write killed before its atomic rename leaves a temporary beside the record.
+        let interrupted = root.appendingPathComponent(UUID().uuidString.lowercased() + ".snapshot")
+        try Data("half a snapshot".utf8).write(to: interrupted)
+
+        XCTAssertEqual(try journal.read(intent.id), accepted)
+        XCTAssertEqual(try journal.accept(intent, digest: "digest", ownership: ownership), accepted)
+
+        // The temporary is never read as a record, and the accepted intent survives a reopen, so a
+        // sent mutation is never silently reset to something safe to replay.
+        let reopened = try await OperationJournal(root: root, account: account)
+        XCTAssertEqual(try reopened.read(intent.id), accepted)
+        withExtendedLifetime(ownership) {}
+    }
+
     func testJournalRejectsPublicDirectoryAndSymbolicLink() async throws {
         let root = try temporaryRoot()
         defer { try? FileManager.default.removeItem(at: root) }
