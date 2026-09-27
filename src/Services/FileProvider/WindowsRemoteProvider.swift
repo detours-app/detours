@@ -342,9 +342,7 @@ actor WindowsRemoteProvider: FileProvider {
 
     private func listDrives() async throws -> [LoadedFileEntry] {
         let script = PowerShellScript(source: Self.driveListScript)
-        print("DETOURS_DRIVELIST start")
         let data = try await channel.run(script, operation: "DriveList")
-        print("DETOURS_DRIVELIST reply \(data.count) bytes")
         let drives = try WindowsReplyDecoder.decodeArrayOrSingle(WindowsDriveEntry.self, from: data)
         return try drives.map { drive in
             let remotePath = try WindowsPath.remotePath(fromNative: drive.nativeRoot)
