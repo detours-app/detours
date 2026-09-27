@@ -76,6 +76,10 @@ enum UITestRemoteFixtureMutator {
                     scenarioPath: scenarioPath,
                     hostID: hostID
                 )
+                // The accepted create path never overwrites, so a write to an existing path replaces it first.
+                if (try? await provider.stat(location)) != nil {
+                    try await trashFixture(location, hostID: hostID)
+                }
                 _ = try await PaneFileOperationCoordinator.shared.perform(affecting: [location.deletingLastPathComponent()]) {
                     try await FileOperationQueue.shared.createFile(in: location.deletingLastPathComponent(),
                         name: location.lastPathComponent, content: Data(contents.utf8))
