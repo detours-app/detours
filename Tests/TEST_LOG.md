@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry coordinated local transfers | `e6ce47b` | FAIL: signed build and 32 of 33 focused checks passed in 1.445 seconds. Both local/remote directions, actual held-source change restoration and lost source-Trash replies passed. The competing-local-name case preserved both files but returned unknown instead of failed unchanged; correcting classification and checking private payload cleanup. |
 | Foundry local destination publication | `33b8e07` | PASS: signed build and all 11 local/imported-tree checks passed in 0.239 seconds. Local folders and files remain private until non-replacing commit; cancellation, changed prepared children and competing names preserve originals. Approved replacement retains the displaced original. |
 | Foundry cross-volume move and cleanup | `c11f6df` | PASS: signed build and the actual mounted-volume move test passed in 1.421 seconds. Destination bytes match, source Trash is independently recorded after verified copy, and image detach succeeds with the original bounded deadline. |
 | Foundry actual cross-volume move | `57d4318` | FAIL: signed build and 20 regression checks passed. The actual-volume move test reached final image detach but timed out there; 21 checks ran in 13.369 seconds. Checking fixture handle lifetime and mount cleanup before repeating it. |

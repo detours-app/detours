@@ -11,9 +11,23 @@ extension LocalTransferService {
             _ = try await OperationPublication.publish(journal: journal, id: identity.id, ownership: ownership)
         } catch {
             let current = try read(identity)
+            if let receipt = current.receipt, receipt.phase == .terminal { return receipt }
             if current.receipt?.phase == .readyToCommit {
-                return try record(identity, phase: .terminal, outcome: .failedUnchanged, ownership: ownership,
-                                  failure: String(describing: error))
+                var failure = String(describing: error)
+                var recovery = current.receipt?.recovery ?? []
+                do {
+                    guard let record = current.workspace, let destination = current.intent?.destination else {
+                        throw OperationContractError.invalidReceipt
+                    }
+                    let parent = try OperationDirectory(path: LocalTransferPublication.split(destination).parent)
+                    try OperationWorkspace(parent: parent, record: record).removeScratch()
+                    recovery = []
+                } catch { failure += "; scratch cleanup: \(error)" }
+                let stopped = OperationReceipt(id: identity.id, account: journal.account, epoch: journal.epoch,
+                    intentDigest: identity.intentDigest, revision: (current.receipt?.revision ?? 0) + 1,
+                    phase: .terminal, outcome: recovery.isEmpty ? .failedUnchanged : .partial, recovery: recovery, failure: failure)
+                try journal.record(stopped, ownership: ownership)
+                return stopped
             }
             if current.receipt?.outcome == .committed { return try requireReceipt(current) }
             return try record(identity, phase: .terminal, outcome: .unknown, ownership: ownership,
@@ -67,10 +81,14 @@ extension LocalTransferService {
             var returned: NSURL?
             try FileManager.default.trashItem(at: original, resultingItemURL: &returned)
             guard let result = returned as URL? else { throw OperationContractError.invalidReceipt }
+            let known = OperationLocation(account: journal.account, path: .unix(Data(result.path.utf8)))
+            let returnedReference = OperationRecoveryReference(identity: reference.identity, purpose: reference.purpose,
+                original: reference.original, knownLocation: nil, possibleLocations: [location, known])
+            current = try record(identity, phase: phase, outcome: outcome, ownership: ownership,
+                recovery: current.recovery.filter { $0.identity != reference.identity } + [returnedReference])
             let parent = try OperationDirectory(path: Data(result.deletingLastPathComponent().path.utf8))
             let after = try parent.manifest(Data(result.lastPathComponent.utf8), progress: { _ in })
             guard before.matchesMovedObjects(after) else { throw OperationFilesystemError.identityChanged }
-            let known = OperationLocation(account: journal.account, path: .unix(Data(result.path.utf8)))
             let retained = OperationRecoveryReference(identity: reference.identity, purpose: reference.purpose,
                 original: reference.original, knownLocation: known, possibleLocations: [known])
             return try record(identity, phase: phase, outcome: outcome, ownership: ownership,

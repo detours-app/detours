@@ -4,6 +4,24 @@ import XCTest
 @testable import detours_server
 
 final class OperationPublicationTests: XCTestCase {
+    func testCompetingNameRecordsConfirmedRefusalBeforeCleanup() async throws {
+        let fixture = try await Fixture(replacing: false)
+        defer { fixture.cleanup() }
+        let ownership = try await fixture.prepare()
+        try Data("competing writer".utf8).write(to: fixture.destination)
+        do {
+            _ = try await OperationPublication.publish(journal: fixture.journal, id: fixture.id, ownership: ownership)
+            XCTFail("Published over a competing name")
+        } catch {
+            let receipt = try XCTUnwrap(fixture.journal.read(fixture.id).receipt)
+            XCTAssertEqual(receipt.phase, .readyToCommit)
+            XCTAssertTrue(receipt.effects.isEmpty)
+            XCTAssertEqual(receipt.preparedPayload, fixture.payload)
+        }
+        XCTAssertEqual(try Data(contentsOf: fixture.destination), Data("competing writer".utf8))
+        XCTAssertEqual(try fixture.workspace.directory.observe(Data("payload".utf8)).identity, fixture.payload.observation.identity)
+    }
+
     func testLostReplacementResultIsObservedWithoutRepeatingMutation() async throws {
         for locateBackup in [false, true] {
             let fixture = try await Fixture(replacing: true)

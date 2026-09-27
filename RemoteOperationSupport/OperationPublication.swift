@@ -1,4 +1,9 @@
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#else
+import Glibc
+#endif
 
 public enum OperationPublication {
     public static func publish(journal: OperationJournal, id: OperationItemID,
@@ -76,6 +81,15 @@ public enum OperationPublication {
             observation = try sourceDirectory.moveExclusive(source.name, to: targetDirectory, named: target.name,
                                                             expected: payload.observation)
         } catch {
+            if intent.conflict == .createNew, error as? OperationFilesystemError == .system(EEXIST) {
+                let refused = OperationReceipt(id: id, account: journal.account, epoch: journal.epoch,
+                    intentDigest: accepted.intentDigest, revision: committing.revision + 1,
+                    phase: .readyToCommit, outcome: .running, effects: ready.effects,
+                    sourceDisposition: ready.sourceDisposition, contentVerified: ready.contentVerified,
+                    preparedPayload: ready.preparedPayload, plannedPaths: ready.plannedPaths,
+                    recovery: ready.recovery, children: ready.children)
+                try journal.record(refused, ownership: ownership)
+            }
             if case .replace = intent.conflict,
                case .found(let remaining) = try sourceDirectory.lookup(source.name), remaining.identity == payload.observation.identity {
                 try OperationReplacement.restore(journal: journal, id: id, ownership: ownership, failure: String(describing: error))

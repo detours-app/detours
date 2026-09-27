@@ -6,7 +6,7 @@ import XCTest
 
 extension WindowsAcceptedOperationLiveTests {
     @MainActor
-    func testAcceptedQueueFileMoveRoundTripAcrossWindowsAndUnix() async throws {
+    func testAcceptedQueueFileAndFolderMoveRoundTripAcrossWindowsAndUnix() async throws {
         let control = URL(fileURLWithPath: "/tmp").appendingPathComponent("x-" + UUID().uuidString.prefix(6))
         try FileManager.default.createDirectory(at: control, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         defer { XCTAssertNoThrow(try FileManager.default.removeItem(at: control)) }
@@ -103,7 +103,26 @@ extension WindowsAcceptedOperationLiveTests {
         let missing = try await windows.request(.lookup(.init(account: windowsAccount,
             path: .windows(root + "\\target\\source"))))
         XCTAssertEqual(missing, .lookup(.missing))
-        XCTAssertEqual(queue.remoteOperationResults.count, 2)
+        let folder = unix.root.appendingPathComponent("folder")
+        try FileManager.default.createDirectory(at: folder.appendingPathComponent("empty"), withIntermediateDirectories: true)
+        try unix.bytes.write(to: folder.appendingPathComponent("é child"))
+        let parent = try OperationDirectory(path: Data(unix.root.path.utf8))
+        let originalTree = try parent.manifest(Data("folder".utf8), progress: { _ in })
+        let sentFolder = try await queue.move(items: [.remote(hostID: unix.hostID, path: folder.path)], to: windowsTarget)
+        XCTAssertEqual(sentFolder, [windowsTarget.appendingPathComponent("folder")])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: folder.path))
+        let windowsFolder = OperationLocation(account: windowsAccount, path: .windows(root + "\\target\\folder"))
+        guard case .manifest(.found(let receivedTree)) = try await windows.request(.sourceManifest(windowsFolder)) else {
+            return XCTFail("Missing received Windows folder")
+        }
+        XCTAssertEqual(receivedTree.proof, originalTree.proof)
+        let returnedFolder = try await queue.move(items: sentFolder, to: .remote(hostID: unix.hostID, path: returnDirectory.path))
+        XCTAssertEqual(returnedFolder, [.remote(hostID: unix.hostID, path: returnDirectory.appendingPathComponent("folder").path)])
+        let returnedParent = try OperationDirectory(path: Data(returnDirectory.path.utf8))
+        XCTAssertEqual(try returnedParent.manifest(Data("folder".utf8), progress: { _ in }).proof, originalTree.proof)
+        let absentFolder = try await windows.request(.lookup(windowsFolder))
+        XCTAssertEqual(absentFolder, .lookup(.missing))
+        XCTAssertEqual(queue.remoteOperationResults.count, 4)
         for result in queue.remoteOperationResults.values {
             XCTAssertEqual(result.items.map(\.outcome), [.committed, .committed])
             XCTAssertTrue(result.items[1].result.receipt?.recovery.contains { $0.purpose == .sourceTrash } == true)

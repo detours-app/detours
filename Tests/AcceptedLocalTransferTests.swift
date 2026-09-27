@@ -93,6 +93,8 @@ final class AcceptedLocalTransferTests: XCTestCase {
             XCTAssertEqual(try Data(contentsOf: target), Data("competing writer".utf8))
             XCTAssertEqual(try Data(contentsOf: sourceURL), remote.bytes)
             XCTAssertEqual(result.items.map(\.outcome), [.failedUnchanged, .notStarted])
+            XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: destinationURL.path)
+                .filter { $0.hasPrefix(".detours-partial-") }.isEmpty)
         } else {
             XCTAssertEqual(try Data(contentsOf: isFolder ? target.appendingPathComponent("child") : target), remote.bytes)
             if isFolder {
