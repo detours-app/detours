@@ -91,8 +91,16 @@ extension LocalTransferService {
             guard before.matchesMovedObjects(after) else { throw OperationFilesystemError.identityChanged }
             let retained = OperationRecoveryReference(identity: reference.identity, purpose: reference.purpose,
                 original: reference.original, knownLocation: known, possibleLocations: [known])
+            let effects: [OperationEffect]?
+            if reference.purpose == .sourceTrash {
+                guard let root = after.entries.first?.observation else { throw OperationContractError.invalidReceipt }
+                let proof = OperationObservation(identity: root.identity, kind: root.kind, version: root.version,
+                    byteCount: root.byteCount, sha256: root.kind == .file ? root.sha256 : after.proof.sha256,
+                    linkTarget: root.linkTarget, contentVersion: root.contentVersion)
+                effects = [.init(location: known, observation: proof)]
+            } else { effects = nil }
             return try record(identity, phase: phase, outcome: outcome, ownership: ownership,
-                              recovery: current.recovery.filter { $0.identity != reference.identity } + [retained])
+                              recovery: current.recovery.filter { $0.identity != reference.identity } + [retained], effects: effects)
         } catch {
             var recovery = current.recovery
             if case .found(let remaining) = try directory.lookup(target.name), remaining.identity == reference.identity {

@@ -54,7 +54,7 @@ struct LocalTransferService: Sendable {
         case .accept(let identity, let intent):
             try validate(identity)
             guard identity.id == intent.id, try OperationContentProof.data(intent.canonicalData()).sha256 == identity.intentDigest,
-                  intent.action == .copy || intent.action == .trash else { throw OperationContractError.invalidReceipt }
+                  [.copy, .trash, .restore].contains(intent.action) else { throw OperationContractError.invalidReceipt }
             let ownership = try await journal.acquireItem(identity.id)
             return .accepted(try journal.accept(intent, digest: identity.intentDigest, ownership: ownership))
         case .status(let identity):
@@ -76,7 +76,9 @@ struct LocalTransferService: Sendable {
             try journal.acknowledge(identity.id, retainingUndo: retainingUndo, ownership: ownership)
             return .acknowledged(identity)
         case .commit(let identity): return .receipt(try await commit(identity))
-        case .execute(let identity): return .receipt(try await trash(identity))
+        case .execute(let identity):
+            if try read(identity).intent?.action == .restore { return .receipt(try await restore(identity)) }
+            return .receipt(try await trash(identity))
         default: throw FileProviderError.unsupportedOperation("Unsupported local transfer request.")
         }
     }
@@ -96,11 +98,12 @@ struct LocalTransferService: Sendable {
     @discardableResult
     func record(_ identity: OperationRequestIdentity, phase: OperationPhase, outcome: OperationOutcome,
                 ownership: OperationJournal.Ownership, recovery: [OperationRecoveryReference]? = nil,
-                failure: String? = nil, sourceDisposition: OperationReceipt.SourceDisposition? = nil) throws -> OperationReceipt {
+                failure: String? = nil, sourceDisposition: OperationReceipt.SourceDisposition? = nil,
+                effects: [OperationEffect]? = nil) throws -> OperationReceipt {
         let current = try read(identity).receipt
         let receipt = OperationReceipt(id: identity.id, account: journal.account, epoch: journal.epoch,
             intentDigest: identity.intentDigest, revision: (current?.revision ?? 0) + 1, phase: phase, outcome: outcome,
-            effects: current?.effects ?? [], sourceDisposition: sourceDisposition ?? current?.sourceDisposition ?? .notRequired,
+            effects: effects ?? current?.effects ?? [], sourceDisposition: sourceDisposition ?? current?.sourceDisposition ?? .notRequired,
             contentVerified: current?.contentVerified ?? false, preparedPayload: current?.preparedPayload,
             plannedPaths: current?.plannedPaths, measuredBytes: current?.measuredBytes,
             recovery: recovery ?? current?.recovery ?? [], children: current?.children ?? [], failure: failure)

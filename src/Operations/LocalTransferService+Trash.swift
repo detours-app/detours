@@ -76,8 +76,13 @@ extension LocalTransferService {
         }
         let retained = OperationRecoveryReference(identity: expected.identity, purpose: .sourceTrash, original: source,
             knownLocation: held, possibleLocations: [held])
+        guard let heldRoot = actual.entries.first?.observation else { throw OperationContractError.invalidReceipt }
+        let heldProof = OperationObservation(identity: heldRoot.identity, kind: heldRoot.kind, version: heldRoot.version,
+            byteCount: heldRoot.byteCount, sha256: heldRoot.kind == .file ? heldRoot.sha256 : actual.proof.sha256,
+            linkTarget: heldRoot.linkTarget, contentVersion: heldRoot.contentVersion)
         let verified = OperationReceipt(id: identity.id, account: journal.account, epoch: journal.epoch,
             intentDigest: identity.intentDigest, revision: 3, phase: .committing, outcome: .running,
+            effects: [.init(location: held, observation: heldProof)],
             sourceDisposition: .unknown, contentVerified: true, recovery: [retained,
                 .init(identity: workspace.record.root.identity, purpose: .scratch, original: nil,
                       knownLocation: workspaceLocation, possibleLocations: [workspaceLocation]),
