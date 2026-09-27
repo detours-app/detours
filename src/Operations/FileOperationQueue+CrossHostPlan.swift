@@ -69,7 +69,21 @@ extension FileOperationQueue {
                 }
                 original = manifest
                 if sourceProvider.supportsSymbolicLinks && destinationProvider.supportsSymbolicLinks {
-                    omissions = try await SymlinkTransferWalker(provider: sourceProvider).stage(source, to: staged)
+                    do {
+                        omissions = try await SymlinkTransferWalker(provider: sourceProvider).stage(source, to: staged)
+                    } catch let error where Self.linkPreflightFailure(error) != nil {
+                        // The selected item is itself a broken or looping link: fail that item by name and let
+                        // the rest of the batch continue, instead of aborting every selection.
+                        let omitted = OperationIntent(id: .init(operation: plan.operation, item: UUID()), action: .copy,
+                            sources: [observed.location], destination: nil,
+                            sourceObservations: proof.map { [$0] } ?? [], conflict: .createNew)
+                        plan.items.append(.init(intent: omitted, hostID: sourceHost, work: .execute,
+                            preflightFailure: Self.linkPreflightFailure(error)))
+                        plan.selections.append(.init(id: .init(operation: plan.operation, item: UUID()),
+                            action: isMove ? .move : .copy, sources: [observed.location], destination: target.location,
+                            sourceObservations: proof.map { [$0] } ?? [], conflict: conflict, children: [omitted.id]))
+                        return
+                    }
                 } else {
                     try await stageLocation(source, provider: sourceProvider, to: staged)
                 }
@@ -106,5 +120,14 @@ extension FileOperationQueue {
         plan.selections.append(.init(id: .init(operation: plan.operation, item: UUID()), action: isMove ? .move : .copy,
             sources: [observed.location], destination: target.location, sourceObservations: proof.map { [$0] } ?? [],
             conflict: conflict, children: children))
+    }
+
+    static func linkPreflightFailure(_ error: Error) -> RemoteOperationStore.PreflightFailure? {
+        guard let error = error as? FileOperationError else { return nil }
+        switch error {
+        case .linkLoops: return .linkLoop
+        case .linkTargetMissing: return .linkTargetMissing
+        default: return nil
+        }
     }
 }
