@@ -111,16 +111,19 @@ final class RemoteIntegrationTests: XCTestCase {
         let remoteRoot = try Self.makeRemoteFixtureRoot()
         defer { Self.cleanupRemote(remoteRoot) }
         try Self.runSSH("printf secret > \(Self.shellQuote(remoteRoot + "/secret.txt"))")
-        let archive = try await session.provider.archiveCreate(
-            [.remote(hostID: session.hostID, path: remoteRoot + "/secret.txt")],
+        let queue = FileOperationQueue.shared
+        queue.registerRemoteFileProvider(session.provider, for: session.hostID, operationEndpoint: session.endpoint)
+        defer { queue.unregisterRemoteFileProvider(for: session.hostID) }
+        let archive = try await queue.archive(
+            items: [.remote(hostID: session.hostID, path: remoteRoot + "/secret.txt")],
             format: .zip,
             archiveName: "encrypted",
             password: "correct-password"
         )
 
         do {
-            _ = try await session.provider.archiveExtract(
-                archive,
+            _ = try await queue.extract(
+                archive: archive,
                 password: "wrong-password"
             )
             XCTFail("Expected archive password retry")
@@ -150,8 +153,11 @@ final class RemoteIntegrationTests: XCTestCase {
         let localRoot = try createTempDirectory()
         defer { cleanupTempDirectory(localRoot) }
         let source = try createTestFile(in: localRoot, name: "upload.txt", content: "local-body")
+        let queue = FileOperationQueue.shared
+        queue.registerRemoteFileProvider(session.provider, for: session.hostID, operationEndpoint: session.endpoint)
+        defer { queue.unregisterRemoteFileProvider(for: session.hostID) }
 
-        try await session.provider.upload(source, to: .remote(hostID: session.hostID, path: remoteRoot + "/upload.txt"))
+        _ = try await queue.copy(items: [.local(source)], to: .remote(hostID: session.hostID, path: remoteRoot + "/upload.txt"))
         let entry = try await session.provider.stat(.remote(hostID: session.hostID, path: remoteRoot + "/upload.txt"))
 
         XCTAssertEqual(entry.fileSize, 10)
@@ -169,7 +175,11 @@ final class RemoteIntegrationTests: XCTestCase {
         let source = Location.remote(hostID: session.hostID, path: remoteRoot + "/source.txt")
         let destination = Location.remote(hostID: session.hostID, path: remoteRoot + "/destination")
 
-        let copied = try await session.provider.copy([source], to: destination)
+        let queue = FileOperationQueue.shared
+        queue.registerRemoteFileProvider(session.provider, for: session.hostID, operationEndpoint: session.endpoint)
+        defer { queue.unregisterRemoteFileProvider(for: session.hostID) }
+
+        let copied = try await queue.copy(items: [source], to: destination)
 
         let expected = destination.appendingPathComponent("source.txt")
         XCTAssertEqual(copied, [expected])
@@ -187,7 +197,7 @@ final class RemoteIntegrationTests: XCTestCase {
         let destination = try createTestFolder(in: localRoot, name: "destination")
         let source = Location.remote(hostID: session.hostID, path: remoteRoot + "/remote.txt")
         let queue = FileOperationQueue.shared
-        queue.registerRemoteFileProvider(session.provider, for: session.hostID)
+        queue.registerRemoteFileProvider(session.provider, for: session.hostID, operationEndpoint: session.endpoint)
         defer { queue.unregisterRemoteFileProvider(for: session.hostID) }
 
         let copied = try await queue.copy(items: [source], to: .local(destination))
@@ -209,7 +219,7 @@ final class RemoteIntegrationTests: XCTestCase {
         let source = try createTestFile(in: localRoot, name: "local.txt", content: "local-payload")
         let destination = Location.remote(hostID: session.hostID, path: remoteRoot + "/destination")
         let queue = FileOperationQueue.shared
-        queue.registerRemoteFileProvider(session.provider, for: session.hostID)
+        queue.registerRemoteFileProvider(session.provider, for: session.hostID, operationEndpoint: session.endpoint)
         defer { queue.unregisterRemoteFileProvider(for: session.hostID) }
 
         let copied = try await queue.copy(items: [.local(source)], to: destination)
@@ -231,10 +241,11 @@ final class RemoteIntegrationTests: XCTestCase {
         let destination = try createTestFolder(in: localRoot, name: "destination")
         let source = Location.remote(hostID: session.hostID, path: remoteRoot + "/move.txt")
         let queue = FileOperationQueue.shared
-        queue.registerRemoteFileProvider(session.provider, for: session.hostID)
+        queue.registerRemoteFileProvider(session.provider, for: session.hostID, operationEndpoint: session.endpoint)
         defer { queue.unregisterRemoteFileProvider(for: session.hostID) }
 
-        let moved = try await queue.move(items: [source], to: .local(destination))
+        let undoManager = UndoManager()
+        let moved = try await queue.move(items: [source], to: .local(destination), undoManager: undoManager)
 
         let localCopy = destination.appendingPathComponent("move.txt")
         XCTAssertEqual(moved, [.local(localCopy)])
@@ -244,14 +255,10 @@ final class RemoteIntegrationTests: XCTestCase {
             "grep -lFx \(Self.shellQuote("Path=\(source.path)")) "
                 + "\"$HOME/.local/share/Trash/info/\"*.trashinfo 2>/dev/null | head -n 1"
         ).trimmingCharacters(in: .whitespacesAndNewlines)
-        let trashInfoPath = try XCTUnwrap(trashInfo.isEmpty ? nil : trashInfo)
+        XCTAssertFalse(trashInfo.isEmpty, "The move must leave real Trash metadata")
 
-        _ = try await session.provider.restoreFromTrash([
-            TrashedItem(
-                originalLocation: source,
-                trashLocation: .remote(hostID: session.hostID, path: trashInfoPath)
-            ),
-        ])
+        undoManager.undo()
+        try await Self.waitForRemotePath(source.path)
         XCTAssertTrue(try Self.remotePathExists(source.path))
     }
 
@@ -265,7 +272,7 @@ final class RemoteIntegrationTests: XCTestCase {
         let item = Location.remote(hostID: session.hostID, path: remoteRoot + "/undo.txt")
         let queue = FileOperationQueue.shared
         let undoManager = UndoManager()
-        queue.registerRemoteFileProvider(session.provider, for: session.hostID)
+        queue.registerRemoteFileProvider(session.provider, for: session.hostID, operationEndpoint: session.endpoint)
         defer { queue.unregisterRemoteFileProvider(for: session.hostID) }
 
         try await queue.delete(items: [item], undoManager: undoManager)
@@ -286,7 +293,7 @@ final class RemoteIntegrationTests: XCTestCase {
         try Self.runSSH("printf rename-payload > \(Self.shellQuote(remoteRoot + "/old.txt"))")
         let item = Location.remote(hostID: session.hostID, path: remoteRoot + "/old.txt")
         let queue = FileOperationQueue.shared
-        queue.registerRemoteFileProvider(session.provider, for: session.hostID)
+        queue.registerRemoteFileProvider(session.provider, for: session.hostID, operationEndpoint: session.endpoint)
         defer { queue.unregisterRemoteFileProvider(for: session.hostID) }
 
         let renamed = try await queue.rename(item: item, to: "new.txt")
@@ -502,14 +509,15 @@ final class RemoteIntegrationTests: XCTestCase {
         try Data(count: 4 * 1_024 * 1_024).write(to: source)
         let destination = Location.remote(hostID: session.hostID, path: remoteRoot + "/missing/large.bin")
 
+        let queue = FileOperationQueue.shared
+        queue.registerRemoteFileProvider(session.provider, for: session.hostID, operationEndpoint: session.endpoint)
+        defer { queue.unregisterRemoteFileProvider(for: session.hostID) }
+
         do {
-            try await session.provider.upload(source, to: destination)
+            _ = try await queue.copy(items: [.local(source)], to: destination)
             XCTFail("Uploading into a missing folder must fail")
-        } catch let error as RemoteTransferError {
-            guard case .processFailed = error else {
-                XCTFail("Unexpected transfer error: \(error)")
-                return
-            }
+        } catch {
+            // The host error is reported; the queue wraps it.
         }
 
         let names = try await session.provider.list(.remote(hostID: session.hostID, path: remoteRoot), showHidden: true)
@@ -532,10 +540,13 @@ final class RemoteIntegrationTests: XCTestCase {
             ("plain name, nested", remoteRoot + "/2026-09-01T1028/report/plain.pdf"),
             ("spaces, nested", remoteRoot + "/2026-09-01T1028/report/OSAI-OS-549575-Exam-Report Best Practice.pdf"),
         ]
+        let queue = FileOperationQueue.shared
+        queue.registerRemoteFileProvider(session.provider, for: session.hostID, operationEndpoint: session.endpoint)
+        defer { queue.unregisterRemoteFileProvider(for: session.hostID) }
         for testCase in cases {
             let destination = Location.remote(hostID: session.hostID, path: testCase.path)
             do {
-                try await session.provider.upload(source, to: destination)
+                _ = try await queue.copy(items: [.local(source)], to: destination)
                 let entry = try await session.provider.stat(destination)
                 XCTAssertEqual(entry.fileSize, 3 * 1_024 * 1_024, testCase.label)
             } catch {
@@ -592,18 +603,24 @@ final class RemoteIntegrationTests: XCTestCase {
         XCTAssertEqual(path, RemotePath(remoteRoot + "/watched.txt"))
     }
 
+    @MainActor
     func testTrashAndRestore() async throws {
+        RemoteTrashExplainer.markDismissed()
         let session = try await RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()
         defer { Self.cleanupRemote(remoteRoot) }
         try Self.runSSH("printf trash > \(Self.shellQuote(remoteRoot + "/trash.txt"))")
         let location = Location.remote(hostID: session.hostID, path: remoteRoot + "/trash.txt")
+        let queue = FileOperationQueue.shared
+        let undoManager = UndoManager()
+        queue.registerRemoteFileProvider(session.provider, for: session.hostID, operationEndpoint: session.endpoint)
+        defer { queue.unregisterRemoteFileProvider(for: session.hostID) }
 
-        let trashed = try await session.provider.trash([location])
+        try await queue.delete(items: [location], undoManager: undoManager)
         XCTAssertFalse(try Self.remotePathExists(remoteRoot + "/trash.txt"))
-        let restored = try await session.provider.restoreFromTrash(trashed)
 
-        XCTAssertEqual(restored, [location])
+        undoManager.undo()
+        try await Self.waitForRemotePath(location.path)
         XCTAssertTrue(try Self.remotePathExists(remoteRoot + "/trash.txt"))
     }
 
@@ -799,8 +816,11 @@ final class RemoteIntegrationTests: XCTestCase {
         let localRoot = try createTempDirectory()
         defer { cleanupTempDirectory(localRoot) }
         let source = try createTestFile(in: localRoot, name: "upload.txt", content: "local-body")
+        let queue = FileOperationQueue.shared
+        queue.registerRemoteFileProvider(session.provider, for: session.hostID, operationEndpoint: session.endpoint)
+        defer { queue.unregisterRemoteFileProvider(for: session.hostID) }
 
-        try await session.provider.upload(source, to: .remote(hostID: session.hostID, path: remoteRoot + "/upload.txt"))
+        _ = try await queue.copy(items: [.local(source)], to: .remote(hostID: session.hostID, path: remoteRoot + "/upload.txt"))
         let entry = try await session.provider.stat(.remote(hostID: session.hostID, path: remoteRoot + "/upload.txt"))
 
         XCTAssertEqual(entry.fileSize, 10)
@@ -856,18 +876,24 @@ final class RemoteIntegrationTests: XCTestCase {
         XCTAssertEqual(watch, token)
     }
 
+    @MainActor
     func testIntelMacTrashAndRestore() async throws {
+        RemoteTrashExplainer.markDismissed()
         let session = try await RemoteIntegrationSession.makeIntelMac()
         let remoteRoot = try Self.makeRemoteFixtureRoot(target: Self.intelMacTestTarget)
         defer { Self.cleanupRemote(remoteRoot, target: Self.intelMacTestTarget) }
         try Self.runSSH("printf trash > \(Self.shellQuote(remoteRoot + "/trash.txt"))", target: Self.intelMacTestTarget)
         let location = Location.remote(hostID: session.hostID, path: remoteRoot + "/trash.txt")
+        let queue = FileOperationQueue.shared
+        let undoManager = UndoManager()
+        queue.registerRemoteFileProvider(session.provider, for: session.hostID, operationEndpoint: session.endpoint)
+        defer { queue.unregisterRemoteFileProvider(for: session.hostID) }
 
-        let trashed = try await session.provider.trash([location])
+        try await queue.delete(items: [location], undoManager: undoManager)
         XCTAssertFalse(try Self.remotePathExists(remoteRoot + "/trash.txt", target: Self.intelMacTestTarget))
-        let restored = try await session.provider.restoreFromTrash(trashed)
 
-        XCTAssertEqual(restored, [location])
+        undoManager.undo()
+        try await Self.waitForRemotePath(location.path, target: Self.intelMacTestTarget)
         XCTAssertTrue(try Self.remotePathExists(remoteRoot + "/trash.txt", target: Self.intelMacTestTarget))
     }
 
@@ -912,8 +938,11 @@ final class RemoteIntegrationTests: XCTestCase {
         let copyDestination = Location.remote(hostID: session.hostID, path: remoteRoot + "/copy-destination")
         let moveDestination = Location.remote(hostID: session.hostID, path: remoteRoot + "/move-destination")
 
-        let copied = try await session.provider.copy([copySource], to: copyDestination)
-        let moved = try await session.provider.move([moveSource], to: moveDestination)
+        let queue = FileOperationQueue.shared
+        queue.registerRemoteFileProvider(session.provider, for: session.hostID, operationEndpoint: session.endpoint)
+        defer { queue.unregisterRemoteFileProvider(for: session.hostID) }
+        let copied = try await queue.copy(items: [copySource], to: copyDestination)
+        let moved = try await queue.move(items: [moveSource], to: moveDestination)
 
         XCTAssertEqual(copied, [copyDestination.appendingPathComponent("copy-source.txt")])
         XCTAssertEqual(moved, [moveDestination.appendingPathComponent("move-source.txt")])
@@ -943,8 +972,8 @@ final class RemoteIntegrationTests: XCTestCase {
         _ = try createTestFile(in: localFolder, name: "nested.txt", content: "local-folder-body")
         let localDestination = try createTestFolder(in: localRoot, name: "from-remote")
         let queue = FileOperationQueue.shared
-        queue.registerRemoteFileProvider(sessionA.provider, for: sessionA.hostID)
-        queue.registerRemoteFileProvider(sessionB.provider, for: sessionB.hostID)
+        queue.registerRemoteFileProvider(sessionA.provider, for: sessionA.hostID, operationEndpoint: sessionA.endpoint)
+        queue.registerRemoteFileProvider(sessionB.provider, for: sessionB.hostID, operationEndpoint: sessionB.endpoint)
         defer {
             queue.unregisterRemoteFileProvider(for: sessionA.hostID)
             queue.unregisterRemoteFileProvider(for: sessionB.hostID)
@@ -999,6 +1028,17 @@ final class RemoteIntegrationTests: XCTestCase {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if try remotePathExists(path) {
+                return
+            }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        XCTFail("Remote path was not restored within \(timeout) seconds: \(path)")
+    }
+
+    fileprivate static func waitForRemotePath(_ path: String, target: String, timeout: TimeInterval = 3) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if try remotePathExists(path, target: target) {
                 return
             }
             try await Task.sleep(nanoseconds: 20_000_000)
