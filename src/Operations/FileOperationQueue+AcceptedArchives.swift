@@ -1,8 +1,9 @@
+import AppKit
 import Foundation
 import RemoteOperationSupport
 
 extension FileOperationQueue {
-    func performAcceptedExtraction(_ archive: Location, format: ArchiveFormat, password: String?) async throws -> Location {
+    func performAcceptedExtraction(_ archive: Location, format: ArchiveFormat, password: String?, undoManager: UndoManager? = nil) async throws -> Location {
         let hostID = Self.operationHostID(archive)
         let provider = try remoteProvider(for: hostID)
         let coordinator = try operationCoordinator()
@@ -48,10 +49,11 @@ extension FileOperationQueue {
             throw FileOperationError.archivePasswordRequired
         }
         try requireSuccessfulBatch(result)
+        try await registerAcceptedUndo(result, with: undoManager, name: "Extract Archive")
         return try await provider.displayLocation(target.path)
     }
 
-    func performAcceptedArchive(items: [Location], format: ArchiveFormat, name: String, password: String?) async throws -> Location {
+    func performAcceptedArchive(items: [Location], format: ArchiveFormat, name: String, password: String?, undoManager: UndoManager? = nil) async throws -> Location {
         guard let first = items.first, let groups = remoteGroups(from: items), groups.count == 1,
               let hostID = groups.keys.first else {
             throw FileProviderError.unsupportedOperation("Remote archive creation requires items on one host.")
@@ -90,6 +92,7 @@ extension FileOperationQueue {
             archiveFormat: format.rawValue, archiveEncrypted: password?.isEmpty == false)
         let result = try await performAcceptedMutation(.init(intent: intent, hostID: hostID, work: .archive(password: password)))
         try requireSuccessfulBatch(result)
+        try await registerAcceptedUndo(result, with: undoManager, name: "Create Archive")
         return try await provider.displayLocation(target.path)
     }
 }

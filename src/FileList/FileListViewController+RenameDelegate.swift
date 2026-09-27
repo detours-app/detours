@@ -20,7 +20,7 @@ extension FileListViewController: RenameControllerDelegate {
                 let result = try await PaneFileOperationCoordinator.shared.perform(
                     affecting: [source.deletingLastPathComponent()]
                 ) {
-                    try await FileOperationQueue.shared.rename(item: source, to: newName)
+                    try await FileOperationQueue.shared.rename(item: source, to: newName, undoManager: self.undoManager)
                 }
                 let affectedDirectories: Set<Location> = [
                     source.deletingLastPathComponent(),
@@ -151,10 +151,7 @@ extension FileListViewController: RenameControllerDelegate {
         // This prevents catastrophic data loss if the wrong item was selected
         let isLikelyNewItem: Bool
         if item.isRemote {
-            isLikelyNewItem = item.name.hasPrefix("Folder") ||
-                item.name.hasPrefix("Text File") ||
-                item.name.hasPrefix("Document") ||
-                item.name.hasPrefix("Untitled")
+            isLikelyNewItem = true // Remote cancellation validates the creation receipt below.
         } else if item.isDirectory {
             // New folders are empty and named "Folder" or "Folder N"
             let contents = try? FileManager.default.contentsOfDirectory(atPath: item.url.path)
@@ -183,7 +180,11 @@ extension FileListViewController: RenameControllerDelegate {
                 try await PaneFileOperationCoordinator.shared.perform(
                     affecting: [item.location.deletingLastPathComponent()]
                 ) {
-                    try await FileOperationQueue.shared.delete(items: [item.location], undoManager: nil)
+                    if item.isRemote {
+                        try await FileOperationQueue.shared.cancelCreatedRemoteItem(item.location)
+                    } else {
+                        try await FileOperationQueue.shared.delete(items: [item.location], undoManager: nil)
+                    }
                 }
                 if item.isRemote {
                     // Cancelling a new remote item removes it from the list.

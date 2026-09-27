@@ -1,8 +1,9 @@
+import AppKit
 import Foundation
 import RemoteOperationSupport
 
 extension FileOperationQueue {
-    func performAcceptedRename(_ source: Location, name: String) async throws -> Location {
+    func performAcceptedRename(_ source: Location, name: String, undoManager: UndoManager? = nil) async throws -> Location {
         try validateSinglePathComponent(name)
         if source.lastPathComponent == name { return source }
         let hostID = Self.operationHostID(source)
@@ -21,10 +22,11 @@ extension FileOperationQueue {
         let result = try await performAcceptedMutation(.init(intent: intent, hostID: hostID, work: .execute,
             preflightFailure: Self.preflightFailure(observed.result)))
         try requireSuccessfulBatch(result)
+        try await registerAcceptedUndo(result, with: undoManager, name: "Rename")
         return destination
     }
 
-    func performAcceptedCreateFolder(in directory: Location, name: String) async throws -> Location {
+    func performAcceptedCreateFolder(in directory: Location, name: String, undoManager: UndoManager? = nil) async throws -> Location {
         try validateSinglePathComponent(name)
         let hostID = Self.operationHostID(directory)
         let provider = try remoteProvider(for: hostID)
@@ -36,10 +38,11 @@ extension FileOperationQueue {
             sources: [], destination: target, sourceObservations: [], conflict: .createNew)
         let result = try await performAcceptedMutation(.init(intent: intent, hostID: hostID, work: .execute))
         try requireSuccessfulBatch(result)
+        try await registerAcceptedUndo(result, with: undoManager, name: "New Folder")
         return destination
     }
 
-    func performAcceptedCreateFile(in directory: Location, name: String, content: Data) async throws -> Location {
+    func performAcceptedCreateFile(in directory: Location, name: String, content: Data, undoManager: UndoManager? = nil) async throws -> Location {
         try validateSinglePathComponent(name)
         let hostID = Self.operationHostID(directory)
         let provider = try remoteProvider(for: hostID)
@@ -56,6 +59,7 @@ extension FileOperationQueue {
                 sources: [], destination: target, sourceObservations: [], conflict: .createNew, payloadProof: prepared.0)
             let result = try await performAcceptedMutation(.init(intent: intent, hostID: hostID, work: prepared.2))
             try requireSuccessfulBatch(result)
+            try await registerAcceptedUndo(result, with: undoManager, name: "New File")
             try FileManager.default.removeItem(at: staging)
             return try await provider.displayLocation(target.path)
         } catch {

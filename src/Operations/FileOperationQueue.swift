@@ -312,10 +312,10 @@ final class FileOperationQueue {
         try await rename(item: .local(item), to: newName).url
     }
 
-    func rename(item: Location, to newName: String) async throws -> Location {
+    func rename(item: Location, to newName: String, undoManager: UndoManager? = nil) async throws -> Location {
         guard case .local(let itemURL) = item else {
-            return try await enqueue {
-                try await self.performAcceptedRename(item, name: newName)
+            return try await enqueue(remoteHosts: [Self.operationHostID(item)]) {
+                try await self.performAcceptedRename(item, name: newName, undoManager: undoManager)
             }
         }
 
@@ -406,7 +406,7 @@ final class FileOperationQueue {
     }
 
     @discardableResult
-    func archive(items: [Location], format: ArchiveFormat, archiveName: String, password: String?) async throws -> Location {
+    func archive(items: [Location], format: ArchiveFormat, archiveName: String, password: String?, undoManager: UndoManager? = nil) async throws -> Location {
         guard let itemURLs = localURLs(from: items) else {
             let hostIDs = remoteHostIDs(from: items)
             return try await enqueue(remoteHosts: hostIDs) {
@@ -414,7 +414,8 @@ final class FileOperationQueue {
                     items: items,
                     format: format,
                     archiveName: archiveName,
-                    password: password
+                    password: password,
+                    undoManager: undoManager
                 )
             }
         }
@@ -446,7 +447,7 @@ final class FileOperationQueue {
         guard case .local(let archiveURL) = archive else {
             let hostIDs = remoteHostIDs(from: [archive])
             return try await enqueue(remoteHosts: hostIDs) {
-                try await self.performProviderExtract(archive: archive, password: password)
+                try await self.performProviderExtract(archive: archive, password: password, undoManager: undoManager)
             }
         }
         return try await enqueue { () async throws -> Location in

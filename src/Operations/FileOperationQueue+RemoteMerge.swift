@@ -43,7 +43,11 @@ extension FileOperationQueue {
                 if resolution.applyToAll { plan.cachedChoice = resolution.choice }
                 switch resolution.choice {
                 case .skip: conflict = .skip
-                case .replace: conflict = .replace(existing)
+                case .replace:
+                    let checked = try await coordinator.lookup(targetPath, hostID: hostID, proveContent: true)
+                    guard case .found(let approved) = checked.result, approved.identity == existing.identity,
+                          approved.version == existing.version else { throw OperationFilesystemError.identityChanged }
+                    conflict = .replace(approved)
                 case .keepBoth:
                     targetPath = try await availableTarget(source: sourcePath, directory: directory,
                                                           hostID: hostID, coordinator: coordinator)

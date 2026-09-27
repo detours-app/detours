@@ -73,23 +73,9 @@ extension FileOperationQueue {
         let completed = result.items.filter { $0.outcome == .committed }.count
         updateProgress(operation: operation, currentItem: items.last.map { Location.remoteFileURL($0.path) },
                        completed: completed, total: items.count)
-        if completed > 0, let undoManager {
-            undoManager.registerUndo(withTarget: self) { target in
-                Task { @MainActor in
-                    do {
-                        let restored = try await target.restoreAcceptedTrash(result)
-                        target.announceRestored(restored)
-                        undoManager.registerUndo(withTarget: target) { redoTarget in
-                            Task { @MainActor in
-                                do { try await redoTarget.performRemoteDelete(items: restored, undoManager: nil) } catch { redoTarget.presentError(error) }
-                            }
-                        }
-                    } catch { target.presentError(error) }
-                }
-            }
-            let firstName = items.first?.lastPathComponent ?? ""
-            undoManager.setActionName(completed == 1 ? "Delete \"\(firstName)\"" : "Delete \(completed) Items")
-        }
+        let firstName = items.first?.lastPathComponent ?? ""
+        try await registerAcceptedUndo(result, with: undoManager,
+            name: completed == 1 ? "Delete \"\(firstName)\"" : "Delete \(completed) Items")
         try requireSuccessfulBatch(result)
     }
 
@@ -312,27 +298,13 @@ extension FileOperationQueue {
         defer { finishOperation() }
 
         do {
-            let destination = try await performAcceptedCreateFolder(in: directory, name: name)
+            let destination = try await performAcceptedCreateFolder(in: directory, name: name, undoManager: undoManager)
             updateProgress(
                 operation: operation,
                 currentItem: URL(fileURLWithPath: destination.path),
                 completed: 1,
                 total: 1
             )
-
-            if let undoManager {
-                let created = destination
-                undoManager.registerUndo(withTarget: self) { target in
-                    Task { @MainActor in
-                        do {
-                            try await target.delete(items: [created], undoManager: nil)
-                        } catch {
-                            target.presentError(error)
-                        }
-                    }
-                }
-                undoManager.setActionName("New Folder")
-            }
 
             return destination
         } catch {
@@ -351,27 +323,13 @@ extension FileOperationQueue {
         defer { finishOperation() }
 
         do {
-            let destination = try await performAcceptedCreateFile(in: directory, name: name, content: content)
+            let destination = try await performAcceptedCreateFile(in: directory, name: name, content: content, undoManager: undoManager)
             updateProgress(
                 operation: operation,
                 currentItem: URL(fileURLWithPath: destination.path),
                 completed: 1,
                 total: 1
             )
-
-            if let undoManager {
-                let created = destination
-                undoManager.registerUndo(withTarget: self) { target in
-                    Task { @MainActor in
-                        do {
-                            try await target.delete(items: [created], undoManager: nil)
-                        } catch {
-                            target.presentError(error)
-                        }
-                    }
-                }
-                undoManager.setActionName("New File")
-            }
 
             return destination
         } catch {
@@ -383,7 +341,8 @@ extension FileOperationQueue {
         items: [Location],
         format: ArchiveFormat,
         archiveName: String,
-        password: String?
+        password: String?,
+        undoManager: UndoManager? = nil
     ) async throws -> Location {
         guard let groups = remoteGroups(from: items), groups.count == 1, let hostItems = groups.values.first else {
             throw FileProviderError.unsupportedOperation("Remote archive creation supports one host per operation")
@@ -393,7 +352,7 @@ extension FileOperationQueue {
         startOperation(operation, totalCount: hostItems.count)
         defer { finishOperation() }
 
-        let archive = try await performAcceptedArchive(items: hostItems, format: format, name: archiveName, password: password)
+        let archive = try await performAcceptedArchive(items: hostItems, format: format, name: archiveName, password: password, undoManager: undoManager)
         updateProgress(
             operation: operation,
             currentItem: URL(fileURLWithPath: archive.path),
@@ -403,7 +362,7 @@ extension FileOperationQueue {
         return archive
     }
 
-    func performProviderExtract(archive: Location, password: String?) async throws -> Location {
+    func performProviderExtract(archive: Location, password: String?, undoManager: UndoManager? = nil) async throws -> Location {
         guard case .remote = archive else {
             throw FileProviderError.expectedLocal(archive)
         }
@@ -415,7 +374,7 @@ extension FileOperationQueue {
         startOperation(operation, totalCount: 1)
         defer { finishOperation() }
 
-        let extracted = try await performAcceptedExtraction(archive, format: format, password: password)
+        let extracted = try await performAcceptedExtraction(archive, format: format, password: password, undoManager: undoManager)
         updateProgress(
             operation: operation,
             currentItem: URL(fileURLWithPath: extracted.path),

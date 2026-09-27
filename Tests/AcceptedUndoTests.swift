@@ -83,19 +83,22 @@ final class AcceptedUndoTests: XCTestCase {
         defer { fixture.cleanup() }
         let queue = configure(fixture)
         let previous = Data("original destination".utf8)
-        try previous.write(to: fixture.destination)
-        let directory = try OperationDirectory(path: Data(fixture.root.path.utf8))
-        let approved = try directory.proveFile(Data("destination".utf8), progress: { _ in })
-        let coordinator = try queue.operationCoordinator()
-        let operation = try await coordinator.create()
-        let intent = OperationIntent(id: .init(operation: operation, item: UUID()), action: .copy,
-            sources: fixture.intent.sources, destination: fixture.intent.destination,
-            sourceObservations: fixture.intent.sourceObservations, conflict: .replace(approved))
-        let result = try await queue.performAcceptedMutation(.init(intent: intent, hostID: fixture.hostID, work: .copy))
-        try queue.requireSuccessfulBatch(result)
+        let output = fixture.root.appendingPathComponent("output")
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: false)
+        let destinationFile = output.appendingPathComponent("source")
+        try previous.write(to: destinationFile)
+        queue.conflictChoiceOverrideForTesting = .replace
+        defer { queue.conflictChoiceOverrideForTesting = nil }
+        _ = try await queue.copy(items: [.remote(hostID: fixture.hostID, path: fixture.source.path)],
+            to: .remote(hostID: fixture.hostID, path: output.path))
+        let result = try XCTUnwrap(queue.remoteOperationResults.values.first)
+        guard let conflict = result.items.first?.result.intent.conflict, case .replace(let approved) = conflict else {
+            return XCTFail("Missing replacement intent")
+        }
+        XCTAssertNotNil(approved.sha256)
         let reversed = try await queue.undoAcceptedOperation(result)
         XCTAssertEqual(reversed.items.map { $0.result.intent.action }, [.trash, .restore])
-        XCTAssertEqual(try Data(contentsOf: fixture.destination), previous)
+        XCTAssertEqual(try Data(contentsOf: destinationFile), previous)
         XCTAssertEqual(try Data(contentsOf: fixture.source), fixture.bytes)
         let retained = try XCTUnwrap(reversed.items.first?.result.receipt?.recovery.first(where: { $0.purpose == .sourceTrash })?.knownLocation)
         guard case .unix(let bytes) = retained.path else { return XCTFail("Expected Unix recovery path") }
@@ -103,10 +106,80 @@ final class AcceptedUndoTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: path)), fixture.bytes)
     }
 
+    func testCreationRenameAndArchiveCallersRegisterReceiptBoundUndo() async throws {
+        for kind in ["file", "folder", "renamedFolder", "rename", "archive", "extract"] {
+            FileOperationQueue.shared.resetRemoteQueueStateForTesting()
+            let fixture = try await CoordinatorFixture()
+            defer { fixture.cleanup() }
+            let queue = configure(fixture)
+            let directory = Location.remote(hostID: fixture.hostID, path: fixture.root.path)
+            let source = Location.remote(hostID: fixture.hostID, path: fixture.source.path)
+            let undo = UndoManager()
+            undo.groupsByEvent = false
+            undo.beginUndoGrouping()
+            let created: Location
+            switch kind {
+            case "file": created = try await queue.createFile(in: directory, name: "new.txt", content: fixture.bytes, undoManager: undo)
+            case "folder": created = try await queue.createFolder(in: directory, name: "new folder", undoManager: undo)
+            case "renamedFolder":
+                let folder = try await queue.createFolder(in: directory, name: "Folder")
+                created = try await queue.rename(item: folder, to: "named folder")
+                try await queue.registerCreatedRemoteUndo(created, with: undo)
+            case "rename": created = try await queue.rename(item: source, to: "renamed", undoManager: undo)
+            case "archive": created = try await queue.archive(items: [source], format: .zip, archiveName: "archive", password: nil, undoManager: undo)
+            default:
+                let archive = try await queue.archive(items: [source], format: .zip, archiveName: "archive", password: nil)
+                created = try await queue.extract(archive: archive, undoManager: undo)
+            }
+            undo.endUndoGrouping()
+            XCTAssertTrue(undo.canUndo, kind)
+            let count = queue.remoteOperationResults.count
+            undo.undo()
+            let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+            while queue.remoteOperationResults.count == count || queue.isRunning {
+                guard ContinuousClock.now < deadline else { throw OperationContractError.invalidReceipt }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            XCTAssertFalse(FileManager.default.fileExists(atPath: created.path), kind)
+            XCTAssertEqual(try Data(contentsOf: fixture.source), fixture.bytes, kind)
+            XCTAssertTrue(queue.remoteOperationResults.values.contains { snapshot in
+                snapshot.items.contains { $0.result.intent.reverses != nil && $0.outcome == .committed }
+            }, kind)
+        }
+    }
+
+    func testNewFolderCancellationRefusesLaterContents() async throws {
+        let fixture = try await CoordinatorFixture()
+        defer { fixture.cleanup() }
+        let queue = configure(fixture)
+        let created = try await queue.createFolder(in: .remote(hostID: fixture.hostID, path: fixture.root.path), name: "Folder")
+        let child = URL(fileURLWithPath: created.path).appendingPathComponent("later file")
+        try fixture.bytes.write(to: child)
+        do {
+            try await queue.cancelCreatedRemoteItem(created)
+            XCTFail("Cancelled creation removed later contents")
+        } catch {}
+        XCTAssertEqual(try Data(contentsOf: child), fixture.bytes)
+    }
+
+    func testCreationCancellationCannotRemoveAnOrdinaryRenamedFile() async throws {
+        let fixture = try await CoordinatorFixture()
+        defer { fixture.cleanup() }
+        let queue = configure(fixture)
+        let renamed = try await queue.rename(item: .remote(hostID: fixture.hostID, path: fixture.source.path), to: "Folder")
+        do {
+            try await queue.cancelCreatedRemoteItem(renamed)
+            XCTFail("An ordinary rename is not evidence of creation")
+        } catch {}
+        XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: renamed.path)), fixture.bytes)
+    }
+
     private func configure(_ fixture: CoordinatorFixture) -> FileOperationQueue {
         let service = fixture.boundary.service
         let endpoint = RemoteOperationCoordinator.Endpoint(session: fixture.session,
-            request: { try await service.reply(to: $0) }, upload: { _, _ in throw OperationContractError.invalidReceipt })
+            request: { try await service.reply(to: $0) }, upload: { url, identity in
+                try await service.prepareUpload(identity, contents: Data(contentsOf: url))
+            })
         let provider = RemoteFileProvider(hostID: fixture.hostID, rpcClient: AcceptedProviderRPC(service: service),
             transferChannel: RemoteTransferChannel(sshTarget: "unused"))
         let queue = FileOperationQueue.shared

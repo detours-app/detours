@@ -13,10 +13,11 @@ extension RemoteOperationCoordinator {
         }
     }
 
-    func undoPlan(_ original: RemoteOperationStore.Snapshot, operation: UUID) async throws -> [PlannedItem] {
+    func undoPlan(_ original: RemoteOperationStore.Snapshot, operation: UUID, removingCreatedItem: OperationItemID? = nil) async throws -> [PlannedItem] {
         var plan: [PlannedItem] = []
         var reversals: [OperationItemID: OperationItemID] = [:]
         for item in original.items.reversed() where Self.canUndo(item, in: original) {
+            if let removingCreatedItem, item.identity.id != removingCreatedItem { continue }
             let id = OperationItemID(operation: operation, item: UUID())
             reversals[item.identity.id] = id
             do {
@@ -25,7 +26,7 @@ extension RemoteOperationCoordinator {
                     guard let reverse = reversals[dependent.identity.id] else { throw OperationContractError.invalidReceipt }
                     return reverse
                 }
-                let reversed = try await reverseItem(item, id: id, requires: required)
+                let reversed = try await reverseItem(item, id: id, requires: required, removingCreated: removingCreatedItem == item.identity.id)
                 plan.append(contentsOf: reversed)
             } catch let error as OperationFilesystemError where error == .identityChanged || error == .unexpectedContents {
                 let refused = OperationIntent(id: id, action: .undo, sources: item.result.intent.destination.map { [$0] } ?? [],
@@ -37,7 +38,7 @@ extension RemoteOperationCoordinator {
     }
 
     private func reverseItem(_ item: RemoteOperationStore.Item, id: OperationItemID,
-                             requires: [OperationItemID]) async throws -> [PlannedItem] {
+                             requires: [OperationItemID], removingCreated: Bool) async throws -> [PlannedItem] {
         let intent = item.result.intent
         guard let receipt = item.result.receipt else { throw OperationContractError.invalidReceipt }
         if intent.action == .trash {
@@ -48,7 +49,7 @@ extension RemoteOperationCoordinator {
         let current = try await verifiedUndoObject(effect, hostID: item.hostID, emptyFolder: intent.action == .createFolder)
         let action: OperationIntent.Action
         let target: OperationLocation?
-        if intent.action == .move || intent.action == .rename {
+        if !removingCreated && (intent.action == .move || intent.action == .rename) {
             guard let source = intent.sources.first, source.account == destination.account else { throw OperationContractError.invalidReceipt }
             let original = try await lookup(source.path, hostID: item.hostID)
             guard original.location == source, case .missing = original.result else { throw OperationFilesystemError.unexpectedContents }

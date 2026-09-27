@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry local/remote move undo | `375410d2` | PASS: signed build and all 27 local-transfer, undo, publication and cross-host checks passed in 1.038 seconds. Both folder directions restore the source before destination Trash, preserving links and empty directories. Unknown local source disposition disables destination undo. Native Trash fixtures were removed only after recorded identity checks. |
 | Foundry receipt-bound copy and move undo | `1a20d525` | PASS: signed build and all 38 undo/queue/Trash/coordinator/store checks passed in 0.818 seconds. Six new checks exercise actual UndoManager reversal, changed copied bytes, exact native-move restoration, occupied originals, earlier success after later failure and replacement undo retaining newer contents in Trash. |
 | Foundry accepted paste/drop and clipboard callers | `8cf56381` | PASS: signed build, all seven focused controller/drop checks (0.238 seconds) and all 12 login-session clipboard checks (0.035 seconds) passed. Actual pasted/dropped bytes and accepted copy/move receipts match; denied destination inspection retains cut state until a later confirmed move. The GUI sentry reported no consent prompt. Resolves the missing test imports above. |
 | Foundry paste/drop caller test compilation | `e19fd784` | FAIL: signed build passed, but the new responder and drag/drop fixtures omitted the helper test import, so the internal reply method was inaccessible. Adding those two imports; no runtime test result is claimed. |
