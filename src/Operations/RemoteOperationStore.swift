@@ -9,7 +9,7 @@ final class RemoteOperationStore: @unchecked Sendable {
     }
 
     enum PreflightFailure: String, Codable, Sendable {
-        case sourceMissing, denied, disconnected, unsupported, linkLoop, linkTargetMissing
+        case sourceMissing, denied, disconnected, unsupported, linkLoop, linkTargetMissing, recoveryChanged
     }
 
     struct Item: Codable, Equatable, Sendable {

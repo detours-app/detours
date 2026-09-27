@@ -23,20 +23,9 @@ extension FileOperationQueue {
         let copied = try await acceptedLocations(result)
         updateProgress(operation: operation, currentItem: copied.last.map { Location.remoteFileURL($0.path) },
                        completed: copied.count, total: items.count)
-        if !copied.isEmpty, let undoManager {
-            undoManager.registerUndo(withTarget: self) { target in
-                Task { @MainActor in
-                    do {
-                        try await target.performRemoteDelete(items: copied, undoManager: nil)
-                    } catch {
-                        target.presentError(error)
-                    }
-                }
-            }
-            let firstName = copied.first?.lastPathComponent ?? ""
-            let actionName = copied.count == 1 ? "Copy \"\(firstName)\"" : "Copy \(copied.count) Items"
-            undoManager.setActionName(actionName)
-        }
+        let firstName = copied.first?.lastPathComponent ?? ""
+        let actionName = copied.count == 1 ? "Copy \"\(firstName)\"" : "Copy \(copied.count) Items"
+        try await registerAcceptedUndo(result, with: undoManager, name: actionName)
 
         try requireSuccessfulBatch(result)
         return copied
@@ -64,38 +53,9 @@ extension FileOperationQueue {
             total: items.count
         )
 
-        if !moved.isEmpty, let undoManager {
-            let originalItems = try await acceptedLocations(result, sources: true)
-            let movedItems = moved
-            undoManager.registerUndo(withTarget: self) { target in
-                Task { @MainActor in
-                    do {
-                        // Restore each item to its own original parent, not just the first item's:
-                        // a move can span several source directories on the same host.
-                        let pairs = Array(zip(movedItems, originalItems))
-                        var handledParents: Set<String> = []
-                        for (_, original) in pairs {
-                            let parent = original.deletingLastPathComponent()
-                            guard handledParents.insert(parent.path).inserted else { continue }
-                            let itemsForParent = pairs
-                                .filter { $0.1.deletingLastPathComponent().path == parent.path }
-                                .map(\.0)
-                            let restored = try await target.performRemoteMove(
-                                items: itemsForParent,
-                                to: parent,
-                                undoManager: nil
-                            )
-                            target.announceRestored(restored)
-                        }
-                    } catch {
-                        target.presentError(error)
-                    }
-                }
-            }
-            let firstName = moved.first?.lastPathComponent ?? ""
-            let actionName = moved.count == 1 ? "Move \"\(firstName)\"" : "Move \(moved.count) Items"
-            undoManager.setActionName(actionName)
-        }
+        let firstName = moved.first?.lastPathComponent ?? ""
+        let actionName = moved.count == 1 ? "Move \"\(firstName)\"" : "Move \(moved.count) Items"
+        try await registerAcceptedUndo(result, with: undoManager, name: actionName)
 
         try requireSuccessfulBatch(result)
         return moved
