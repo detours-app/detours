@@ -7,6 +7,19 @@ struct RemoteIntegrationSession {
     let session: RemoteHostSession
     let endpoint: RemoteOperationCoordinator.Endpoint
 
+    nonisolated(unsafe) private static var openSessions: [RemoteHostSession] = []
+    private static let registryLock = NSLock()
+
+    /// Retires every session a test opened. Without this each live test leaves an SSH control
+    /// master and helper process behind, and a class run exhausts them and stalls.
+    static func closeAll() async {
+        registryLock.lock()
+        let sessions = openSessions
+        openSessions = []
+        registryLock.unlock()
+        for session in sessions { await session.disconnect() }
+    }
+
     static func make() async throws -> RemoteIntegrationSession {
         try RemoteIntegrationTests.runSSH("test -x ~/.detours-server/detours-server")
         let deployer = ServerDeployer(
@@ -44,6 +57,9 @@ struct RemoteIntegrationSession {
             request: { try await provider.operationRequest($0) },
             upload: { try await provider.prepareAcceptedUpload($0, identity: $1) }
         )
+        registryLock.lock()
+        openSessions.append(session)
+        registryLock.unlock()
         return RemoteIntegrationSession(hostID: hostID, provider: provider, session: session, endpoint: endpoint)
     }
 

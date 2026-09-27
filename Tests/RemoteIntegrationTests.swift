@@ -3,6 +3,11 @@ import XCTest
 @testable import Detours
 
 final class RemoteIntegrationTests: XCTestCase {
+    override func tearDown() async throws {
+        await RemoteIntegrationSession.closeAll()
+        try await super.tearDown()
+    }
+
     static var linuxTestTarget: String {
         ProcessInfo.processInfo.environment["DETOURS_LINUX_TEST_TARGET"]
             ?? ProcessInfo.processInfo.environment["LINUX_TARGET"]
