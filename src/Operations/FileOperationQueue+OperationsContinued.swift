@@ -434,7 +434,7 @@ extension FileOperationQueue {
         archiveName: String,
         password: String?
     ) async throws -> Location {
-        guard let groups = remoteGroups(from: items), groups.count == 1, let (hostID, hostItems) = groups.first else {
+        guard let groups = remoteGroups(from: items), groups.count == 1, let hostItems = groups.values.first else {
             throw FileProviderError.unsupportedOperation("Remote archive creation supports one host per operation")
         }
 
@@ -442,8 +442,7 @@ extension FileOperationQueue {
         startOperation(operation, totalCount: hostItems.count)
         defer { finishOperation() }
 
-        let provider = try remoteProvider(for: hostID)
-        let archive = try await provider.archiveCreate(hostItems, format: format, archiveName: archiveName, password: password)
+        let archive = try await performAcceptedArchive(items: hostItems, format: format, name: archiveName, password: password)
         updateProgress(
             operation: operation,
             currentItem: URL(fileURLWithPath: archive.path),

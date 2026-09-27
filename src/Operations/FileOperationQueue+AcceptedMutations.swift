@@ -65,7 +65,7 @@ extension FileOperationQueue {
         }
     }
 
-    private func requireMissingDestination(_ lookup: OperationLookup<OperationObservation>, location: Location) throws {
+    func requireMissingDestination(_ lookup: OperationLookup<OperationObservation>, location: Location) throws {
         switch lookup {
         case .missing: return
         case .found: throw FileOperationError.destinationExists(Location.remoteFileURL(location.path))
