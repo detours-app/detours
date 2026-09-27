@@ -284,7 +284,7 @@ All tests, fixture writes, builds and screenshots run on Foundry. Each test entr
 
 The new interruption controls suspend or lose a response around the actual operation and its real files. They are scoped to the guarded disposable fixture and the exact worker, and cannot select arbitrary host processes. The existing Windows test named for interruption currently performs two successful downloads; replace that evidence with a real interrupted transfer. The existing two-session devtest folder case proves routing only, so distinct-host proof uses devtest and detours-windows.
 
-- [ ] **T13** Run the app's persistent SSH client against devtest for readiness/recovery, listing/watch restoration, lost mutation replies, known-content small/large transfers, replacement, batch results, cancellation, source disposition and Trash/undo; compare remote files independently (A1-A10).
+- [x] **T13** Run the app's persistent SSH client against devtest for readiness/recovery, listing/watch restoration, lost mutation replies, known-content small/large transfers, replacement, batch results, cancellation, source disposition and Trash/undo; compare remote files independently (A1-A10).
 - [ ] **T14** Run detours-windows through real SFTP and explicitly selected small-file fallback for the same applicable safety matrix, including committed rename/Trash reply loss and actual SFTP interruption; no unavailable-host skip counts as acceptance (A1-A11).
 - [ ] **T15** Run local-to-Linux, Linux-to-local, local-to-Windows, Windows-to-local and both Linux/Windows directions with known manifests, empty directories, spaces, planned link omissions and selected-link move/undo; compare transformed payloads and original source disposition (A5-A11).
 - [ ] **T16** Run guarded focused XCUI journeys on Foundry for normal connection, visible partial/unknown/cancelling states, tab closure during work, restart recovery, Check Result and available undo; inspect exported screenshots and preserve unrelated local work (A1, A3, A4, A9, A10, A12).
@@ -315,6 +315,8 @@ Use the existing guarded runner and independent prompt sentries for installed ch
 ---
 
 ## Build Log
+
+- **T13** The app's persistent SSH client now runs the whole integration suite against devtest through one verified session: readiness and reconnect, listing and watch restoration, lost mutation replies, known-content small and large transfers, replacement, batch results, cancellation, source disposition and Trash with undo, with remote files compared independently. The persistent-session live checks add reconnect listing, a bounded ten-second control deadline and an authentication rejection that does not spend the retry budget. At `e40e0c61`, all 51 integration checks and the seven persistent-session live checks passed on Foundry, and the session is retired after each test so a class run no longer stalls.
 
 - **T12** Closing the final pane during work, expiring the idle grace, finishing or cancelling the worker and restarting the client are exercised: the last owner starts the idle grace and the session can reopen, detaching one pane does not release another, an accepted operation keeps its ownership across the idle grace until commit finishes, teardown stops owned readers once, a restored tab keeps its connection active and releases it on close, and unresolved records survive a restart. At `8f7d8394`, the 17 lifetime, teardown, restored-connection and recovery checks plus the coordinator ownership check passed on Foundry.
 
