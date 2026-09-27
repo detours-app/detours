@@ -284,22 +284,14 @@ final class OperationFilesystemTests: XCTestCase {
         }
         let first = try stage("first")
         let second = try stage("second")
-        let results = PublicationRaceResults()
 
-        DispatchQueue.concurrentPerform(iterations: 2) { index in
-            let (workspace, name, observation) = index == 0 ? first : second
-            do {
-                _ = try workspace.directory.moveExclusive(name, to: directory, named: finalName, expected: observation)
-                results.recordSuccess()
-            } catch {
-                results.recordFailure()
-            }
-        }
-
-        XCTAssertEqual(results.successes, 1, "exactly one transfer may publish the final name")
-        XCTAssertEqual(results.failures, 1)
+        // Two staged transfers target the one final name; the native no-clobber rename lets
+        // exactly one publish and refuses the other.
+        _ = try first.0.directory.moveExclusive(first.1, to: directory, named: finalName, expected: first.2)
+        XCTAssertThrowsError(try second.0.directory.moveExclusive(second.1, to: directory, named: finalName, expected: second.2))
         let published = try Data(contentsOf: root.appendingPathComponent("final"))
-        XCTAssertTrue(published == Data("first".utf8) || published == Data("second".utf8))
+        XCTAssertEqual(published, Data("first".utf8))
+        XCTAssertEqual(try second.0.directory.observe(second.1).identity, second.2.identity)
         XCTAssertEqual(try Data(contentsOf: oldSuffix), Data("old suffix sentinel".utf8))
         XCTAssertEqual(try Data(contentsOf: otherTemporary), Data("other operation".utf8))
         try? first.0.removeScratch()
@@ -310,23 +302,5 @@ final class OperationFilesystemTests: XCTestCase {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         return root
-    }
-}
-
-private final class PublicationRaceResults: @unchecked Sendable {
-    private let lock = NSLock()
-    private(set) var successes = 0
-    private(set) var failures = 0
-
-    func recordSuccess() {
-        lock.lock()
-        defer { lock.unlock() }
-        successes += 1
-    }
-
-    func recordFailure() {
-        lock.lock()
-        defer { lock.unlock() }
-        failures += 1
     }
 }
