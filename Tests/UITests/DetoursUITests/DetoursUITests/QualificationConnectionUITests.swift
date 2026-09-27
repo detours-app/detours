@@ -164,13 +164,16 @@ final class QualificationConnectionUITests: BaseUITest {
                 }
                 try performRemoteFixtureMutation(action: "cleanup", homePath: home, scenarioName: scenario, sentinelID: sentinel)
                 XCTAssertEqual(try performRemoteFixtureMutation(action: "snapshot", homePath: home, scenarioName: scenario), before)
-                try? performFixtureMutation(action: "remove", relativePath: "slow-copy.bin")
+                try? performFixtureMutation(action: "remove", relativePath: "Bulk")
             } catch { XCTFail("Remote cancel fixture cleanup failed: \(error)") }
         }
         try performRemoteFixtureMutation(action: "createDirectory", homePath: home, scenarioName: scenario,
                                          relativePath: "Bulk", sentinelID: sentinel)
-        try performRemoteFixtureMutation(action: "writeLarge", homePath: home, scenarioName: scenario,
-                                         relativePath: "Bulk/slow-copy.bin", contents: "134217728", sentinelID: sentinel)
+        for index in 1...6 {
+            try performRemoteFixtureMutation(action: "writeLarge", homePath: home, scenarioName: scenario,
+                                             relativePath: "Bulk/part-\(index).bin", contents: "67108864",
+                                             sentinelID: sentinel)
+        }
 
         let row = app.leftPaneOutlineView.outlineRow(withStaticText: scenario)
         XCTAssertTrue(row.waitForExistence(timeout: 8))
