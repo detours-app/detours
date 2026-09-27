@@ -110,6 +110,40 @@ final class RemoteOperationJournalTests: XCTestCase {
         withExtendedLifetime(ownership) {}
     }
 
+    func testTwoWorkersOnOneJournalKeepUnrelatedItemProgress() async throws {
+        let root = try temporaryRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let holder = try await OperationJournal(root: root, account: account)
+        let other = try await OperationJournal(root: root, account: account)
+        XCTAssertEqual(holder.epoch, other.epoch)
+
+        // One worker owns an item and holds its lock, as it does while hashing or transferring.
+        let longRunning = makeIntent()
+        let heldOwnership = try await holder.acquireItem(longRunning.id)
+        _ = try holder.accept(longRunning, digest: "digest", ownership: heldOwnership)
+        try holder.record(OperationReceipt(id: longRunning.id, account: account, epoch: holder.epoch,
+            intentDigest: "digest", revision: 1, phase: .preparing, outcome: .running), ownership: heldOwnership)
+
+        // A competing worker cannot take that item.
+        let competing = Task { try await other.acquireItem(longRunning.id) }
+        competing.cancel()
+        do { _ = try await competing.value; XCTFail("A held item was taken by a second worker") } catch is CancellationError {}
+
+        // It can still complete an unrelated item while the first is held.
+        let independent = makeIntent()
+        let independentOwnership = try await other.acquireItem(independent.id)
+        _ = try other.accept(independent, digest: "other", ownership: independentOwnership)
+        try other.record(OperationReceipt(id: independent.id, account: account, epoch: other.epoch,
+            intentDigest: "other", revision: 1, phase: .terminal, outcome: .committed), ownership: independentOwnership)
+        XCTAssertEqual(try other.read(independent.id).receipt?.outcome, .committed)
+
+        // Status and cancellation stay available while the item is occupied.
+        try other.requestCancellation(longRunning.id)
+        XCTAssertTrue(try holder.cancellationRequested(longRunning.id))
+        XCTAssertEqual(try other.read(longRunning.id).receipt?.outcome, .running)
+        withExtendedLifetime(heldOwnership) {}
+    }
+
     func testJournalRejectsPublicDirectoryAndSymbolicLink() async throws {
         let root = try temporaryRoot()
         defer { try? FileManager.default.removeItem(at: root) }
