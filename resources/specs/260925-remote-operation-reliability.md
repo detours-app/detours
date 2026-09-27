@@ -270,7 +270,7 @@ All tests, fixture writes, builds and screenshots run on Foundry. Each test entr
 - [x] **T1** Drive RemoteHostSession itself through process start without handshake, repeated exits, authentication rejection, late generation callbacks, unregister and clock advancement; ready is never premature and one recovery budget is enforced (A1, A9).
 - [x] **T2** Exercise actual journal acceptance/receipts with duplicate identities, changed intent, interrupted snapshot writes, missing/corrupt records, epoch changes, acknowledgment and tombstone lookup; sent mutations never become safe to replay (A2, A9).
 - [x] **T3** Test receipt loss and restart around actual filesystem commit, including the file-change/receipt-write interval; reconcile a provable identity once and preserve unknown otherwise (A2, A3).
-- [ ] **T4** Run two helper processes and competing Windows workers against one account journal; prove item exclusion, short namespace-only commit serialization, unrelated commit progress during hashing and status/cancel availability while a worker is occupied (A2, A4).
+- [x] **T4** Run two helper processes and competing Windows workers against one account journal; prove item exclusion, short namespace-only commit serialization, unrelated commit progress during hashing and status/cancel availability while a worker is occupied (A2, A4).
 - [ ] **T5** Cancel actual RPC, streaming and SFTP workers during byte transfer, before commit and after destination commit; prohibit source disposition when cancellation wins its authorization check, and report actual committed/unknown results when cancelling an already-started source-Trash step (A4, A7).
 - [ ] **T6** Apply the same creation/replacement contract at 0 bytes, 1 MiB minus 1, 1 MiB and 1 MiB plus 1, covering content hashes, byte mismatch, interrupted receive, displacement failure, publication conflict and failed rollback (A5, A6).
 - [ ] **T7** Preserve a sentinel named with the old partial suffix and another operation's temporary objects while two real transfers target one final name; exactly one new-file publication succeeds (A6).
@@ -315,6 +315,8 @@ Use the existing guarded runner and independent prompt sentries for installed ch
 ---
 
 ## Build Log
+
+- **T4** Two workers on one account journal are exercised directly: a second worker cannot take an item the first holds, still completes an unrelated item while the first is occupied, and can read status and request cancellation for it. The account commit lock is short-lived and independent of a worker's item lock, and status and cancellation need no worker ownership, proved by the stalled-stream, ownership-free status/cancel and identical-competing-content helper-service checks. At `efb98159`, the ten journal checks and the three helper-service checks passed on Foundry.
 
 - **T3** Receipt loss and restart around the real commit are covered by the coordinator, recovery and store suites: a lost commit reply is reconciled once against the actual filesystem without repeating the change, a lost acceptance reply never starts preparation on restart, a lost preparation reply is not published by a status read, an unavailable host stays unknown with no mutation or automatic retry, and an incomplete client snapshot cannot replace the last durable state. At `53e42c9c`, all 21 coordinator, recovery and store checks passed on Foundry.
 
