@@ -550,15 +550,6 @@ private struct WindowsLiveFixture {
             hostID: hostID, channel: channel, transferChannel: transferChannel, watchChannel: watchChannel
         )
         self.provider = provider
-        let session = RemoteHostSession(transport: WindowsHostSessionTransport(channel: channel), publish: { _, _ in })
-        self.session = session
-        await channel.bind(session: session)
-        _ = try await session.ensureReady()
-        endpoint = RemoteOperationCoordinator.Endpoint(
-            session: session,
-            request: { try await provider.operationRequest($0) },
-            upload: { try await provider.prepareAcceptedUpload($0, identity: $1) }
-        )
         let home = try await provider.homeDirectory()
         let rootLocation = Location.remote(hostID: hostID, path: home)
             .appendingPathComponent("DetoursLiveTests-\(UUID().uuidString)")
@@ -573,6 +564,15 @@ private struct WindowsLiveFixture {
                 $true
                 """), arguments: PathArguments(path: nativeRoot)),
             operation: "PrepareRoot"
+        )
+        let session = RemoteHostSession(transport: WindowsHostSessionTransport(channel: channel), publish: { _, _ in })
+        self.session = session
+        await channel.bind(session: session)
+        _ = try await session.ensureReady()
+        endpoint = RemoteOperationCoordinator.Endpoint(
+            session: session,
+            request: { try await provider.operationRequest($0) },
+            upload: { try await provider.prepareAcceptedUpload($0, identity: $1) }
         )
     }
 
