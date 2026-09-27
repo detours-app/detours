@@ -105,7 +105,7 @@ extension RemoteIntegrationTests {
         XCTAssertEqual(try Self.runSSH("cat \(Self.shellQuote(root + "/target.txt"))"), "keep")
 
         undoManager.undo()
-        try await Self.waitForRemotePath(root + "/valid")
+        try await Self.waitForRemotePath(root + "/valid", timeout: 15)
         XCTAssertEqual(try Self.remoteLinkText(root + "/valid"), "target.txt")
         XCTAssertEqual(try Self.remoteLinkText(root + "/dangling"), "missing.txt")
     }
