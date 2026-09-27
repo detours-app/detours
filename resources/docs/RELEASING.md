@@ -130,7 +130,7 @@ gh release upload "v$version" "Detours-$version.dmg" --repo detours-app/detours 
 
 - [ ] All tests pass
 - [ ] `$update-docs` run and `resources/scripts/confirm-update-docs.sh` completed for the release commit
-- [ ] `resources/docs/CHANGELOG.md` updated (heading changed from "Unreleased" to version + date)
+- [ ] `resources/docs/CHANGELOG.md` has a section for this version and date; the changelog is versioned-only, so the release adds the section and there is no "Unreleased" heading to retitle
 - [ ] `VERSION` file bumped (single source of truth - build.sh reads this)
 - [ ] Build succeeds in release mode
 - [ ] DMG is Developer ID signed

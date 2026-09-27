@@ -16,6 +16,7 @@ Dual-pane file manager with tabs, folder expansion, SSH remote browsing for macO
 - **Remote file workflows** - Copy, move, cut, paste, trash, restore, archive,
   extract, create files/folders, Get Info, Quick Look, Open With, and drag files
   within or between local and remote panes
+- **Reliable remote operations** - Each remote change is recorded before it starts and reports every item as confirmed, skipped, failed or still unknown, with its details and Undo kept in a Remote Operations window across tab closes, navigation and restarts
 - **Inline operation progress** - Status bars show progress, transfer speed, completion, and error states
 - **Fast lane operations** - Small independent operations stay responsive while large transfers run
 - **Keyboard-first** - Full keyboard navigation with customizable shortcuts
