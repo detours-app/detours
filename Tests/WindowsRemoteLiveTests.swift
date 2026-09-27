@@ -99,7 +99,7 @@ final class WindowsRemoteLiveTests: XCTestCase {
                 $item.Attributes = $item.Attributes -bor [System.IO.FileAttributes]::Hidden
                 $true
                 """,
-                arguments: PathArguments(path: try fixture.nativePath(hidden))
+                arguments: PathArguments(path: try await fixture.nativePath(hidden))
             )
 
             let archive = try await FileOperationQueue.shared.archive(items: [source], format: .zip, archiveName: "bundle", password: nil)
@@ -178,7 +178,7 @@ final class WindowsRemoteLiveTests: XCTestCase {
                 Set-Content -LiteralPath $Arguments.path -Value 'changed' -Encoding UTF8
                 $true
                 """,
-                arguments: PathArguments(path: try fixture.nativePath(fixture.root.appendingPathComponent("watched.txt")))
+                arguments: PathArguments(path: try await fixture.nativePath(fixture.root.appendingPathComponent("watched.txt")))
             )
 
             await fulfillment(of: [changeReceived], timeout: 5.0)
@@ -213,7 +213,7 @@ final class WindowsRemoteLiveTests: XCTestCase {
                 Set-Content -LiteralPath $Arguments.path -Value 'accepted' -Encoding UTF8
                 $true
                 """,
-                arguments: PathArguments(path: try fixture.nativePath(created))
+                arguments: PathArguments(path: try await fixture.nativePath(created))
             )
 
             await fulfillment(of: [changeReceived], timeout: 5.0)
@@ -250,7 +250,7 @@ final class WindowsRemoteLiveTests: XCTestCase {
                 Set-Content -LiteralPath $Arguments.path -Value 'alive' -Encoding UTF8
                 $true
                 """,
-                arguments: PathArguments(path: try fixture.nativePath(created))
+                arguments: PathArguments(path: try await fixture.nativePath(created))
             )
 
             await fulfillment(of: [eventReceived], timeout: 5)
@@ -518,15 +518,15 @@ private actor LiveWatchRecorder {
     }
 }
 
-private struct WindowsLiveFixture {
-    let target: String
-    let hostID = UUID()
-    let controlDirectory: URL
-    let channel: PowerShellChannel
-    let provider: WindowsRemoteProvider
-    let session: RemoteHostSession
-    let endpoint: RemoteOperationCoordinator.Endpoint
-    let root: Location
+private actor WindowsLiveFixture {
+    nonisolated let target: String
+    nonisolated let hostID = UUID()
+    nonisolated let controlDirectory: URL
+    nonisolated let channel: PowerShellChannel
+    nonisolated let provider: WindowsRemoteProvider
+    nonisolated let session: RemoteHostSession
+    nonisolated let endpoint: RemoteOperationCoordinator.Endpoint
+    nonisolated let root: Location
 
     init(target: String) async throws {
         self.target = target
