@@ -19,7 +19,7 @@ extension FileOperationQueue {
         let provider = try remoteProvider(for: hostID)
         let coordinator = try operationCoordinator()
         let sourcePath = try await provider.operationPath(source)
-        let observed = try await coordinator.lookup(sourcePath, hostID: hostID, proveContent: isMove && plan.mergeDirectories)
+        let observed = try await coordinator.lookup(sourcePath, hostID: hostID, proveContent: isMove)
         var targetPath = try Self.targetPath(source: sourcePath, directory: directory)
         var failure = Self.preflightFailure(observed.result)
         var conflict = OperationIntent.Conflict.createNew
@@ -51,6 +51,36 @@ extension FileOperationQueue {
             case .denied: failure = .denied
             case .disconnected: failure = .disconnected
             case .unsupported: failure = .unsupported
+            }
+        }
+        if isMove, failure == nil, conflict != .skip, let sourceObservation {
+            let parent = try await coordinator.lookup(directory, hostID: hostID)
+            guard case .found(let destinationDirectory) = parent.result, destinationDirectory.kind == .directory else {
+                throw OperationFilesystemError.identityChanged
+            }
+            if destinationDirectory.identity.volume != sourceObservation.identity.volume {
+                guard case .found(let original) = try await coordinator.sourceManifest(sourcePath, hostID: hostID).result,
+                      original.entries.first?.observation.identity == sourceObservation.identity else {
+                    throw OperationFilesystemError.identityChanged
+                }
+                let after = try await coordinator.lookup(sourcePath, hostID: hostID, proveContent: true)
+                guard case .found(let current) = after.result, current == sourceObservation else {
+                    throw OperationFilesystemError.identityChanged
+                }
+                let target = OperationLocation(account: observed.location.account, path: targetPath)
+                let copy = OperationIntent(id: .init(operation: operation, item: UUID()), action: .copy,
+                    sources: [observed.location], destination: target, sourceObservations: [sourceObservation], conflict: conflict)
+                let trash = OperationIntent(id: .init(operation: operation, item: UUID()), action: .trash,
+                    sources: [observed.location], destination: nil, sourceObservations: [sourceObservation],
+                    conflict: .createNew, sourceManifest: original)
+                plan.items.append(.init(intent: copy, hostID: hostID, work: .copy))
+                plan.items.append(.init(intent: trash, hostID: hostID, work: .execute, requiresVerified: [copy.id]))
+                if recordSelection {
+                    plan.selections.append(.init(id: .init(operation: operation, item: UUID()), action: .move,
+                        sources: [observed.location], destination: target, sourceObservations: [sourceObservation],
+                        conflict: conflict, children: [copy.id, trash.id]))
+                }
+                return
             }
         }
         let intent = OperationIntent(id: .init(operation: operation, item: UUID()), action: isMove ? .move : .copy,

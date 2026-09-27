@@ -2,6 +2,8 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Live Windows imported-tree publication | `d7e6b53` | PASS: the live import check passed in 26.942 seconds after Windows SSH became reachable. Premature commit and wrong tree proof publish nothing; the verified folder preserves the empty directory and Unicode child. Fixture cleanup passed. |
+| Foundry cross-host folder queue | `d7e6b53` | PASS: signed build and all 26 focused checks passed in 0.886 seconds. Public moves publish complete trees before source Trash, retain whole sources for omitted nested links, reject ordinary child read failures, preserve changed sources and move selected links without disposing their referents. Regular-file, imported-tree and source-disposition regressions passed. |
 | Foundry imported-tree publication | `b3a2280` | FAIL: signed build and all 13 Unix/protocol/archive checks passed. The live Windows import test timed out with “The remote process stopped making progress”; 14 checks completed in 12.537 seconds. Checking Windows reachability before attributing the failure to import logic. |
 | devtest imported-tree helper rebuild | `b3a2280` | PASS: all 140 container checks passed, comprising 18 process checks in 11.895 seconds and 122 filesystem/archive/journal checks in 16.908 seconds. Linux helper rebuilt; Foundry build and focused checks continue. |
 | Foundry source recovery manifest | `649cf5e` | PASS: signed build and all 25 focused checks passed in 0.716 seconds. Recovery rejects an identical-byte nested replacement after the actual Trash move, retains the verified destination, and sends no replay. |
