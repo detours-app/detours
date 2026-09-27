@@ -63,6 +63,7 @@ extension WindowsOperationScripts {
     \#(tarLinkHelpers)
     \#(sevenZipRuntimeHelpers)
     \#(sevenZipExtractionHelpers)
+    \#(archiveLayoutHelpers)
     $profile = [Environment]::GetFolderPath('UserProfile')
     if ([string]::IsNullOrWhiteSpace($profile)) { throw 'Windows user profile is unavailable.' }
     $machine = [Microsoft.Win32.Registry]::GetValue('HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Cryptography', 'MachineGuid', $null)
@@ -135,7 +136,7 @@ extension WindowsOperationScripts {
         if ($kind -eq 'handshake') {
             if ($parameters.version -ne 2) { return @{ incompatible = @{ _0 = @{ protocolVersion = @{ expected = 2; actual = $parameters.version } } } } }
             if ($parameters.schemaVersion -ne 1) { return @{ incompatible = @{ _0 = @{ journalSchema = @{ expected = 1; actual = $parameters.schemaVersion } } } } }
-            $capabilities = @('receipts', 'status', 'cancellation', 'ownedTemporaryObjects', 'nonReplacingCommit', 'sourceProof', 'sourceManifest', 'treeImport')
+            $capabilities = @('receipts', 'status', 'cancellation', 'ownedTemporaryObjects', 'nonReplacingCommit', 'sourceProof', 'sourceManifest', 'treeImport', 'archiveLayout')
             $missing = @($parameters.requiredCapabilities | Where-Object { $_ -notin $capabilities })
             if ($missing.Count -gt 0) { return @{ incompatible = @{ _0 = @{ missingCapabilities = @{ _0 = $missing } } } } }
             return @{ handshake = @{ _0 = @{ version = 2; schemaVersion = 1; capabilities = $capabilities; account = $Account; epoch = $epoch } } }
@@ -147,6 +148,16 @@ extension WindowsOperationScripts {
             $path = Get-OperationPath $parameters._0 $Account
             if ($kind -eq 'sourceManifest') { return @{ manifest = @{ _0 = (Get-WindowsOperationLookup $path $false $true) } } }
             return @{ lookup = @{ _0 = (Get-WindowsOperationLookup $path ($kind -eq 'sourceProof')) } }
+        }
+        if ($kind -eq 'archiveLayout') {
+            if ($parameters.location.account.hostIdentity -cne $Account.hostIdentity -or $parameters.location.accountIdentity -cne $Account.accountIdentity) {
+                return @{ incompatible = @{ _0 = @{ accountMismatch = @{} } } }
+            }
+            $path = Get-OperationPath $parameters.location $Account
+            $lookup = Get-WindowsOperationLookup $path $true
+            if (-not $lookup.ContainsKey('found')) { return @{ archiveLayout = @{ _0 = $lookup } } }
+            $layout = Get-WindowsArchiveLayout $path $parameters.format $parameters.password $Root $lookup.found._0
+            return @{ archiveLayout = @{ _0 = @{ found = @{ _0 = $layout } } } }
         }
         $identity = if ($null -ne $parameters.identity) { $parameters.identity } else { $parameters._0 }
         if ($identity.account.hostIdentity -cne $Account.hostIdentity -or $identity.account.accountIdentity -cne $Account.accountIdentity) {

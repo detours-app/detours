@@ -47,6 +47,10 @@ struct LocalTransferService: Sendable {
                 if case .sourceManifest = request { return .manifest(missing ? .missing : .denied) }
                 return .lookup(missing ? .missing : .denied)
             }
+        case .archiveLayout(let location, _, _):
+            guard location.account == journal.account else { return .incompatible(.accountMismatch) }
+            try journal.validateEpoch()
+            return .archiveLayout(.unsupported)
         case .accept(let identity, let intent):
             try validate(identity)
             guard identity.id == intent.id, try OperationContentProof.data(intent.canonicalData()).sha256 == identity.intentDigest,

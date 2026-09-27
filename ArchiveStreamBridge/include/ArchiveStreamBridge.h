@@ -44,6 +44,7 @@ typedef struct {
     int is_directory;
     int has_size;
     int has_modified;
+    int is_encrypted;
 } detours_archive_member;
 typedef int (*detours_archive_visit)(void *context, uint32_t index, const detours_archive_member *member);
 /* All members are visited before output is requested. Metadata strings are borrowed

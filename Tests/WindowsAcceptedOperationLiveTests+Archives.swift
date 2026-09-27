@@ -66,6 +66,11 @@ extension WindowsAcceptedOperationLiveTests {
         XCTAssertEqual(committed.outcome, .committed, committed.failure ?? "")
         XCTAssertTrue(committed.contentVerified)
         XCTAssertTrue(committed.recovery.isEmpty, committed.failure ?? "")
+        guard case .archiveLayout(.found(let layout)) = try await send(.archiveLayout(location: location("accepted.zip"), format: "zip", password: nil)) else {
+            return XCTFail("No ZIP layout")
+        }
+        XCTAssertNil(layout.singleRoot)
+        XCTAssertEqual(layout.source.sha256, committed.effects.first?.observation.sha256)
         let duplicate = try await send(.prepareArchive(identity: identity, password: nil))
         XCTAssertEqual(duplicate, .receipt(committed))
         let compare = try PowerShellScript(source: PowerShellScript.prelude(operationBody: """

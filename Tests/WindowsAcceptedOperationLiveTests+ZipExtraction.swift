@@ -40,6 +40,10 @@ extension WindowsAcceptedOperationLiveTests {
             """, arguments: ["root": root])
         _ = try await channel.run(setup, operation: "SingleMemberZipFixtures")
         for (source, destination) in [("accepted.zip", "extracted"), ("single-folder.zip", "single-folder"), ("single-file.zip", "single-file")] {
+            guard case .archiveLayout(.found(let layout)) = try await send(.archiveLayout(location: location(source), format: "zip", password: nil)) else {
+                return XCTFail("No single-member layout")
+            }
+            XCTAssertEqual(layout.singleRoot, source == "accepted.zip" ? nil : source == "single-folder.zip" ? "folder" : "data.txt")
             let identity = try await accept(source, destination)
             guard case .receipt(let ready) = try await send(.prepareArchive(identity: identity, password: nil)) else {
                 return XCTFail("No extraction preparation")

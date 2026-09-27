@@ -16,6 +16,7 @@ public enum SevenZipArchiveReader {
         public let modified: Date?
         public let mode: UInt32
         public let directory: Bool
+        public let encrypted: Bool
     }
 
     /// Lists before extracting. Output returns a new empty handle which this call closes.
@@ -40,6 +41,7 @@ public enum SevenZipArchiveReader {
         }
         let result = password.map { secret in secret.withCString { invoke($0) } } ?? invoke(nil)
         if let failure = state.failure { throw failure }
+        if result == -1001 { throw SevenZipArchiveError.passwordRequired }
         guard result == 0 else { throw SevenZipArchiveError.nativeFailure(result) }
         return state.members
     }
@@ -86,7 +88,7 @@ public enum SevenZipArchiveReader {
                                  size: native.has_size == 0 ? nil : native.size,
                                  modified: native.has_modified == 0 ? nil : Date(
                                     timeIntervalSince1970: Double(native.modified_filetime) / 10_000_000 - 11_644_473_600
-                                 ), mode: native.mode, directory: native.is_directory != 0))
+                                 ), mode: native.mode, directory: native.is_directory != 0, encrypted: native.is_encrypted != 0))
             return 0
         }
 

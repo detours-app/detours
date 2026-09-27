@@ -80,6 +80,8 @@ extension ServerOperationService {
                 default: throw OperationFilesystemError.system(code)
                 }
             } catch OperationFilesystemError.unsupported { return .manifest(.unsupported) }
+        case .archiveLayout(let location, let format, let password):
+            return try archiveLayout(location, format: format, password: password)
         case .accept(let identity, let intent):
             return .accepted(try await accept(identity, intent: intent))
         case .prepareUpload(let identity, let contents):

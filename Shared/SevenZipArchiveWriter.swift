@@ -11,6 +11,7 @@ public enum SevenZipArchiveError: Error, Equatable {
     case allocationFailed
     case nativeFailure(Int32)
     case inputFailure(Int32)
+    case passwordRequired
 }
 
 public enum SevenZipArchiveWriter {

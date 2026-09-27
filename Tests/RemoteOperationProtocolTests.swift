@@ -14,6 +14,7 @@ final class RemoteOperationProtocolTests: XCTestCase {
                                      sourceObservations: [], conflict: .createNew)
         let requests: [OperationRequest] = [
             .handshake, .lookup(location), .sourceProof(location), .sourceManifest(location),
+            .archiveLayout(location: location, format: "zip", password: "transient fixture secret"),
             .accept(identity: identity, intent: intent), .status(identity),
             .prepareUpload(identity: identity, contents: Data([0, 255])), .commit(identity), .execute(identity),
             .prepareCopy(identity), .prepareImportedTree(identity), .prepareArchive(identity: identity, password: "transient fixture secret"),

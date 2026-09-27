@@ -9,6 +9,7 @@ public enum OperationCapability: String, Codable, CaseIterable, Hashable, Sendab
     case sourceProof
     case sourceManifest
     case treeImport
+    case archiveLayout
 }
 
 public enum OperationCompatibilityError: Error, Codable, Equatable, Sendable {
@@ -70,6 +71,7 @@ public enum OperationRequest: Codable, Equatable, Sendable {
     case lookup(OperationLocation)
     case sourceProof(OperationLocation)
     case sourceManifest(OperationLocation)
+    case archiveLayout(location: OperationLocation, format: String, password: String?)
     case accept(identity: OperationRequestIdentity, intent: OperationIntent)
     case prepareUpload(identity: OperationRequestIdentity, contents: Data)
     case prepareCopy(OperationRequestIdentity)
@@ -94,6 +96,8 @@ public enum OperationReply: Codable, Equatable, Sendable {
     case handshake(OperationHandshake)
     case lookup(OperationLookup<OperationObservation>)
     case manifest(OperationLookup<OperationManifest>)
+    case archiveLayout(OperationLookup<OperationArchiveLayout>)
+    case archivePasswordRequired
     case accepted(OperationJournal.Snapshot)
     case status(OperationJournal.Snapshot)
     case cancellationRecorded(OperationRequestIdentity)
@@ -103,6 +107,16 @@ public enum OperationReply: Codable, Equatable, Sendable {
 
     public func encoded() throws -> Data { try JSONEncoder().encode(self) }
     public static func decode(_ data: Data) throws -> Self { try JSONDecoder().decode(Self.self, from: data) }
+}
+
+public struct OperationArchiveLayout: Codable, Equatable, Sendable {
+    public let source: OperationObservation
+    public let singleRoot: String?
+
+    public init(source: OperationObservation, singleRoot: String?) {
+        self.source = source
+        self.singleRoot = singleRoot
+    }
 }
 
 public struct OperationStreamHandshake: Codable, Equatable, Sendable {

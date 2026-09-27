@@ -5,6 +5,7 @@
 #include "../SevenZip/CPP/Common/UTFConvert.h"
 #include "../SevenZip/CPP/Windows/PropVariant.h"
 #include <algorithm>
+#include <atomic>
 #include <cerrno>
 #include <cstring>
 #include <limits>
@@ -22,6 +23,8 @@ struct ReaderState {
     void *context;
     const char *password;
     uint64_t bytes = 0;
+    std::atomic<bool> passwordRequested{false};
+    std::atomic<bool> passwordRejected{false};
     std::mutex mutex;
     HRESULT report(uint64_t added = 0) {
         std::lock_guard<std::mutex> guard(mutex);
@@ -30,8 +33,9 @@ struct ReaderState {
         return callback && callback(context, bytes) != 0 ? E_ABORT : S_OK;
     }
     HRESULT secret(BSTR *value) {
+        passwordRequested = true;
         *value = nullptr;
-        if (!password) return E_ABORT;
+        if (!password) { passwordRejected = true; return E_ABORT; }
         UString decoded;
         if (!ConvertUTF8ToUnicode(AString(password), decoded)) return E_INVALIDARG;
         *value = SysAllocString(decoded);
@@ -155,6 +159,10 @@ Z7_COM7F_IMF(Extract::SetCompleted(const UInt64 *)) { return state.report(); }
 Z7_COM7F_IMF(Extract::PrepareOperation(Int32)) { return state.report(); }
 Z7_COM7F_IMF(Extract::CryptoGetTextPassword(BSTR *value)) { return state.secret(value); }
 Z7_COM7F_IMF(Extract::SetOperationResult(Int32 result)) {
+    if (state.passwordRequested && (result == NArchive::NExtract::NOperationResult::kWrongPassword ||
+        result == NArchive::NExtract::NOperationResult::kDataError || result == NArchive::NExtract::NOperationResult::kCRCError)) {
+        state.passwordRejected = true;
+    }
     if (result != NArchive::NExtract::NOperationResult::kOK) return E_FAIL;
     if (currentOutput) RINOK(currentOutput->flush())
     current.Release();
@@ -208,6 +216,9 @@ HRESULT visitMember(IInArchive *archive, UInt32 index, detours_archive_visit vis
     RINOK(archive->GetProperty(index, kpidIsDir, &value))
     member.is_directory = value.vt == VT_BOOL && value.boolVal != VARIANT_FALSE;
     value.Clear();
+    RINOK(archive->GetProperty(index, kpidEncrypted, &value))
+    member.is_encrypted = value.vt == VT_BOOL && value.boolVal != VARIANT_FALSE;
+    value.Clear();
     RINOK(archive->GetProperty(index, kpidSize, &value))
     if (value.vt == VT_UI8) { member.size = value.uhVal.QuadPart; member.has_size = 1; }
     value.Clear();
@@ -260,7 +271,8 @@ extern "C" int32_t detours_archive_read(int32_t format, int input, const char *p
         RINOK(openFormat(format, archive))
         CMyComPtr<IInStream> stream = new Input(input, static_cast<uint64_t>(information.st_size), state);
         CMyComPtr<IArchiveOpenCallback> opener = new Open(state);
-        RINOK(archive->Open(stream, nullptr, opener))
+        const HRESULT opened = archive->Open(stream, nullptr, opener);
+        if (opened != S_OK) return state.passwordRejected || (state.passwordRequested && opened == S_FALSE) ? -1001 : opened;
         UInt32 count = 0;
         RINOK(archive->GetNumberOfItems(&count))
         for (UInt32 index = 0; index < count; ++index) {
@@ -269,7 +281,8 @@ extern "C" int32_t detours_archive_read(int32_t format, int input, const char *p
         }
         if (output) {
             CMyComPtr<IArchiveExtractCallback> extractor = new Extract(archive, output, information, state);
-            RINOK(archive->Extract(nullptr, static_cast<UInt32>(-1), 0, extractor))
+            const HRESULT extracted = archive->Extract(nullptr, static_cast<UInt32>(-1), 0, extractor);
+            if (extracted != S_OK) return state.passwordRejected ? -1001 : extracted;
         }
         return archive->Close();
     } catch (...) { return E_FAIL; }

@@ -453,7 +453,7 @@ extension FileOperationQueue {
     }
 
     func performProviderExtract(archive: Location, password: String?) async throws -> Location {
-        guard case .remote(let hostID, _) = archive else {
+        guard case .remote = archive else {
             throw FileProviderError.expectedLocal(archive)
         }
         guard let format = ArchiveFormat.detect(from: URL(fileURLWithPath: archive.path)) else {
@@ -464,8 +464,7 @@ extension FileOperationQueue {
         startOperation(operation, totalCount: 1)
         defer { finishOperation() }
 
-        let provider = try remoteProvider(for: hostID)
-        let extracted = try await provider.archiveExtract(archive, password: password)
+        let extracted = try await performAcceptedExtraction(archive, format: format, password: password)
         updateProgress(
             operation: operation,
             currentItem: URL(fileURLWithPath: extracted.path),
