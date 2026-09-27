@@ -21,7 +21,7 @@ extension LocalTransferService {
         var attempted = false
         do {
             let previous = try journal.read(reversed)
-            guard let priorIntent = previous.intent, let priorReceipt = previous.receipt, priorReceipt.outcome == .committed,
+            guard let priorIntent = previous.intent, let priorReceipt = previous.receipt, [.committed, .partial].contains(priorReceipt.outcome),
                   let retained = priorReceipt.recovery.first(where: {
                       [.sourceTrash, .displacedOriginal].contains($0.purpose) && $0.knownLocation == intent.sources[0]
                   }), let held = retained.knownLocation, let original = retained.original,

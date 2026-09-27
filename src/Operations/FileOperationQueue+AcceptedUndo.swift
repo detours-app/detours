@@ -2,6 +2,20 @@ import AppKit
 import RemoteOperationSupport
 
 extension FileOperationQueue {
+    @discardableResult
+    func restoreAcceptedOriginal(_ item: RemoteOperationStore.Item) async throws -> RemoteOperationStore.Snapshot {
+        try await enqueue(remoteHosts: [item.hostID]) {
+            let coordinator = try self.operationCoordinator()
+            let operation = try await coordinator.create()
+            let plan = try await coordinator.originalRestorePlan(item, operation: operation)
+            let result = try await self.performAcceptedMutation(plan)
+            try self.requireSuccessfulBatch(result)
+            _ = try await coordinator.checkResult(item.identity.id)
+            self.remoteOperationResults[item.identity.id.operation] = try await coordinator.snapshot(item.identity.id.operation)
+            return result
+        }
+    }
+
     func registerAcceptedUndo(_ result: RemoteOperationStore.Snapshot, with undoManager: UndoManager?, name: String, removingCreatedItem: OperationItemID? = nil) async throws {
         guard let undoManager else { return }
         let coordinator = try operationCoordinator()

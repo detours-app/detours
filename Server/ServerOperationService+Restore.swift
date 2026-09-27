@@ -90,7 +90,7 @@ extension ServerOperationService {
 
     private func validateRestore(_ intent: OperationIntent,
                                  previous: OperationJournal.Snapshot) throws -> OperationRecoveryReference {
-        guard let priorIntent = previous.intent, let receipt = previous.receipt, receipt.outcome == .committed,
+        guard let priorIntent = previous.intent, let receipt = previous.receipt, [.committed, .partial].contains(receipt.outcome),
               intent.conflict == .createNew, intent.sources.count == 1, intent.sourceObservations.count == 1,
               let retained = receipt.recovery.first(where: {
                   [.sourceTrash, .displacedOriginal].contains($0.purpose) && $0.knownLocation == intent.sources[0]

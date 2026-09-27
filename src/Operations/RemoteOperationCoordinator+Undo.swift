@@ -2,6 +2,17 @@ import Foundation
 import RemoteOperationSupport
 
 extension RemoteOperationCoordinator {
+    static func canRestoreOriginal(_ item: RemoteOperationStore.Item) -> Bool {
+        guard let receipt = item.result.receipt, [.committed, .partial].contains(item.outcome) else { return false }
+        return receipt.recovery.contains { $0.purpose == .displacedOriginal && $0.knownLocation != nil && $0.original != nil }
+    }
+
+    func originalRestorePlan(_ item: RemoteOperationStore.Item, operation: UUID) async throws -> PlannedItem {
+        guard Self.canRestoreOriginal(item) else { throw OperationContractError.invalidReceipt }
+        return try await restoration(item, purpose: .displacedOriginal,
+            id: .init(operation: operation, item: UUID()), vacating: nil, requires: [])
+    }
+
     static func canUndo(_ item: RemoteOperationStore.Item, in snapshot: RemoteOperationStore.Snapshot) -> Bool {
         guard [.committed, .partial].contains(item.outcome), let receipt = item.result.receipt,
               item.result.intent.action != .permanentDelete, !receipt.effects.isEmpty,

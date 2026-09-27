@@ -1,5 +1,5 @@
 import Foundation
-import RemoteOperationSupport
+@testable import RemoteOperationSupport
 import XCTest
 @testable import detours_server
 
@@ -324,6 +324,44 @@ final class ServerOperationBackupTests: XCTestCase {
         let duplicate = try await service.execute(request)
         XCTAssertEqual(duplicate, result)
         XCTAssertEqual(try Data(contentsOf: fixture.url(fixture.original).appendingPathComponent("child")), Data("nested".utf8))
+    }
+
+    func testRestoreOriginalAfterPartialRollbackPreservesCompetingWriter() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
+        let destination = try fixture.url(fixture.original)
+        let original = Data("original".utf8)
+        try original.write(to: destination)
+        let service = try await fixture.service()
+        let incoming = Data("incoming".utf8)
+        let (request, intent) = try fixture.replacement(epoch: service.journal.epoch, contents: incoming)
+        _ = try await service.accept(request, intent: intent)
+        _ = try await service.prepareUpload(request, contents: incoming)
+        do {
+            let ownership = try await service.journal.acquireItem(request.id)
+            defer { withExtendedLifetime(ownership) {} }
+            let commit = try await service.journal.acquireCommit()
+            defer { withExtendedLifetime(commit) {} }
+            _ = try OperationReplacement.displace(journal: service.journal, snapshot: service.journal.read(request.id), ownership: ownership)
+            try Data("competing writer".utf8).write(to: destination)
+            try OperationReplacement.restore(journal: service.journal, id: request.id, ownership: ownership, failure: "Publication interrupted")
+        }
+        let partial = try XCTUnwrap(service.status(request).receipt)
+        XCTAssertEqual(partial.outcome, .partial)
+        let retained = try XCTUnwrap(partial.recovery.first { $0.purpose == .displacedOriginal })
+        let (occupiedID, occupiedIntent) = try fixture.restore(partial, retained: retained)
+        _ = try await service.accept(occupiedID, intent: occupiedIntent)
+        let refused = try await service.execute(occupiedID)
+        XCTAssertEqual(refused.outcome, .failedUnchanged)
+        let preserved = fixture.root.appendingPathComponent("preserved occupant")
+        try FileManager.default.moveItem(at: destination, to: preserved)
+        let (restoreID, restoreIntent) = try fixture.restore(partial, retained: retained)
+        _ = try await service.accept(restoreID, intent: restoreIntent)
+        let restored = try await service.execute(restoreID)
+        XCTAssertEqual(restored.outcome, .committed)
+        XCTAssertNil(restored.failure)
+        XCTAssertEqual(try Data(contentsOf: destination), original)
+        XCTAssertEqual(try Data(contentsOf: preserved), Data("competing writer".utf8))
     }
 
     private struct Fixture {

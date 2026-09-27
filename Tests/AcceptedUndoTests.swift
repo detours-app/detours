@@ -1,5 +1,5 @@
 import AppKit
-import RemoteOperationSupport
+@testable import RemoteOperationSupport
 import XCTest
 @testable import Detours
 @testable import detours_server
@@ -174,10 +174,63 @@ final class AcceptedUndoTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: renamed.path)), fixture.bytes)
     }
 
-    private func configure(_ fixture: CoordinatorFixture) -> FileOperationQueue {
+    func testRestoreOriginalAfterPartialReplacementNeverOverwritesOccupant() async throws {
+        let fixture = try await CoordinatorFixture()
+        defer { fixture.cleanup() }
+        let queue = configure(fixture, blockReplacement: true)
+        let output = fixture.root.appendingPathComponent("output")
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: false)
+        let destination = output.appendingPathComponent("source")
+        let originalBytes = Data("retained original".utf8)
+        try originalBytes.write(to: destination)
+        queue.conflictChoiceOverrideForTesting = .replace
+        defer { queue.conflictChoiceOverrideForTesting = nil }
+        do {
+            _ = try await queue.copy(items: [.remote(hostID: fixture.hostID, path: fixture.source.path)],
+                to: .remote(hostID: fixture.hostID, path: output.path))
+            XCTFail("Competing writer must leave a partial replacement")
+        } catch {}
+        let failed = try XCTUnwrap(queue.remoteOperationResults.values.first?.items.first)
+        XCTAssertEqual(failed.outcome, .partial)
+        XCTAssertTrue(RemoteOperationCoordinator.canRestoreOriginal(failed))
+        do {
+            _ = try await queue.restoreAcceptedOriginal(failed)
+            XCTFail("Restore Original overwrote a later occupant")
+        } catch {}
+        XCTAssertEqual(try Data(contentsOf: destination), Data("competing writer".utf8))
+        let preserved = output.appendingPathComponent("preserved occupant")
+        try FileManager.default.moveItem(at: destination, to: preserved)
+        let restored = try await queue.restoreAcceptedOriginal(failed)
+        XCTAssertEqual(restored.items.map(\.outcome), [.committed])
+        XCTAssertNil(restored.items.first?.result.receipt?.failure)
+        XCTAssertEqual(restored.items.first?.result.intent.reverses, failed.identity.id)
+        XCTAssertEqual(try Data(contentsOf: destination), originalBytes)
+        XCTAssertEqual(try Data(contentsOf: preserved), Data("competing writer".utf8))
+        let refreshed = try XCTUnwrap(queue.remoteOperationResults[failed.identity.id.operation]?.items.first)
+        XCTAssertFalse(RemoteOperationCoordinator.canRestoreOriginal(refreshed))
+    }
+
+    private func configure(_ fixture: CoordinatorFixture, blockReplacement: Bool = false) -> FileOperationQueue {
         let service = fixture.boundary.service
         let endpoint = RemoteOperationCoordinator.Endpoint(session: fixture.session,
-            request: { try await service.reply(to: $0) }, upload: { url, identity in
+            request: { request in
+                if blockReplacement, case .commit(let identity) = request {
+                    let ownership = try await service.journal.acquireItem(identity.id)
+                    defer { withExtendedLifetime(ownership) {} }
+                    let commit = try await service.journal.acquireCommit()
+                    defer { withExtendedLifetime(commit) {} }
+                    let snapshot = try service.journal.read(identity.id)
+                    _ = try OperationReplacement.displace(journal: service.journal, snapshot: snapshot, ownership: ownership)
+                    let destination = try XCTUnwrap(snapshot.intent?.destination)
+                    guard case .unix(let bytes) = destination.path, let path = String(data: bytes, encoding: .utf8) else {
+                        throw OperationContractError.invalidReceipt
+                    }
+                    try Data("competing writer".utf8).write(to: URL(fileURLWithPath: path))
+                    try OperationReplacement.restore(journal: service.journal, id: identity.id, ownership: ownership, failure: "Publication interrupted")
+                    return .receipt(try XCTUnwrap(service.journal.read(identity.id).receipt))
+                }
+                return try await service.reply(to: request)
+            }, upload: { url, identity in
                 try await service.prepareUpload(identity, contents: Data(contentsOf: url))
             })
         let provider = RemoteFileProvider(hostID: fixture.hostID, rpcClient: AcceptedProviderRPC(service: service),

@@ -127,6 +127,17 @@ extension WindowsAcceptedOperationLiveTests {
             XCTAssertEqual(result.items.map(\.outcome), [.committed, .committed])
             XCTAssertTrue(result.items[1].result.receipt?.recovery.contains { $0.purpose == .sourceTrash } == true)
         }
+        let lastMove = try XCTUnwrap(queue.remoteOperationResults.values.first { snapshot in
+            snapshot.items.first?.result.intent.destination?.path == .unix(Data(returnDirectory.appendingPathComponent("folder").path.utf8))
+        })
+        let undone = try await queue.undoAcceptedOperation(lastMove)
+        XCTAssertEqual(undone.items.map { $0.result.intent.action }, [.restore, .trash])
+        XCTAssertTrue(undone.items.allSatisfy { $0.outcome == .committed })
+        XCTAssertFalse(FileManager.default.fileExists(atPath: returnDirectory.appendingPathComponent("folder").path))
+        guard case .manifest(.found(let restoredTree)) = try await windows.request(.sourceManifest(windowsFolder)) else {
+            return XCTFail("Undo did not restore the recorded Windows folder")
+        }
+        XCTAssertEqual(restoredTree.proof, originalTree.proof)
     }
 }
 
