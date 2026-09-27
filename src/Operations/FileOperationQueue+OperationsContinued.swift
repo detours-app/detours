@@ -409,11 +409,8 @@ extension FileOperationQueue {
         startOperation(operation, totalCount: 1)
         defer { finishOperation() }
 
-        let provider = try provider(for: directory)
-        let destination = await uniqueCreatedLocation(in: directory, name: name, provider: provider)
-
         do {
-            try await provider.createDirectory(at: destination, withIntermediateDirectories: false)
+            let destination = try await performAcceptedCreateFolder(in: directory, name: name)
             updateProgress(
                 operation: operation,
                 currentItem: URL(fileURLWithPath: destination.path),
@@ -437,7 +434,7 @@ extension FileOperationQueue {
 
             return destination
         } catch {
-            throw mapError(error, url: URL(fileURLWithPath: destination.path))
+            throw mapError(error, url: URL(fileURLWithPath: directory.path))
         }
     }
 

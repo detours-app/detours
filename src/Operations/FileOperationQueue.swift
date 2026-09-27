@@ -315,18 +315,7 @@ final class FileOperationQueue {
     func rename(item: Location, to newName: String) async throws -> Location {
         guard case .local(let itemURL) = item else {
             return try await enqueue {
-                guard case .remote(let hostID, _) = item else {
-                    throw FileProviderError.unsupportedOperation("Mixed rename is not implemented yet")
-                }
-                try self.validateSinglePathComponent(newName)
-                let provider = try self.remoteProvider(for: hostID)
-                // The local path refuses a name that is already taken. Do the same here rather than
-                // letting the server's bare move surface as a raw error.
-                let destination = item.deletingLastPathComponent().appendingPathComponent(newName)
-                if (try? await provider.stat(destination)) != nil {
-                    throw FileOperationError.destinationExists(URL(fileURLWithPath: destination.path))
-                }
-                return try await provider.rename(item, to: newName)
+                try await self.performAcceptedRename(item, name: newName)
             }
         }
 
@@ -341,7 +330,7 @@ final class FileOperationQueue {
         }
     }
 
-    private func validateSinglePathComponent(_ name: String) throws {
+    func validateSinglePathComponent(_ name: String) throws {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty,
               trimmed != ".",
