@@ -106,6 +106,7 @@ final class RemoteIntegrationTests: XCTestCase {
         XCTAssertTrue(folderSource.entry.isDirectory || folderSource.entry.fileSize == nil, "A link to a folder must be declined, not previewed as an empty file")
     }
 
+    @MainActor
     func testArchiveWrongPasswordMapsRealHelperErrorToRetry() async throws {
         let session = try await RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()
@@ -146,6 +147,7 @@ final class RemoteIntegrationTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: destination, encoding: .utf8), "remote-body")
     }
 
+    @MainActor
     func testCopyLocalToRemote() async throws {
         let session = try await RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()
@@ -164,6 +166,7 @@ final class RemoteIntegrationTests: XCTestCase {
         XCTAssertEqual(try Self.runSSH("cat \(Self.shellQuote(remoteRoot + "/upload.txt"))"), "local-body")
     }
 
+    @MainActor
     func testRemoteProviderCopyUsesRealHelperProtocol() async throws {
         let session = try await RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()
@@ -499,6 +502,7 @@ final class RemoteIntegrationTests: XCTestCase {
 
     /// A large upload whose destination folder does not exist makes the helper fail before it
     /// reads the body. The app must report that as an error, not die writing into the dead pipe.
+    @MainActor
     func testLargeUploadIntoMissingRemoteFolderReportsAnErrorInsteadOfDying() async throws {
         let session = try await RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()
@@ -525,6 +529,7 @@ final class RemoteIntegrationTests: XCTestCase {
         XCTAssertEqual(names, [], "The failed upload must leave nothing behind")
     }
 
+    @MainActor
     func testLargeUploadWithSpacesInTheNameIntoANestedFolderSucceeds() async throws {
         let session = try await RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()
@@ -809,6 +814,7 @@ final class RemoteIntegrationTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: destination, encoding: .utf8), "remote-body")
     }
 
+    @MainActor
     func testIntelMacCopyLocalToRemote() async throws {
         let session = try await RemoteIntegrationSession.makeIntelMac()
         let remoteRoot = try Self.makeRemoteFixtureRoot(target: Self.intelMacTestTarget)
@@ -923,6 +929,7 @@ final class RemoteIntegrationTests: XCTestCase {
         XCTAssertEqual(message, "Remote symbolic link \"missing-link\" is broken or unreachable")
     }
 
+    @MainActor
     func testSameHostCopyAndMoveThroughRealHelper() async throws {
         let session = try await RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()
@@ -1024,7 +1031,7 @@ final class RemoteIntegrationTests: XCTestCase {
         _ = try? runSSH("rm -rf \(shellQuote(path))", target: target)
     }
 
-    private static func waitForRemotePath(_ path: String, timeout: TimeInterval = 3) async throws {
+    static func waitForRemotePath(_ path: String, timeout: TimeInterval = 3) async throws {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if try remotePathExists(path) {
@@ -1035,7 +1042,7 @@ final class RemoteIntegrationTests: XCTestCase {
         XCTFail("Remote path was not restored within \(timeout) seconds: \(path)")
     }
 
-    fileprivate static func waitForRemotePath(_ path: String, target: String, timeout: TimeInterval = 3) async throws {
+    static func waitForRemotePath(_ path: String, target: String, timeout: TimeInterval = 3) async throws {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if try remotePathExists(path, target: target) {
