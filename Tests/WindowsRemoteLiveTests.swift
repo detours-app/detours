@@ -446,7 +446,7 @@ final class WindowsRemoteLiveTests: XCTestCase {
         guard try await Self.canReachWindowsHost(target: target) else {
             throw XCTSkip("Windows host \(target) is unreachable.")
         }
-        let fixture = try await WindowsLiveFixture(target: target)
+        let fixture = try await Task.detached { try await WindowsLiveFixture(target: target) }.value
         FileOperationQueue.shared.registerRemoteFileProvider(fixture.provider, for: fixture.hostID,
             operationEndpoint: fixture.endpoint)
         defer { FileOperationQueue.shared.unregisterRemoteFileProvider(for: fixture.hostID) }
@@ -467,7 +467,7 @@ final class WindowsRemoteLiveTests: XCTestCase {
         guard try await Self.canReachWindowsHost(target: target) else {
             throw XCTSkip("Windows host \(target) is unreachable.")
         }
-        let fixture = try await WindowsLiveFixture(target: target)
+        let fixture = try await Task.detached { try await WindowsLiveFixture(target: target) }.value
         FileOperationQueue.shared.registerRemoteFileProvider(fixture.provider, for: fixture.hostID,
             operationEndpoint: fixture.endpoint)
         defer { FileOperationQueue.shared.unregisterRemoteFileProvider(for: fixture.hostID) }
