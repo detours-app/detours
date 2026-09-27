@@ -159,7 +159,7 @@ final class RemoteIntegrationTests: XCTestCase {
         queue.registerRemoteFileProvider(session.provider, for: session.hostID, operationEndpoint: session.endpoint)
         defer { queue.unregisterRemoteFileProvider(for: session.hostID) }
 
-        _ = try await queue.copy(items: [.local(source)], to: .remote(hostID: session.hostID, path: remoteRoot + "/upload.txt"))
+        _ = try await queue.copy(items: [.local(source)], to: .remote(hostID: session.hostID, path: remoteRoot))
         let entry = try await session.provider.stat(.remote(hostID: session.hostID, path: remoteRoot + "/upload.txt"))
 
         XCTAssertEqual(entry.fileSize, 10)
@@ -549,10 +549,10 @@ final class RemoteIntegrationTests: XCTestCase {
         queue.registerRemoteFileProvider(session.provider, for: session.hostID, operationEndpoint: session.endpoint)
         defer { queue.unregisterRemoteFileProvider(for: session.hostID) }
         for testCase in cases {
-            let destination = Location.remote(hostID: session.hostID, path: testCase.path)
+            let directory = (testCase.path as NSString).deletingLastPathComponent
             do {
-                _ = try await queue.copy(items: [.local(source)], to: destination)
-                let entry = try await session.provider.stat(destination)
+                _ = try await queue.copy(items: [.local(source)], to: .remote(hostID: session.hostID, path: directory))
+                let entry = try await session.provider.stat(.remote(hostID: session.hostID, path: testCase.path))
                 XCTAssertEqual(entry.fileSize, 3 * 1_024 * 1_024, testCase.label)
             } catch {
                 XCTFail("\(testCase.label): \(error)")
@@ -826,7 +826,7 @@ final class RemoteIntegrationTests: XCTestCase {
         queue.registerRemoteFileProvider(session.provider, for: session.hostID, operationEndpoint: session.endpoint)
         defer { queue.unregisterRemoteFileProvider(for: session.hostID) }
 
-        _ = try await queue.copy(items: [.local(source)], to: .remote(hostID: session.hostID, path: remoteRoot + "/upload.txt"))
+        _ = try await queue.copy(items: [.local(source)], to: .remote(hostID: session.hostID, path: remoteRoot))
         let entry = try await session.provider.stat(.remote(hostID: session.hostID, path: remoteRoot + "/upload.txt"))
 
         XCTAssertEqual(entry.fileSize, 10)
