@@ -47,7 +47,10 @@ private struct RemoteOperationsView: View {
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel(title(snapshot))
-                            .accessibilityIdentifier("remoteOperationRecord-" + snapshot.record.operation.uuidString)
+                            .accessibilityIdentifier(
+                                "remoteOperationRecord-" + snapshot.record.operation.uuidString
+                                    + (FileOperationQueue.shared.remotePresentation(snapshot).active ? "-active" : "")
+                            )
                         }
                         if snapshots.isEmpty { Text("No saved remote operations.").padding(12) }
                     }

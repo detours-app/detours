@@ -191,7 +191,7 @@ final class QualificationConnectionUITests: BaseUITest {
         app.menuItems["Remote Operations..."].click()
         let window = app.windows["Remote Operations"]
         let record = window.buttons
-            .matching(NSPredicate(format: "identifier BEGINSWITH %@", "remoteOperationRecord-"))
+            .matching(NSPredicate(format: "identifier ENDSWITH %@", "-active"))
             .firstMatch
         XCTAssertTrue(record.waitForExistence(timeout: 5))
         record.click()
