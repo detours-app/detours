@@ -38,6 +38,14 @@ final class QualificationConnectionUITests: BaseUITest {
     }
 
     func testRemoteFolderResultShowsRecordedDestinationAndUndo() throws {
+        try runRemoteFolderResult(restoringAfterRestart: false)
+    }
+
+    func testSavedRemoteResultSurvivesRestartAndLocalNavigation() throws {
+        try runRemoteFolderResult(restoringAfterRestart: true)
+    }
+
+    private func runRemoteFolderResult(restoringAfterRestart: Bool) throws {
         guard qualificationRemoteTarget != nil else {
             throw QualificationConnectionFailure.timedOut("Live target is required", nil)
         }
@@ -75,9 +83,25 @@ final class QualificationConnectionUITests: BaseUITest {
         _ = try waitForPaneState(pane: "left", description: "recorded folder creation") {
             $0.visibleLocations.contains(home + "/" + scenario + "/Folder") && $0.focus == "fileList" && self.isQuiescent($0)
         }
-        let status = app.staticTexts.matching(identifier: "operationStatus").element(boundBy: 0)
-        XCTAssertTrue(status.waitForExistence(timeout: 3))
-        status.click()
+        if restoringAfterRestart {
+            try relaunchQualificationApp()
+            _ = try waitForPaneState(pane: "left", description: "restored remote connection") {
+                $0.displayedLocation == home && $0.connectionStates.values.contains("connected") && self.isQuiescent($0)
+            }
+            app.buttons.matching(identifier: "paneBackButton").element(boundBy: 0).click()
+            _ = try waitForPaneState(pane: "left", description: "local navigation before saved result") {
+                $0.displayedLocation == self.uiTestRootURL.path && self.isQuiescent($0)
+            }
+            app.menuBars.firstMatch.menuBarItems["Window"].click()
+            app.menuItems["Remote Operations..."].click()
+            let record = app.windows["Remote Operations"].buttons["Folder"]
+            XCTAssertTrue(record.waitForExistence(timeout: 5))
+            record.click()
+        } else {
+            let status = app.staticTexts.matching(identifier: "operationStatus").element(boundBy: 0)
+            XCTAssertTrue(status.waitForExistence(timeout: 3))
+            status.click()
+        }
         let summary = app.staticTexts["remoteOperationSummary"]
         XCTAssertTrue(summary.waitForExistence(timeout: 3))
         XCTAssertEqual(summary.value as? String ?? summary.label, "1 item completed.")
@@ -85,12 +109,27 @@ final class QualificationConnectionUITests: BaseUITest {
         XCTAssertEqual(host.value as? String ?? host.label, qualificationRemoteTarget)
         XCTAssertTrue(app.staticTexts["Destination: " + home + "/" + scenario + "/Folder"].exists)
         let screenshot = XCTAttachment(screenshot: app.screenshot())
-        screenshot.name = "Recorded remote folder result and available undo"
+        screenshot.name = restoringAfterRestart
+            ? "Saved result after restart and local navigation" : "Recorded remote folder result and available undo"
         screenshot.lifetime = .keepAlways
         add(screenshot)
         let undo = app.buttons["undoRemoteResult"]
         XCTAssertTrue(undo.isEnabled)
         undo.click()
+        if restoringAfterRestart {
+            XCTAssertTrue(undo.waitForNonExistence(timeout: 10))
+            app.windows["Remote Operations"].buttons["closeRemoteOperations"].click()
+            app.buttons.matching(identifier: "paneForwardButton").element(boundBy: 0).click()
+            _ = try waitForPaneState(pane: "left", description: "remote history after saved undo") {
+                $0.displayedLocation == home && self.isQuiescent($0)
+            }
+            let restoredRow = app.leftPaneOutlineView.outlineRow(withStaticText: scenario)
+            XCTAssertTrue(restoredRow.waitForExistence(timeout: 5))
+            restoredRow.staticTexts[scenario].doubleClick()
+            _ = try waitForPaneState(pane: "left", description: "inspect saved undo destination") {
+                $0.displayedLocation == home + "/" + scenario && self.isQuiescent($0)
+            }
+        }
         _ = try waitForPaneState(pane: "left", description: "confirmed folder undo") {
             !$0.visibleLocations.contains(home + "/" + scenario + "/Folder") && self.isQuiescent($0)
         }

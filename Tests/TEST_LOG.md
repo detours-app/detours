@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry saved-result recovery | `dcff79c7` | PASS: signed build and all 36 recovery, presentation, store, session and local-transfer checks passed in 1.059 seconds. Restart checks an actual lost commit with status only and retains its host name; unavailable hosts and corrupt records remain visible without mutation or automatic retry. The status deadline cancels its wait, and cancelling one shared connection owner preserves the other. Startup/window wiring remains in progress. |
 | Foundry installed host-labelled result and Undo | `3bbc9e09` | PASS: guarded installed journey passed in 17.166 seconds with one test, zero failures/skips, zero consent events and verified cleanup. The exported screenshot shows devtest, readable recorded destination and the available Undo action. Actual folder Undo and outside-root/local-pane preservation passed. |
 | Foundry connection and result display states | `3bbc9e09` | PASS: signed build and all 23 banner, presentation and refresh checks passed in 1.192 seconds. Connection readiness controls, stale-listing wording, readable narrow panes, host display names and preflight refusal details pass. The installed host-label check continues. Resolves the optional-state compilation failure below. |
 | Foundry connection-banner build | `8f3eec7e` | FAIL: compilation caught two calls passing an optional connection state to the banner renderer. Adding explicit absent-state handling; no runtime tests ran. |

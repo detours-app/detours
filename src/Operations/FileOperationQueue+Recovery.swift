@@ -23,7 +23,8 @@ extension FileOperationQueue {
             guard let endpoint = remoteOperationEndpoints[hostID] else { throw OperationContractError.invalidReceipt }
             return endpoint
         }
-        guard let host = RemoteHostStore.shared.host(id: hostID) else {
+        let fixtureHost = try UITestEnvironment.persistedRemoteHost()
+        guard let host = RemoteHostStore.shared.host(id: hostID) ?? (fixtureHost?.id == hostID ? fixtureHost : nil) else {
             throw FileProviderError.unsupportedOperation("The saved host is unavailable. Its operation results remain recorded.")
         }
         let resources = try await RemoteConnectionRegistry.shared.resources(for: hostID) { owner in
