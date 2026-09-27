@@ -34,6 +34,21 @@ final class CopyMoveMatrixTests: XCTestCase {
         XCTFail(message)
     }
 
+    /// Yielding wait for the tests whose setup is async: `RunLoop.run` cannot pump main-actor
+    /// work that was started after an `await`, so these sleep instead.
+    private func waitUntilAsync(
+        timeout: TimeInterval = 4,
+        _ message: String,
+        _ condition: @escaping () -> Bool
+    ) async {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() { return }
+            try? await Task.sleep(nanoseconds: 20_000_000)
+        }
+        XCTFail(message)
+    }
+
     private func makeSplit() -> (MainSplitViewController, NSWindow) {
         let splitVC = MainSplitViewController()
         splitVC.loadViewIfNeeded()
@@ -123,14 +138,14 @@ final class CopyMoveMatrixTests: XCTestCase {
         try XCTUnwrap(leftPane.selectedTab).navigate(to: sourceDir)
         let leftList = try XCTUnwrap(leftPane.selectedTab).fileListViewController
         let (_, _, rightList) = try await installRemoteTab(in: rightPane, base: remoteRoot)
-        waitUntil("panes never loaded") {
+        await waitUntilAsync("panes never loaded") {
             leftList.tableView.numberOfRows == 1 && rightList.hasLoadedDirectory
         }
         leftList.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
 
         splitVC.copyItems([.local(file)], toOtherPaneFrom: leftPane)
 
-        waitUntil("uploaded file never selected in remote destination") {
+        await waitUntilAsync("uploaded file never selected in remote destination") {
             self.selectedPaths(rightList).contains { $0.hasSuffix("m_upload.txt") }
         }
         XCTAssertTrue(splitVC.activePane === rightPane)
@@ -153,7 +168,7 @@ final class CopyMoveMatrixTests: XCTestCase {
         let (host, _, leftList) = try await installRemoteTab(in: leftPane, base: remoteRoot)
         try XCTUnwrap(rightPane.selectedTab).navigate(to: destDir)
         let rightList = try XCTUnwrap(rightPane.selectedTab).fileListViewController
-        waitUntil("panes never loaded") {
+        await waitUntilAsync("panes never loaded") {
             leftList.tableView.numberOfRows == 1 && rightList.hasLoadedDirectory
         }
         leftList.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
@@ -164,7 +179,7 @@ final class CopyMoveMatrixTests: XCTestCase {
         )
 
         let expected = destDir.appendingPathComponent("m_download.txt").standardizedFileURL.path
-        waitUntil("downloaded file never selected in local destination") {
+        await waitUntilAsync("downloaded file never selected in local destination") {
             self.selectedPaths(rightList) == [expected]
         }
         XCTAssertTrue(splitVC.activePane === rightPane)
@@ -189,7 +204,7 @@ final class CopyMoveMatrixTests: XCTestCase {
         let (host, provider, leftList) = try await installRemoteTab(in: leftPane, base: remoteRoot, path: "/src")
         let rightList = try XCTUnwrap(rightPane.selectedTab).fileListViewController
         rightList.loadRemoteDirectory(host: host, path: "/dst", provider: provider)
-        waitUntil("remote panes never loaded") {
+        await waitUntilAsync("remote panes never loaded") {
             leftList.tableView.numberOfRows == 3 && rightList.hasLoadedDirectory
         }
         XCTAssertTrue(leftList.selectRemoteItem(atPath: "/src/b_moved.txt"))
@@ -199,11 +214,11 @@ final class CopyMoveMatrixTests: XCTestCase {
             toOtherPaneFrom: leftPane
         )
 
-        waitUntil("moved remote file never selected in destination") {
+        await waitUntilAsync("moved remote file never selected in destination") {
             self.selectedPaths(rightList).contains { $0.hasSuffix("/dst/b_moved.txt") }
         }
         XCTAssertTrue(splitVC.activePane === rightPane)
-        waitUntil("remote source pane never fell back to the forward survivor") {
+        await waitUntilAsync("remote source pane never fell back to the forward survivor") {
             self.selectedPaths(leftList).contains { $0.hasSuffix("/src/c.txt") }
         }
         withExtendedLifetime(window) {}
@@ -223,7 +238,7 @@ final class CopyMoveMatrixTests: XCTestCase {
         let rightPane = splitVC.otherPane(from: leftPane)
         let (hostA, _, leftList) = try await installRemoteTab(in: leftPane, base: rootA)
         let (_, _, rightList) = try await installRemoteTab(in: rightPane, base: rootB)
-        waitUntil("remote panes never loaded") {
+        await waitUntilAsync("remote panes never loaded") {
             leftList.tableView.numberOfRows == 1 && rightList.hasLoadedDirectory
         }
         leftList.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
@@ -233,7 +248,7 @@ final class CopyMoveMatrixTests: XCTestCase {
             toOtherPaneFrom: leftPane
         )
 
-        waitUntil("cross-host copy never selected in destination") {
+        await waitUntilAsync("cross-host copy never selected in destination") {
             self.selectedPaths(rightList).contains { $0.hasSuffix("m_cross.txt") }
         }
         XCTAssertTrue(splitVC.activePane === rightPane)
