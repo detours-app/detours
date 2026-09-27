@@ -544,7 +544,6 @@ private struct WindowsLiveFixture {
 
         let channel = PowerShellChannel(hostID: hostID, sshTarget: target, controlDirectory: controlDir)
         self.channel = channel
-        try await channel.forceReconnect()
         let transferChannel = WindowsTransferChannel(sshTarget: target, powerShellChannel: channel, controlDirectory: controlDir)
         let watchChannel = WindowsWatchChannel(hostID: hostID, sshTarget: target, controlDirectory: controlDir)
         let provider = WindowsRemoteProvider(
