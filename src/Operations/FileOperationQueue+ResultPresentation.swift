@@ -3,7 +3,10 @@ import RemoteOperationSupport
 
 extension FileOperationQueue {
     func remotePresentation(_ snapshot: RemoteOperationStore.Snapshot) -> RemoteOperationPresentation {
-        .init(snapshot: snapshot, active: activeRemoteResultIDs.contains(snapshot.record.operation), hostNames: remoteHostNames)
+        let reversed = Set(remoteOperationResults.values.flatMap(\.items).filter { $0.outcome == .committed }
+            .compactMap { $0.result.intent.reverses })
+        return .init(snapshot: snapshot, active: activeRemoteResultIDs.contains(snapshot.record.operation),
+            hostNames: remoteHostNames, reversedItems: reversed)
     }
 
     func beginRemoteResult(_ operation: UUID, coordinator: RemoteOperationCoordinator) async {

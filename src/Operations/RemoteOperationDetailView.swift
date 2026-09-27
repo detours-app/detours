@@ -22,7 +22,12 @@ final class RemoteResultModel {
         error = nil
         Task { @MainActor in
             defer { busy = false }
-            do { try await action() } catch { self.error = RemoteOperationError.reason(for: error) }
+            do { try await action() } catch {
+                if let filesystem = error as? OperationFilesystemError,
+                   filesystem == .identityChanged || filesystem == .unexpectedContents {
+                    self.error = "The recorded item changed or its original name is occupied. Review the files before restoring."
+                } else { self.error = RemoteOperationError.reason(for: error) }
+            }
         }
     }
 }

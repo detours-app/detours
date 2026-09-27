@@ -22,6 +22,7 @@ struct RemoteOperationPresentation {
     let snapshot: RemoteOperationStore.Snapshot
     let active: Bool
     let hostNames: [UUID: String]
+    var reversedItems: Set<OperationItemID> = []
     var id: UUID { snapshot.record.operation }
 
     var selections: [Selection] {
@@ -42,7 +43,7 @@ struct RemoteOperationPresentation {
     }
 
     var canCancel: Bool { active && !snapshot.record.cancellationRequested }
-    var canUndo: Bool { !active && snapshot.items.contains { RemoteOperationCoordinator.canUndo($0, in: snapshot) } }
+    var canUndo: Bool { !active && snapshot.items.contains { !reversedItems.contains($0.identity.id) && RemoteOperationCoordinator.canUndo($0, in: snapshot) } }
 
     var summary: String {
         if snapshot.record.cancellationRequested && active { return "Cancelling. Checking what finished..." }

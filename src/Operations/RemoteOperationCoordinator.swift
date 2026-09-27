@@ -46,6 +46,10 @@ actor RemoteOperationCoordinator {
 
     private var resultObserver: (@Sendable (RemoteOperationStore.Snapshot) -> Void)?
 
+    func reversedItemIDs() throws -> Set<OperationItemID> {
+        Set(try store.all().flatMap(\.items).filter { $0.outcome == .committed }.compactMap { $0.result.intent.reverses })
+    }
+
     func observeResults(_ observer: @escaping @Sendable (RemoteOperationStore.Snapshot) -> Void) {
         resultObserver = observer
     }

@@ -106,6 +106,7 @@ final class StatusBarView: NSView {
         ])
 
         // Accessibility
+        label.setAccessibilityIdentifier("operationStatus")
         progressBar.setAccessibilityRole(.progressIndicator)
         progressBar.setAccessibilityLabel("File operation progress")
         progressLabel.setAccessibilityRole(.staticText)

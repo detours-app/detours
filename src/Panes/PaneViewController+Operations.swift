@@ -95,7 +95,7 @@ extension PaneViewController {
     }
 
     func hideOperationProgress(completion: String?, error: String?) {
-        closeDetailPopover()
+        if detailPopover?.remoteOperationID == nil { closeDetailPopover() }
 
         if let error {
             statusBar.showError(message: error)

@@ -89,6 +89,15 @@ final class RemoteOperationPresentationTests: XCTestCase {
         let snapshot = try XCTUnwrap(queue.remoteOperationResults[operation])
         XCTAssertEqual(snapshot.items.map(\.outcome), [.committed])
         XCTAssertEqual(try Data(contentsOf: fixture.destination), fixture.bytes)
+        _ = try await queue.undoAcceptedOperation(snapshot)
+        XCTAssertFalse(queue.remotePresentation(snapshot).canUndo)
+        let afterUndo = await fixture.boundary.requests
+        do {
+            _ = try await queue.undoAcceptedOperation(snapshot)
+            XCTFail("Confirmed reversal must not be repeated")
+        } catch {}
+        let afterRepeatedUndo = await fixture.boundary.requests
+        XCTAssertEqual(afterUndo, afterRepeatedUndo)
         let stale = RemoteOperationStore.Snapshot(operation: operation)
         queue.receiveRemoteSnapshot(stale)
         XCTAssertEqual(queue.remoteOperationResults[operation], snapshot)

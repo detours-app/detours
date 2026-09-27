@@ -28,13 +28,15 @@ extension RemoteOperationCoordinator {
     func undoPlan(_ original: RemoteOperationStore.Snapshot, operation: UUID, removingCreatedItem: OperationItemID? = nil) async throws -> [PlannedItem] {
         var plan: [PlannedItem] = []
         var reversals: [OperationItemID: OperationItemID] = [:]
-        for item in original.items.reversed() where Self.canUndo(item, in: original) {
+        let reversed = try reversedItemIDs()
+        for item in original.items.reversed() where !reversed.contains(item.identity.id) && Self.canUndo(item, in: original) {
             if let removingCreatedItem, item.identity.id != removingCreatedItem { continue }
             let id = OperationItemID(operation: operation, item: UUID())
             reversals[item.identity.id] = id
             do {
                 let dependencies = original.items.filter { ($0.requiresVerified ?? []).contains(item.identity.id) && $0.outcome == .committed }
-                let required = try dependencies.map { dependent in
+                let required: [OperationItemID] = try dependencies.compactMap { dependent in
+                    if reversed.contains(dependent.identity.id) { return nil }
                     guard let reverse = reversals[dependent.identity.id] else { throw OperationContractError.invalidReceipt }
                     return reverse
                 }

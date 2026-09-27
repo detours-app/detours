@@ -152,6 +152,10 @@ final class FileOperationQueue {
         didSet {
             for (id, snapshot) in remoteOperationResults where oldValue[id] != snapshot {
                 onRemoteResultUpdate?(remotePresentation(snapshot))
+                let originals = Set(snapshot.items.compactMap { $0.result.intent.reverses?.operation })
+                for original in originals {
+                    if let saved = remoteOperationResults[original] { onRemoteResultUpdate?(remotePresentation(saved)) }
+                }
             }
         }
     }

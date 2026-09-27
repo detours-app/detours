@@ -16,6 +16,7 @@ final class OperationDetailPopover: NSPopover {
     private var model: ProgressModel?
     private var resultModel: RemoteResultModel?
     private var onCancel: (() -> Void)?
+    var remoteOperationID: UUID? { resultModel?.presentation.id }
 
     init(progress: FileOperationProgress, onCancel: @escaping () -> Void) {
         let model = ProgressModel(progress: progress)

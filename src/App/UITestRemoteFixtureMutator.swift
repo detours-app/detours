@@ -36,15 +36,11 @@ enum UITestRemoteFixtureMutator {
             guard !existing.contains(where: { $0.location == scenario }) else {
                 throw MutationError.scenarioExists(scenarioPath)
             }
-            try await provider.createDirectory(at: scenario, withIntermediateDirectories: false)
+            _ = try await FileOperationQueue.shared.createFolder(in: home, name: command.scenarioName)
             do {
-                try await upload(
-                    Data(sentinelID.utf8),
-                    to: childLocation(sentinelName, scenarioPath: scenarioPath, hostID: hostID),
-                    provider: provider
-                )
+                _ = try await FileOperationQueue.shared.createFile(in: scenario, name: sentinelName, content: Data(sentinelID.utf8))
             } catch {
-                try? await provider.delete([scenario])
+                try await trashFixture(scenario, hostID: hostID)
                 throw error
             }
             return nil
@@ -138,13 +134,21 @@ enum UITestRemoteFixtureMutator {
                 let entry = try await provider.stat(location)
                 return [entry.isSymbolicLink ? "link" : entry.isDirectory ? "directory" : "file"]
             case "cleanup":
-                try await provider.delete([scenario])
+                try await trashFixture(scenario, hostID: hostID)
             default:
                 break
             }
             return nil
         default:
             throw MutationError.unknownAction(command.action)
+        }
+    }
+
+    private static func trashFixture(_ location: Location, hostID: UUID) async throws {
+        let queue = FileOperationQueue.shared
+        try await queue.enqueue(remoteHosts: [hostID]) {
+            let result = try await queue.performAcceptedRemoval([location], permanently: false)
+            try queue.requireSuccessfulBatch(result)
         }
     }
 
