@@ -136,6 +136,80 @@ final class QualificationConnectionUITests: BaseUITest {
         XCTAssertEqual(try requestRemotePaneState(pane: "right").displayedLocation, rightBefore)
     }
 
+    func testRemoteCopyCancelShowsCancelledResult() throws {
+        guard qualificationRemoteTarget != nil else {
+            throw QualificationConnectionFailure.timedOut("Live target is required", nil)
+        }
+        let ready = try waitForPaneState(pane: "left", description: "remote cancel fixture") {
+            $0.connectionStates.values.contains("connected") && $0.displayedLocation != nil && self.isQuiescent($0)
+        }
+        let home = try XCTUnwrap(ready.displayedLocation)
+        let scenario = "QualificationRefresh-" + UUID().uuidString.lowercased()
+        let sentinel = UUID().uuidString
+        let before = try performRemoteFixtureMutation(action: "snapshot", homePath: home, scenarioName: scenario)
+        try performRemoteFixtureMutation(action: "createScenario", homePath: home, scenarioName: scenario, sentinelID: sentinel)
+        defer {
+            do {
+                app.typeKey(.escape, modifierFlags: [])
+                if app.windows["Remote Operations"].exists {
+                    app.windows["Remote Operations"].buttons["closeRemoteOperations"].click()
+                }
+                let state = try requestRemotePaneState(pane: "left")
+                if state.displayedLocation != home {
+                    app.leftPaneOutlineView.click()
+                    pressKey(.upArrow, modifiers: .command)
+                    _ = try waitForPaneState(pane: "left", description: "return before cancel cleanup") {
+                        $0.displayedLocation == home
+                    }
+                }
+                try performRemoteFixtureMutation(action: "cleanup", homePath: home, scenarioName: scenario, sentinelID: sentinel)
+                XCTAssertEqual(try performRemoteFixtureMutation(action: "snapshot", homePath: home, scenarioName: scenario), before)
+                try? performFixtureMutation(action: "remove", relativePath: "slow-copy.bin")
+            } catch { XCTFail("Remote cancel fixture cleanup failed: \(error)") }
+        }
+        try performRemoteFixtureMutation(action: "createDirectory", homePath: home, scenarioName: scenario,
+                                         relativePath: "Bulk", sentinelID: sentinel)
+        try performRemoteFixtureMutation(action: "writeLarge", homePath: home, scenarioName: scenario,
+                                         relativePath: "Bulk/slow-copy.bin", contents: "134217728", sentinelID: sentinel)
+
+        let row = app.leftPaneOutlineView.outlineRow(withStaticText: scenario)
+        XCTAssertTrue(row.waitForExistence(timeout: 8))
+        row.staticTexts[scenario].doubleClick()
+        _ = try waitForPaneState(pane: "left", description: "enter remote cancel fixture") {
+            $0.displayedLocation == home + "/" + scenario && self.isQuiescent($0)
+        }
+        let bulkRow = app.leftPaneOutlineView.outlineRow(withStaticText: "Bulk")
+        XCTAssertTrue(bulkRow.waitForExistence(timeout: 8))
+        bulkRow.click()
+        pressF5Key()
+        _ = try waitForPaneState(pane: "left", description: "remote copy in flight") { $0.operationRunning }
+
+        app.menuBars.firstMatch.menuBarItems["Window"].click()
+        app.menuItems["Remote Operations..."].click()
+        let window = app.windows["Remote Operations"]
+        let record = window.buttons
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", "remoteOperationRecord-"))
+            .firstMatch
+        XCTAssertTrue(record.waitForExistence(timeout: 5))
+        record.click()
+        let cancel = app.buttons["cancelRemoteResult"]
+        XCTAssertTrue(cancel.waitForExistence(timeout: 5))
+        cancel.click()
+
+        let summary = app.staticTexts["remoteOperationSummary"]
+        XCTAssertTrue(summary.waitForExistence(timeout: 15))
+        XCTAssertFalse(((summary.value as? String) ?? summary.label).isEmpty)
+        let check = app.buttons["checkRemoteResult"]
+        if check.waitForExistence(timeout: 3) {
+            check.click()
+            XCTAssertTrue(summary.waitForExistence(timeout: 5))
+        }
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "Cancelled remote copy result"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     func testBackReturnsToLocalAfterSameTabRemoteConnection() throws {
         guard qualificationRemoteTarget != nil else {
             throw XCTSkip("This regression requires a live remote qualification target.")
