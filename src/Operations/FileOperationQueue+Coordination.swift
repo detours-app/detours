@@ -416,7 +416,6 @@ extension FileOperationQueue {
         copyProgressCancellationProbeForTesting = nil
         moveReplacementCancellationProbeForTesting = nil
         forceLocalDisplacementFallbackForTesting = false
-        windowsReplacementFailureProbeForTesting = nil
     }
     #endif
 }

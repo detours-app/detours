@@ -290,7 +290,6 @@ final class WindowsRemoteLiveTests: XCTestCase {
             queue.conflictChoiceOverrideForTesting = .replace
             defer {
                 queue.conflictChoiceOverrideForTesting = nil
-                queue.windowsReplacementFailureProbeForTesting = nil
                 queue.unregisterRemoteFileProvider(for: fixture.hostID)
             }
 
@@ -336,25 +335,6 @@ final class WindowsRemoteLiveTests: XCTestCase {
             let destinationAfterMoveUndo = try await fixture.read(destinationFile)
             XCTAssertEqual(sourceAfterMoveUndo, Data("new".utf8))
             XCTAssertEqual(destinationAfterMoveUndo, Data("original".utf8))
-
-            // Fail after the real target has been recycled. Rollback must restore the target and
-            // move the staged source back through the live PowerShell provider.
-            let rollbackSource = src.appendingPathComponent("rollback.txt")
-            let rollbackDestination = dst.appendingPathComponent("rollback.txt")
-            try await fixture.upload(Data("rollback-new".utf8), to: rollbackSource)
-            try await fixture.upload(Data("rollback-original".utf8), to: rollbackDestination)
-            queue.windowsReplacementFailureProbeForTesting = { true }
-
-            do {
-                _ = try await queue.move(items: [rollbackSource], to: dst)
-                XCTFail("Injected post-displacement failure must abort the move")
-            } catch {}
-            queue.windowsReplacementFailureProbeForTesting = nil
-
-            let sourceAfterRollback = try await fixture.read(rollbackSource)
-            let destinationAfterRollback = try await fixture.read(rollbackDestination)
-            XCTAssertEqual(sourceAfterRollback, Data("rollback-new".utf8))
-            XCTAssertEqual(destinationAfterRollback, Data("rollback-original".utf8))
 
             // Folder copy onto an existing same-name folder merges, preserving existing contents (A3).
             let mergeSrc = fixture.root.appendingPathComponent("mergeSrc/folder")

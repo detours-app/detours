@@ -132,9 +132,6 @@ final class FileOperationQueue {
     /// Forces the same rollback-safe sibling fallback used by mounted volumes
     /// that do not implement Finder Trash.
     var forceLocalDisplacementFallbackForTesting = false
-    /// Test seam used after a real Windows target has moved to the recycle bin and before
-    /// the staged item is renamed. Live-host tests use it to exercise remote rollback.
-    var windowsReplacementFailureProbeForTesting: (() -> Bool)?
     #endif
 
     var pendingCount: Int { pending.count }
