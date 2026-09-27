@@ -150,7 +150,7 @@ extension WindowsOperationScripts {
             return @{ lookup = @{ _0 = (Get-WindowsOperationLookup $path ($kind -eq 'sourceProof')) } }
         }
         if ($kind -eq 'archiveLayout') {
-            if ($parameters.location.account.hostIdentity -cne $Account.hostIdentity -or $parameters.location.accountIdentity -cne $Account.accountIdentity) {
+            if ($parameters.location.account.hostIdentity -cne $Account.hostIdentity -or $parameters.location.account.accountIdentity -cne $Account.accountIdentity) {
                 return @{ incompatible = @{ _0 = @{ accountMismatch = @{} } } }
             }
             $path = Get-OperationPath $parameters.location $Account

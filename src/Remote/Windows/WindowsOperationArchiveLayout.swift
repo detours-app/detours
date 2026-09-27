@@ -5,18 +5,18 @@ extension WindowsOperationScripts {
     function Get-WindowsArchiveLayout([string]$Path, [string]$Format, [string]$Password, [string]$Root, $Before) {
         if (-not [string]::IsNullOrEmpty($Password)) { throw 'Password-protected archives are not supported on Windows remote machines.' }
         if ($Before.kind -ne 'file') { throw 'Archive source is not a file.' }
-        $input = [DetoursOperationFiles]::OpenObservedFile($Path, $Before.identity.volume, $Before.identity.object, $Before.version)
+        $inputStream = [DetoursOperationFiles]::OpenObservedFile($Path, $Before.identity.volume, $Before.identity.object, $Before.version)
         try {
             $names = @()
             if ($Format -eq 'zip') {
                 Add-Type -AssemblyName System.IO.Compression
-                $archive = [System.IO.Compression.ZipArchive]::new($input, [System.IO.Compression.ZipArchiveMode]::Read, $true)
+                $archive = [System.IO.Compression.ZipArchive]::new($inputStream, [System.IO.Compression.ZipArchiveMode]::Read, $true)
                 try { $names = @($archive.Entries | ForEach-Object { $_.FullName }) } finally { $archive.Dispose() }
             } elseif ($Format -eq 'sevenZ') {
                 $tool = Resolve-ArchiveTool @('7z.exe', '7z')
                 $library = [DetoursSevenZipLibrary]::new((Join-Path ([System.IO.Path]::GetDirectoryName($tool)) '7z.dll'))
                 try {
-                    $archive = $library.OpenArchive($input, (Join-Path $Root ('layout-' + [guid]::NewGuid().ToString('D') + '.cancel')))
+                    $archive = $library.OpenArchive($inputStream, (Join-Path $Root ('layout-' + [guid]::NewGuid().ToString('D') + '.cancel')))
                     try { $names = @($archive.Entries | ForEach-Object { $_.FullName }) } finally { $archive.Dispose() }
                 } finally { $library.Dispose() }
             } elseif ($Format -in @('tarGz', 'tarBz2', 'tarXz')) {
@@ -46,7 +46,7 @@ extension WindowsOperationScripts {
             Assert-WindowsObservation (Get-WindowsContentProof $Path) $Before
             $single = if ($roots.Count -eq 1) { @($roots)[0] } else { $null }
             return @{ source = $Before; singleRoot = $single }
-        } finally { $input.Dispose() }
+        } finally { $inputStream.Dispose() }
     }
     """#
 }

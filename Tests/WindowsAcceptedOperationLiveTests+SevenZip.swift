@@ -93,8 +93,9 @@ extension WindowsAcceptedOperationLiveTests {
         XCTAssertEqual(committed.outcome, .committed, committed.failure ?? "")
         XCTAssertTrue(committed.contentVerified)
         XCTAssertTrue(committed.recovery.isEmpty)
-        guard case .archiveLayout(.found(let layout)) = try await send(.archiveLayout(location: location("accepted.7z"), format: "sevenZ", password: nil)) else {
-            return XCTFail("No 7z layout")
+        let layoutReply = try await send(.archiveLayout(location: location("accepted.7z"), format: "sevenZ", password: nil))
+        guard case .archiveLayout(.found(let layout)) = layoutReply else {
+            return XCTFail("No 7z layout: \(layoutReply)")
         }
         XCTAssertNil(layout.singleRoot)
         XCTAssertEqual(layout.source.sha256, committed.effects.first?.observation.sha256)
