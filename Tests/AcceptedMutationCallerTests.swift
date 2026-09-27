@@ -22,6 +22,39 @@ final class AcceptedMutationCallerTests: XCTestCase {
     func testLostRenameReplyReconcilesWithoutRepeatingMove() async throws { try await run(.lostReply) }
     func testCreateFolderKeepsAnExistingNameAndRecordsNewFolder() async throws { try await run(.folder) }
 
+    func testCreateFileKeepsExistingNameAndCommitsVerifiedBytes() async throws { try await createFile(compete: false) }
+    func testCreateFileRefusesACompetingFinalName() async throws { try await createFile(compete: true) }
+
+    private func createFile(compete: Bool) async throws {
+        let fixture = try await CoordinatorFixture()
+        defer { fixture.cleanup() }
+        let service = fixture.boundary.service
+        let target = fixture.root.appendingPathComponent("source 2")
+        let bytes = Data("new file contents".utf8)
+        let endpoint = RemoteOperationCoordinator.Endpoint(session: fixture.session, request: { request in
+            if compete, case .commit = request { try Data("competing writer".utf8).write(to: target) }
+            return try await service.reply(to: request)
+        }, upload: { url, identity in try await service.prepareUpload(identity, contents: Data(contentsOf: url)) })
+        let queue = FileOperationQueue.shared
+        let provider = RemoteFileProvider(hostID: fixture.hostID, rpcClient: AcceptedProviderRPC(service: service),
+            transferChannel: RemoteTransferChannel(sshTarget: "unused"))
+        queue.registerRemoteFileProvider(provider, for: fixture.hostID, operationEndpoint: endpoint)
+        queue.acceptedCoordinator = RemoteOperationCoordinator(store: fixture.store) { host in
+            guard host == fixture.hostID else { throw OperationContractError.identityMismatch }
+            return endpoint
+        }
+        do {
+            let result = try await queue.createFile(in: .remote(hostID: fixture.hostID, path: fixture.root.path), name: "source", content: bytes)
+            XCTAssertEqual(result, .remote(hostID: fixture.hostID, path: target.path))
+            if compete { XCTFail("Replaced a competing file") }
+        } catch { if !compete { throw error } }
+        XCTAssertEqual(try Data(contentsOf: fixture.source), fixture.bytes)
+        XCTAssertEqual(try Data(contentsOf: target), compete ? Data("competing writer".utf8) : bytes)
+        let result = try XCTUnwrap(queue.remoteOperationResults.values.first)
+        XCTAssertEqual(result.items.map(\.outcome), [compete ? .failedUnchanged : .committed])
+        if !compete { XCTAssertEqual(result.items.first?.result.receipt?.contentVerified, true) }
+    }
+
     private enum Scenario: Sendable { case rename, competingName, denied, lostReply, folder }
 
     private func run(_ scenario: Scenario) async throws {

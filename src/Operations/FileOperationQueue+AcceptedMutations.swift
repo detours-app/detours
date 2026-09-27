@@ -29,6 +29,44 @@ extension FileOperationQueue {
         let hostID = Self.operationHostID(directory)
         let provider = try remoteProvider(for: hostID)
         let coordinator = try operationCoordinator()
+        let target = try await acceptedCreationTarget(in: directory, name: name, provider: provider, coordinator: coordinator)
+        let destination = try await provider.displayLocation(target.path)
+        let operation = try await coordinator.create()
+        let intent = OperationIntent(id: .init(operation: operation, item: UUID()), action: .createFolder,
+            sources: [], destination: target, sourceObservations: [], conflict: .createNew)
+        let result = try await performAcceptedMutation(.init(intent: intent, hostID: hostID, work: .execute))
+        try requireSuccessfulBatch(result)
+        return destination
+    }
+
+    func performAcceptedCreateFile(in directory: Location, name: String, content: Data) async throws -> Location {
+        try validateSinglePathComponent(name)
+        let hostID = Self.operationHostID(directory)
+        let provider = try remoteProvider(for: hostID)
+        let coordinator = try operationCoordinator()
+        let target = try await acceptedCreationTarget(in: directory, name: name, provider: provider, coordinator: coordinator)
+        let staging = FileManager.default.temporaryDirectory.appendingPathComponent("detours-create-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        do {
+            let payload = staging.appendingPathComponent("payload")
+            try content.write(to: payload)
+            let prepared = try prepareStagedTransfer(payload, in: staging)
+            let operation = try await coordinator.create()
+            let intent = OperationIntent(id: .init(operation: operation, item: UUID()), action: .copy,
+                sources: [], destination: target, sourceObservations: [], conflict: .createNew, payloadProof: prepared.0)
+            let result = try await performAcceptedMutation(.init(intent: intent, hostID: hostID, work: prepared.2))
+            try requireSuccessfulBatch(result)
+            try FileManager.default.removeItem(at: staging)
+            return try await provider.displayLocation(target.path)
+        } catch {
+            if FileManager.default.fileExists(atPath: staging.path) { try FileManager.default.removeItem(at: staging) }
+            throw error
+        }
+    }
+
+    private func acceptedCreationTarget(in directory: Location, name: String, provider: any FileProvider,
+                                        coordinator: RemoteOperationCoordinator) async throws -> OperationLocation {
+        let hostID = Self.operationHostID(directory)
         let parent = try await provider.operationPath(directory)
         let requested = try await provider.operationPath(directory.appendingPathComponent(name))
         var target = try await coordinator.lookup(requested, hostID: hostID)
@@ -38,12 +76,7 @@ extension FileOperationQueue {
         }
         let destination = try await provider.displayLocation(target.location.path)
         try requireMissingDestination(target.result, location: destination)
-        let operation = try await coordinator.create()
-        let intent = OperationIntent(id: .init(operation: operation, item: UUID()), action: .createFolder,
-            sources: [], destination: target.location, sourceObservations: [], conflict: .createNew)
-        let result = try await performAcceptedMutation(.init(intent: intent, hostID: hostID, work: .execute))
-        try requireSuccessfulBatch(result)
-        return destination
+        return target.location
     }
 
     func performAcceptedMutation(_ planned: RemoteOperationCoordinator.PlannedItem) async throws -> RemoteOperationStore.Snapshot {

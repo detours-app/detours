@@ -390,17 +390,8 @@ extension FileOperationQueue {
         startOperation(operation, totalCount: 1)
         defer { finishOperation() }
 
-        let provider = try provider(for: directory)
-        let destination = await uniqueCreatedLocation(in: directory, name: name, provider: provider)
-        let tempDirectory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("detours-create-\(UUID().uuidString)", isDirectory: true)
-        let tempFile = tempDirectory.appendingPathComponent(name)
-        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: tempDirectory) }
-
         do {
-            try content.write(to: tempFile)
-            try await provider.upload(tempFile, to: destination)
+            let destination = try await performAcceptedCreateFile(in: directory, name: name, content: content)
             updateProgress(
                 operation: operation,
                 currentItem: URL(fileURLWithPath: destination.path),
@@ -424,7 +415,7 @@ extension FileOperationQueue {
 
             return destination
         } catch {
-            throw mapError(error, url: URL(fileURLWithPath: destination.path))
+            throw mapError(error, url: URL(fileURLWithPath: directory.path))
         }
     }
 
