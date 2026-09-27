@@ -290,7 +290,7 @@ The new interruption controls suspend or lose a response around the actual opera
 - [ ] **T16** Run guarded focused XCUI journeys on Foundry for normal connection, visible partial/unknown/cancelling states, tab closure during work, restart recovery, Check Result and available undo; inspect exported screenshots and preserve unrelated local work (A1, A3, A4, A9, A10, A12).
 - [ ] **T17** Keep an actual SFTP ingress writer open across helper finalization and change ingress afterward; the published helper-owned payload retains its verified hash, while uncertain ingress cleanup remains recorded (A5, A6).
 - [ ] **T18** Exercise known unchanged, confirmed and lost-return native macOS Trash handoffs using real temporary files; retain accurate backup location/uncertainty and disable undo that would require an unlocated original (A3, A5, A10).
-- [ ] **T19** Drive clipboard, drag/drop, rename, create-folder, archive creation/extraction, editor save, restore and explicitly confirmed permanent-delete callers through accepted coordinator context; assert typed results, editor replacement failure recovery and no raw mutation bypass (A2-A6, A10).
+- [x] **T19** Drive clipboard, drag/drop, rename, create-folder, archive creation/extraction, editor save, restore and explicitly confirmed permanent-delete callers through accepted coordinator context; assert typed results, editor replacement failure recovery and no raw mutation bypass (A2-A6, A10).
 - [ ] **T20** Run focused local and macOS-helper filesystem regressions plus the full Foundry suite once after shared changes stabilize, separating the two login-session classes as required, and run the three-minute blocking qualification once with zero unexplained failures or skips.
 - [ ] **T21** Confirm the clean synchronized source, build through build.sh, validate helper protocol/schema compatibility, inspect installed launch evidence, record every run immediately in Tests/TEST_LOG.md and complete the final install-only build on Spectre after Foundry passes.
 
@@ -315,6 +315,8 @@ Use the existing guarded runner and independent prompt sentries for installed ch
 ---
 
 ## Build Log
+
+- **T19** Clipboard, drag/drop, rename, create-folder, archive creation and extraction, editor save, restore and explicitly confirmed permanent-delete callers are driven through accepted coordinator context with typed results, and editor replacement failure recovery is exercised. The retired raw provider and transfer mutations all refuse before touching files, and the architecture guard keeps listing-affecting queue calls inside the coordinator. At `ae5c7423`, the 46 caller, queue, provider and drag/drop checks passed on Foundry; the login-session clipboard checks run with the GUI-session class.
 
 - **T13** The app's persistent SSH client now runs the whole integration suite against devtest through one verified session: readiness and reconnect, listing and watch restoration, lost mutation replies, known-content small and large transfers, replacement, batch results, cancellation, source disposition and Trash with undo, with remote files compared independently. The persistent-session live checks add reconnect listing, a bounded ten-second control deadline and an authentication rejection that does not spend the retry budget. At `e40e0c61`, all 51 integration checks and the seven persistent-session live checks passed on Foundry, and the session is retired after each test so a class run no longer stalls.
 
