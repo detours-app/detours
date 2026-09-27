@@ -48,7 +48,8 @@ enum UITestRemoteFixtureMutator {
                 throw error
             }
             return nil
-        case "createDirectory", "write", "writeLarge", "move", "remove", "gitInit", "symlink", "stat", "fingerprint", "receipts", "cleanup":
+        case "createDirectory", "write", "move", "remove", "gitInit", "symlink", "stat", "fingerprint", "receipts", "cleanup",
+             "holdOperations", "releaseOperations":
             guard let sentinelID = command.sentinelID, UUID(uuidString: sentinelID) != nil else {
                 throw MutationError.invalidSentinel
             }
@@ -83,22 +84,6 @@ enum UITestRemoteFixtureMutator {
                 _ = try await PaneFileOperationCoordinator.shared.perform(affecting: [location.deletingLastPathComponent()]) {
                     try await FileOperationQueue.shared.createFile(in: location.deletingLastPathComponent(),
                         name: location.lastPathComponent, content: Data(contents.utf8))
-                }
-            case "writeLarge":
-                guard let text = command.contents, let byteCount = Int(text), byteCount > 0 else {
-                    throw MutationError.missingContents
-                }
-                let location = try validatedChildLocation(
-                    command.relativePath,
-                    scenarioPath: scenarioPath,
-                    hostID: hostID
-                )
-                if (try? await provider.stat(location)) != nil {
-                    try await trashFixture(location, hostID: hostID)
-                }
-                _ = try await PaneFileOperationCoordinator.shared.perform(affecting: [location.deletingLastPathComponent()]) {
-                    try await FileOperationQueue.shared.createFile(in: location.deletingLastPathComponent(),
-                        name: location.lastPathComponent, content: Self.largePayload(byteCount: byteCount))
                 }
             case "move":
                 let source = try validatedChildLocation(
@@ -199,6 +184,14 @@ enum UITestRemoteFixtureMutator {
                     }
             case "cleanup":
                 try await trashFixture(scenario, hostID: hostID)
+            case "holdOperations":
+                #if DEBUG
+                FileOperationQueue.shared.installRemoteOperationHoldForTesting()
+                #endif
+            case "releaseOperations":
+                #if DEBUG
+                FileOperationQueue.shared.releaseRemoteOperationHoldForTesting()
+                #endif
             default:
                 break
             }
@@ -277,14 +270,6 @@ enum UITestRemoteFixtureMutator {
         try await provider.download(location, to: temporary)
         let actual = try String(contentsOf: temporary, encoding: .utf8)
         guard actual == expected else { throw MutationError.sentinelMismatch(scenarioPath) }
-    }
-
-    private static func largePayload(byteCount: Int) -> Data {
-        let chunk = Data((0..<65_536).map { UInt8(truncatingIfNeeded: $0) })
-        var data = Data()
-        data.reserveCapacity(byteCount)
-        while data.count < byteCount { data.append(chunk) }
-        return data.prefix(byteCount)
     }
 
     private static func lastPathComponent(_ path: String) -> String {

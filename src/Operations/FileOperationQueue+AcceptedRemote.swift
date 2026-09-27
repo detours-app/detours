@@ -52,6 +52,12 @@ extension FileOperationQueue {
                     try await planCrossHostFile(source, directory: directory, isMove: isMove, stagingDirectory: staging, plan: &plan)
                 }
             }
+            #if DEBUG
+            if let gate = heavyOperationGateForTesting {
+                heavyOperationGateForTesting = nil
+                await gate()
+            }
+            #endif
             try checkCancelled()
             let result = try await coordinator.performBatch(plan.items, operation: operation, selections: plan.selections)
             remoteOperationResults[operation] = result

@@ -169,11 +169,8 @@ final class QualificationConnectionUITests: BaseUITest {
         }
         try performRemoteFixtureMutation(action: "createDirectory", homePath: home, scenarioName: scenario,
                                          relativePath: "Bulk", sentinelID: sentinel)
-        for index in 1...6 {
-            try performRemoteFixtureMutation(action: "writeLarge", homePath: home, scenarioName: scenario,
-                                             relativePath: "Bulk/part-\(index).bin", contents: "67108864",
-                                             sentinelID: sentinel)
-        }
+        try performRemoteFixtureMutation(action: "write", homePath: home, scenarioName: scenario,
+                                         relativePath: "Bulk/one.txt", contents: "one", sentinelID: sentinel)
 
         let row = app.leftPaneOutlineView.outlineRow(withStaticText: scenario)
         XCTAssertTrue(row.waitForExistence(timeout: 8))
@@ -181,6 +178,7 @@ final class QualificationConnectionUITests: BaseUITest {
         _ = try waitForPaneState(pane: "left", description: "enter remote cancel fixture") {
             $0.displayedLocation == home + "/" + scenario && self.isQuiescent($0)
         }
+        try performRemoteFixtureMutation(action: "holdOperations", homePath: home, scenarioName: scenario, sentinelID: sentinel)
         let bulkRow = app.leftPaneOutlineView.outlineRow(withStaticText: "Bulk")
         XCTAssertTrue(bulkRow.waitForExistence(timeout: 8))
         bulkRow.click()
@@ -193,11 +191,12 @@ final class QualificationConnectionUITests: BaseUITest {
         let record = window.buttons
             .matching(NSPredicate(format: "identifier ENDSWITH %@", "-active"))
             .firstMatch
-        XCTAssertTrue(record.waitForExistence(timeout: 5))
+        XCTAssertTrue(record.waitForExistence(timeout: 10))
         record.click()
         let cancel = app.buttons["cancelRemoteResult"]
         XCTAssertTrue(cancel.waitForExistence(timeout: 5))
         cancel.click()
+        try performRemoteFixtureMutation(action: "releaseOperations", homePath: home, scenarioName: scenario, sentinelID: sentinel)
 
         let summary = app.staticTexts["remoteOperationSummary"]
         XCTAssertTrue(summary.waitForExistence(timeout: 15))
