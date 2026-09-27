@@ -150,6 +150,7 @@ final class FileOperationQueue {
     var acceptedCoordinator: RemoteOperationCoordinator?
     var remoteOperationResults: [UUID: RemoteOperationStore.Snapshot] = [:] {
         didSet {
+            NotificationCenter.default.post(name: .remoteOperationResultsChanged, object: nil)
             for (id, snapshot) in remoteOperationResults where oldValue[id] != snapshot {
                 onRemoteResultUpdate?(remotePresentation(snapshot))
                 let originals = Set(snapshot.items.compactMap { $0.result.intent.reverses?.operation })
@@ -162,6 +163,13 @@ final class FileOperationQueue {
     var onRemoteResultUpdate: ((RemoteOperationPresentation) -> Void)?
     var activeRemoteResultIDs: Set<UUID> = []
     var currentRemoteResultID: UUID?
+    var didRestoreRemoteResults = false
+    var checkingRemoteResults = false {
+        didSet { NotificationCenter.default.post(name: .remoteOperationResultsChanged, object: nil) }
+    }
+    var remoteRecoveryMessage: String? {
+        didSet { NotificationCenter.default.post(name: .remoteOperationResultsChanged, object: nil) }
+    }
     var remoteHostNames: [UUID: String] = [:]
     var pausedRemoteHosts: Set<UUID> = []
     var currentRemoteOperationHosts: Set<UUID> = []

@@ -61,6 +61,13 @@ actor RemoteOperationCoordinator {
         return saved
     }
 
+    func recordHostNames(_ names: [UUID: String], operation: UUID) throws {
+        var snapshot = try store.load(operation)
+        guard snapshot.hostNames != names else { return }
+        snapshot.hostNames = names
+        try save(snapshot)
+    }
+
     func recordSelections(_ selections: [OperationIntent], operation: UUID) throws {
         var snapshot = try store.load(operation)
         let recorded = selections.isEmpty ? nil : selections

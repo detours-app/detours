@@ -406,6 +406,9 @@ extension FileOperationQueue {
         activeRemoteResultIDs = []
         currentRemoteResultID = nil
         onRemoteResultUpdate = nil
+        didRestoreRemoteResults = false
+        checkingRemoteResults = false
+        remoteRecoveryMessage = nil
         currentOperation = nil
         lastFinishedOperation = nil
         lastReceivedProgress = nil

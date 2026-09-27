@@ -86,11 +86,11 @@ actor RemoteHostSession: RemoteConnectionHandle {
         await idleRetirement?.value
         guard !retired else { throw RemoteHostSessionError.retired }
         if case .ready(let ready) = state { return ready }
-        if let connectionTask { return try await RemoteReadinessWaiter().wait(for: connectionTask) }
+        if let connectionTask { return try await RemoteReadinessWaiter<Ready>().wait(for: connectionTask) }
         if case .failed(let reason) = state { throw RemoteHostSessionError.failed(reason) }
         let task = Task { try await self.connectInitially() }
         connectionTask = task
-        return try await RemoteReadinessWaiter().wait(for: task)
+        return try await RemoteReadinessWaiter<Ready>().wait(for: task)
     }
 
     func requireGeneration(_ expected: UInt64) throws {
@@ -151,7 +151,7 @@ actor RemoteHostSession: RemoteConnectionHandle {
             return try await self.connectInitially()
         }
         connectionTask = task
-        _ = try await RemoteReadinessWaiter().wait(for: task)
+        _ = try await RemoteReadinessWaiter<Ready>().wait(for: task)
     }
 
     func disconnect() async {

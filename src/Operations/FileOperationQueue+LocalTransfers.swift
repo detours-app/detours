@@ -11,7 +11,7 @@ extension FileOperationQueue {
     }
 
     func registerLocalTransferService(_ service: LocalTransferService) {
-        registerRemoteFileProvider(LocalFileProvider.shared, for: Self.localTransferHostID, operationEndpoint: service.endpoint())
+        registerRemoteFileProvider(LocalFileProvider.shared, for: Self.localTransferHostID, displayName: "This Mac", operationEndpoint: service.endpoint())
     }
 
     func ensureLocalTransferService() async throws {
@@ -20,8 +20,7 @@ extension FileOperationQueue {
         var deadline = timespec(tv_sec: 1, tv_nsec: 0)
         guard gethostuuid(&machine, &deadline) == 0 else { throw OperationFilesystemError.system(errno) }
         let account = OperationAccount(hostIdentity: UUID(uuid: machine).uuidString, accountIdentity: String(getuid()))
-        let support = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-        let root = support.appendingPathComponent("Detours/RemoteOperations/LocalJournal", isDirectory: true)
+        let root = try Self.operationRecordsRoot().appendingPathComponent("LocalJournal", isDirectory: true)
         let journal = try await OperationJournal(root: root, account: account)
         registerLocalTransferService(.init(journal: journal))
     }

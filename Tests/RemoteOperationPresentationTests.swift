@@ -77,7 +77,7 @@ final class RemoteOperationPresentationTests: XCTestCase {
         let queue = FileOperationQueue.shared
         queue.acceptedCoordinator = coordinator
         let operation = fixture.intent.id.operation
-        await queue.beginRemoteResult(operation, coordinator: coordinator)
+        try await queue.beginRemoteResult(operation, coordinator: coordinator)
         let outcome = try await coordinator.perform(fixture.intent, hostID: fixture.hostID, work: .copy)
         XCTAssertEqual(outcome.outcome, .unknown)
         queue.receiveRemoteSnapshot(try await coordinator.snapshot(operation))

@@ -72,7 +72,7 @@ actor RemoteConnectionRegistry {
     }
 
     func resources(for hostID: UUID, create: @escaping @Sendable (UUID) async throws -> RemoteConnectionResources) async throws -> RemoteConnectionResources {
-        if let task = loading[hostID] { return try await task.value }
+        if let task = loading[hostID] { return try await RemoteReadinessWaiter<RemoteConnectionResources>().wait(for: task) }
         let existing = resources[hostID]
         let owner = existing == nil ? UUID() : (owners[hostID] ?? UUID())
         owners[hostID] = owner
@@ -102,7 +102,7 @@ actor RemoteConnectionRegistry {
             }
         }
         loading[hostID] = task
-        return try await task.value
+        return try await RemoteReadinessWaiter<RemoteConnectionResources>().wait(for: task)
     }
 
     func registerSession(_ session: RemoteHostSession, owner: UUID, windowsChannel: PowerShellChannel? = nil,

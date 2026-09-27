@@ -6,15 +6,16 @@ extension FileOperationQueue {
         let reversed = Set(remoteOperationResults.values.flatMap(\.items).filter { $0.outcome == .committed }
             .compactMap { $0.result.intent.reverses })
         return .init(snapshot: snapshot, active: activeRemoteResultIDs.contains(snapshot.record.operation),
-            hostNames: remoteHostNames, reversedItems: reversed)
+            hostNames: (snapshot.hostNames ?? [:]).merging(remoteHostNames, uniquingKeysWith: { _, current in current }), reversedItems: reversed)
     }
 
-    func beginRemoteResult(_ operation: UUID, coordinator: RemoteOperationCoordinator) async {
-        currentRemoteResultID = operation
-        activeRemoteResultIDs.insert(operation)
+    func beginRemoteResult(_ operation: UUID, coordinator: RemoteOperationCoordinator) async throws {
         await coordinator.observeResults { [weak self] snapshot in
             Task { @MainActor in self?.receiveRemoteSnapshot(snapshot) }
         }
+        try await coordinator.recordHostNames(remoteHostNames, operation: operation)
+        currentRemoteResultID = operation
+        activeRemoteResultIDs.insert(operation)
     }
 
     func receiveRemoteSnapshot(_ snapshot: RemoteOperationStore.Snapshot) {
@@ -33,6 +34,7 @@ extension FileOperationQueue {
         let saved = try await coordinator.snapshot(operation)
         var failure: Error?
         for item in saved.items where !item.sent.isEmpty {
+            try Task.checkCancellation()
             do { _ = try await coordinator.checkResult(item.identity.id) } catch { failure = error }
             receiveRemoteSnapshot(try await coordinator.snapshot(operation))
         }

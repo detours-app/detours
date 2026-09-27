@@ -38,6 +38,7 @@ final class RemoteOperationStore: @unchecked Sendable {
         var record: OperationRecord
         var items: [Item]
         var selections: [OperationIntent]?
+        var hostNames: [UUID: String]?
 
         init(operation: UUID) {
             schemaVersion = 1

@@ -14,13 +14,8 @@ struct RemoteBatchFailure: LocalizedError {
 extension FileOperationQueue {
     func operationCoordinator() throws -> RemoteOperationCoordinator {
         if let acceptedCoordinator { return acceptedCoordinator }
-        let coordinator = RemoteOperationCoordinator(store: try RemoteOperationStore()) { hostID in
-            try await MainActor.run {
-                guard let endpoint = self.remoteOperationEndpoints[hostID] else {
-                    throw FileProviderError.unsupportedOperation("The host has no verified operation session.")
-                }
-                return endpoint
-            }
+        let coordinator = RemoteOperationCoordinator(store: try RemoteOperationStore(root: Self.operationRecordsRoot())) { hostID in
+            try await self.resolveOperationEndpoint(hostID)
         }
         acceptedCoordinator = coordinator
         return coordinator
@@ -43,7 +38,7 @@ extension FileOperationQueue {
         let provider = try remoteProvider(for: hostID)
         let coordinator = try operationCoordinator()
         let operation = try await coordinator.create()
-        await beginRemoteResult(operation, coordinator: coordinator)
+        try await beginRemoteResult(operation, coordinator: coordinator)
         defer { finishRemoteResult(operation) }
         var plan = RemoteTransferPlan(hostID: hostID, operation: operation, mergeDirectories: isWindowsDestination(destination))
         let directory = try await provider.operationPath(destination)
