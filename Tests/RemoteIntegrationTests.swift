@@ -550,8 +550,12 @@ final class RemoteIntegrationTests: XCTestCase {
         defer { queue.unregisterRemoteFileProvider(for: session.hostID) }
         for testCase in cases {
             let directory = (testCase.path as NSString).deletingLastPathComponent
+            let name = (testCase.path as NSString).lastPathComponent
+            let localSource = localRoot.appendingPathComponent(name)
+            try? FileManager.default.removeItem(at: localSource)
+            try FileManager.default.copyItem(at: source, to: localSource)
             do {
-                _ = try await queue.copy(items: [.local(source)], to: .remote(hostID: session.hostID, path: directory))
+                _ = try await queue.copy(items: [.local(localSource)], to: .remote(hostID: session.hostID, path: directory))
                 let entry = try await session.provider.stat(.remote(hostID: session.hostID, path: testCase.path))
                 XCTAssertEqual(entry.fileSize, 3 * 1_024 * 1_024, testCase.label)
             } catch {
