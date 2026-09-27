@@ -13,10 +13,16 @@ final class WindowsRemoteLiveTests: XCTestCase {
     func testConnectListsProfileAndDrives() async throws {
         try await withFixture { fixture in
             let home = try await fixture.provider.homeDirectory()
-            let homeItems = try await fixture.provider.list(.remote(hostID: fixture.hostID, path: home), showHidden: false)
-            let drives = try await fixture.provider.list(.remote(hostID: fixture.hostID, path: "/"), showHidden: false)
+            let homeItems: [LoadedFileEntry]
+            do { homeItems = try await fixture.provider.list(.remote(hostID: fixture.hostID, path: home), showHidden: false) }
+            catch { XCTFail("list home failed: \(error)"); return }
+            let drives: [LoadedFileEntry]
+            do { drives = try await fixture.provider.list(.remote(hostID: fixture.hostID, path: "/"), showHidden: false) }
+            catch { XCTFail("list root failed: \(error)"); return }
             let cDrive = try XCTUnwrap(drives.first { $0.name == "C:" && $0.isDirectory })
-            let cDriveItems = try await fixture.provider.list(cDrive.location, showHidden: false)
+            let cDriveItems: [LoadedFileEntry]
+            do { cDriveItems = try await fixture.provider.list(cDrive.location, showHidden: false) }
+            catch { XCTFail("list C: failed: \(error)"); return }
 
             XCTAssertTrue(home.hasPrefix("/C:/Users/"))
             XCTAssertFalse(homeItems.isEmpty)
