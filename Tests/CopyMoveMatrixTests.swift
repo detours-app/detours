@@ -1,6 +1,8 @@
 import AppKit
 import XCTest
+import RemoteOperationSupport
 @testable import Detours
+@testable import detours_server
 
 /// T19 and T11/T17 lifecycle pieces: the copy/move matrix across local and
 /// remote panes updates source and destination panes, selects every
@@ -40,17 +42,33 @@ final class CopyMoveMatrixTests: XCTestCase {
         return (splitVC, window)
     }
 
+    /// A real remote host over `base`, backed by the helper service and registered with its
+    /// endpoint, so queue copies and moves run through the coordinator as the app does.
     private func installRemoteTab(
         in pane: PaneViewController,
         base: URL,
-        path: String = "/"
-    ) throws -> (RemoteHost, UITestRemoteProvider, FileListViewController) {
+        path: String? = nil
+    ) async throws -> (RemoteHost, RemoteFileProvider, FileListViewController) {
         let host = RemoteHost(displayName: "Matrix \(registeredHostIDs.count)", sshTarget: "matrix@localhost")
-        let provider = UITestRemoteProvider(hostID: host.id, base: base)
-        FileOperationQueue.shared.registerRemoteFileProvider(provider, for: host.id, displayName: host.displayName)
+        let account = OperationAccount(hostIdentity: host.id.uuidString, accountIdentity: "matrix")
+        let root = base.standardizedFileURL
+        let service = try await ServerOperationService(root: root.appendingPathComponent(".host", isDirectory: true),
+            account: account, homeDirectory: root)
+        let session = RemoteHostSession(transport: CoordinatorTransport(service: service),
+            idleGrace: .milliseconds(30), publish: { _, _ in })
+        let endpoint = RemoteOperationCoordinator.Endpoint(session: session,
+            request: { try await service.reply(to: $0) },
+            upload: { _, _ in throw OperationContractError.invalidReceipt })
+        let store = try RemoteOperationStore(root: root.appendingPathComponent(".client", isDirectory: true))
+        let provider = RemoteFileProvider(hostID: host.id, rpcClient: AcceptedProviderRPC(service: service),
+            transferChannel: RemoteTransferChannel(sshTarget: "unused"))
+        FileOperationQueue.shared.registerRemoteFileProvider(provider, for: host.id, displayName: host.displayName,
+            operationEndpoint: endpoint)
+        FileOperationQueue.shared.acceptedCoordinator = RemoteOperationCoordinator(store: store) { _ in endpoint }
         registeredHostIDs.append(host.id)
         let fileList = try XCTUnwrap(pane.selectedTab).fileListViewController
-        fileList.loadRemoteDirectory(host: host, path: path, provider: provider)
+        let directory = path.map { root.appendingPathComponent($0).path } ?? root.path
+        fileList.loadRemoteDirectory(host: host, path: directory, provider: provider)
         return (host, provider, fileList)
     }
 
@@ -100,7 +118,7 @@ final class CopyMoveMatrixTests: XCTestCase {
 
     // MARK: - Local to remote
 
-    func testLocalToRemoteCopySelectsResultInRemotePane() throws {
+    func testLocalToRemoteCopySelectsResultInRemotePane() async throws {
         let (splitVC, window) = makeSplit()
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
@@ -112,7 +130,7 @@ final class CopyMoveMatrixTests: XCTestCase {
         let rightPane = splitVC.otherPane(from: leftPane)
         try XCTUnwrap(leftPane.selectedTab).navigate(to: sourceDir)
         let leftList = try XCTUnwrap(leftPane.selectedTab).fileListViewController
-        let (_, _, rightList) = try installRemoteTab(in: rightPane, base: remoteRoot)
+        let (_, _, rightList) = try await installRemoteTab(in: rightPane, base: remoteRoot)
         waitUntil("panes never loaded") {
             leftList.tableView.numberOfRows == 1 && rightList.hasLoadedDirectory
         }
@@ -130,7 +148,7 @@ final class CopyMoveMatrixTests: XCTestCase {
 
     // MARK: - Remote to local
 
-    func testRemoteToLocalCopySelectsResultInLocalPane() throws {
+    func testRemoteToLocalCopySelectsResultInLocalPane() async throws {
         let (splitVC, window) = makeSplit()
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
@@ -140,7 +158,7 @@ final class CopyMoveMatrixTests: XCTestCase {
 
         let leftPane = splitVC.activePane
         let rightPane = splitVC.otherPane(from: leftPane)
-        let (host, _, leftList) = try installRemoteTab(in: leftPane, base: remoteRoot)
+        let (host, _, leftList) = try await installRemoteTab(in: leftPane, base: remoteRoot)
         try XCTUnwrap(rightPane.selectedTab).navigate(to: destDir)
         let rightList = try XCTUnwrap(rightPane.selectedTab).fileListViewController
         waitUntil("panes never loaded") {
@@ -149,7 +167,7 @@ final class CopyMoveMatrixTests: XCTestCase {
         leftList.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
 
         splitVC.copyItems(
-            [.remote(hostID: host.id, path: "/m_download.txt")],
+            [.remote(hostID: host.id, path: remoteRoot.appendingPathComponent("m_download.txt").path)],
             toOtherPaneFrom: leftPane
         )
 
@@ -163,7 +181,7 @@ final class CopyMoveMatrixTests: XCTestCase {
 
     // MARK: - Same-host remote move with source fallback
 
-    func testSameHostRemoteMoveSelectsResultAndAppliesSourceFallback() throws {
+    func testSameHostRemoteMoveSelectsResultAndAppliesSourceFallback() async throws {
         let (splitVC, window) = makeSplit()
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
@@ -176,16 +194,16 @@ final class CopyMoveMatrixTests: XCTestCase {
 
         let leftPane = splitVC.activePane
         let rightPane = splitVC.otherPane(from: leftPane)
-        let (host, provider, leftList) = try installRemoteTab(in: leftPane, base: remoteRoot, path: "/src")
+        let (host, provider, leftList) = try await installRemoteTab(in: leftPane, base: remoteRoot, path: "src")
         let rightList = try XCTUnwrap(rightPane.selectedTab).fileListViewController
-        rightList.loadRemoteDirectory(host: host, path: "/dst", provider: provider)
+        rightList.loadRemoteDirectory(host: host, path: remoteRoot.appendingPathComponent("dst").path, provider: provider)
         waitUntil("remote panes never loaded") {
             leftList.tableView.numberOfRows == 3 && rightList.hasLoadedDirectory
         }
-        XCTAssertTrue(leftList.selectRemoteItem(atPath: "/src/b_moved.txt"))
+        XCTAssertTrue(leftList.selectRemoteItem(atPath: sourceDir.appendingPathComponent("b_moved.txt").path))
 
         splitVC.moveItems(
-            [.remote(hostID: host.id, path: "/src/b_moved.txt")],
+            [.remote(hostID: host.id, path: sourceDir.appendingPathComponent("b_moved.txt").path)],
             toOtherPaneFrom: leftPane
         )
 
@@ -201,7 +219,7 @@ final class CopyMoveMatrixTests: XCTestCase {
 
     // MARK: - Cross-host remote copy
 
-    func testCrossHostRemoteCopySelectsResultInDestination() throws {
+    func testCrossHostRemoteCopySelectsResultInDestination() async throws {
         let (splitVC, window) = makeSplit()
         let temp = try createTempDirectory()
         defer { cleanupTempDirectory(temp) }
@@ -211,15 +229,15 @@ final class CopyMoveMatrixTests: XCTestCase {
 
         let leftPane = splitVC.activePane
         let rightPane = splitVC.otherPane(from: leftPane)
-        let (hostA, _, leftList) = try installRemoteTab(in: leftPane, base: rootA)
-        let (_, _, rightList) = try installRemoteTab(in: rightPane, base: rootB)
+        let (hostA, _, leftList) = try await installRemoteTab(in: leftPane, base: rootA)
+        let (_, _, rightList) = try await installRemoteTab(in: rightPane, base: rootB)
         waitUntil("remote panes never loaded") {
             leftList.tableView.numberOfRows == 1 && rightList.hasLoadedDirectory
         }
         leftList.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
 
         splitVC.copyItems(
-            [.remote(hostID: hostA.id, path: "/m_cross.txt")],
+            [.remote(hostID: hostA.id, path: rootA.appendingPathComponent("m_cross.txt").path)],
             toOtherPaneFrom: leftPane
         )
 
