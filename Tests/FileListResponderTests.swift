@@ -385,11 +385,12 @@ final class FileListResponderTests: XCTestCase {
         viewController.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
 
         XCTAssertTrue(viewController.handleKeyDown(event), file: file, line: line)
-        let routed = await waitForCondition {
-            queue.remoteOperationResults.values.contains { $0.items.first?.result.intent.action == .trash }
+        let removed = await waitForCondition {
+            !FileManager.default.fileExists(atPath: fileURL.path)
         }
+        XCTAssertTrue(removed, file: file, line: line)
+        let routed = queue.remoteOperationResults.values.contains { $0.items.first?.result.intent.action == .trash }
         XCTAssertTrue(routed, file: file, line: line)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: fileURL.path), file: file, line: line)
     }
 
     /// A real remote provider over the fixture's helper service, registered with its endpoint,
