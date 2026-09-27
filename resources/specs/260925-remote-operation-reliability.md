@@ -254,7 +254,7 @@ Marco clarified on 2026-09-26 that each code task includes its corresponding tes
 
 **Phase 4: Expose the same truth throughout the app**
 
-- [ ] **C15** Update RemoteOperationError, OperationDetailPopover, StatusBarView, PaneViewController operation/remote-host extensions and MainSplitViewController pane wiring to consume stable result snapshots.
+- [x] **C15** Update RemoteOperationError, OperationDetailPopover, StatusBarView, PaneViewController operation/remote-host extensions and MainSplitViewController pane wiring to consume stable result snapshots.
 - [ ] **C16** Restore unfinished operation records on startup, run one bounded status pass and keep unresolved details accessible independently of tab restoration and later operations.
 - [ ] **C17** Replace simulator-only cancellation/backoff closure tests with dependency controls around the actual implementation, and extend guarded fixtures for receipt and filesystem evidence.
 - [ ] **C18** Reconcile the remote guide, user guide and review finding status with implemented behaviour and recorded verification, retaining any unproved limits.
@@ -315,6 +315,8 @@ Use the existing guarded runner and independent prompt sentries for installed ch
 ---
 
 ## Build Log
+
+- **C15** Status and details consume revisioned operation snapshots, count selected items rather than transfer phases and retain confirmed, partial, unknown, cancellation and source-retained outcomes. Details stay bound to their operation across later work, show recorded and recovery locations, and expose status-only Check Result, receipt-bound undo and non-replacing Restore Original. Confirmed reversals disable repeated Undo without another host mutation. Connection banners distinguish readiness, recovery and exhaustion; item details explain typed preflight failures and remote errors no longer advise ambiguous mutation retries. At `7cef30d2`, the signed build and 66 focused checks passed. At `bf6311a9`, all 19 additional undo/display checks passed. At `3bbc9e09`, all 23 banner/display/refresh checks and the guarded installed folder result/Undo journey passed, with zero prompts/skips, verified cleanup and an inspected screenshot showing devtest and readable paths. Startup restoration and independent retained-results access remain C16; interrupted installed journeys remain T16.
 
 - **C14** Undo uses recorded object identity, content proof and non-replacing reversal. Earlier committed items remain reversible after later failure; cross-host reversal restores the source before removing the destination and refuses uncertain source disposition. All mutation callers register this undo, including final new-item rename and cancellation. Restore Original accepts exact retained originals after partial rollback without overwriting competing names. Consumed recovery references are refreshed. Signed Foundry builds passed with 38 initial undo checks, 27 local/remote checks, 55 caller checks and 19 final recovery-refresh checks at `2ea6a1a8`. At `0cc089d4`, all 142 Linux checks and 28 Foundry checks passed, including live Windows folder undo with independent matching manifests. Installed recovery controls remain C15-C16 and T16.
 
