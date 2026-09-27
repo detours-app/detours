@@ -43,6 +43,7 @@ private struct RemoteOperationsView: View {
                                 .padding(8)
                                 .background(selected?.presentation.id == snapshot.record.operation
                                     ? Color.accentColor.opacity(0.15) : Color.clear)
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel(title(snapshot))
