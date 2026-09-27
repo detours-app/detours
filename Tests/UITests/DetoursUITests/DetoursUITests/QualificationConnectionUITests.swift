@@ -151,6 +151,7 @@ final class QualificationConnectionUITests: BaseUITest {
         defer {
             do {
                 app.typeKey(.escape, modifierFlags: [])
+                try? performRemoteFixtureMutation(action: "releaseOperations", homePath: home, scenarioName: scenario, sentinelID: sentinel)
                 if app.windows["Remote Operations"].exists {
                     app.windows["Remote Operations"].buttons["closeRemoteOperations"].click()
                 }
@@ -185,22 +186,24 @@ final class QualificationConnectionUITests: BaseUITest {
         pressF5Key()
         _ = try waitForPaneState(pane: "left", description: "remote copy in flight") { $0.operationRunning }
 
+        try performRemoteFixtureMutation(action: "cancelOperation", homePath: home, scenarioName: scenario, sentinelID: sentinel)
         app.menuBars.firstMatch.menuBarItems["Window"].click()
         app.menuItems["Remote Operations..."].click()
         let window = app.windows["Remote Operations"]
         let record = window.buttons
-            .matching(NSPredicate(format: "identifier ENDSWITH %@", "-active"))
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", "remoteOperationRecord-"))
             .firstMatch
         XCTAssertTrue(record.waitForExistence(timeout: 10))
         record.click()
-        let cancel = app.buttons["cancelRemoteResult"]
-        XCTAssertTrue(cancel.waitForExistence(timeout: 5))
-        cancel.click()
-        try performRemoteFixtureMutation(action: "releaseOperations", homePath: home, scenarioName: scenario, sentinelID: sentinel)
-
         let summary = app.staticTexts["remoteOperationSummary"]
-        XCTAssertTrue(summary.waitForExistence(timeout: 15))
-        XCTAssertFalse(((summary.value as? String) ?? summary.label).isEmpty)
+        XCTAssertTrue(summary.waitForExistence(timeout: 5))
+        XCTAssertEqual((summary.value as? String) ?? summary.label, "Cancelling. Checking what finished...")
+        try performRemoteFixtureMutation(action: "releaseOperations", homePath: home, scenarioName: scenario, sentinelID: sentinel)
+        let settled = expectation(
+            for: NSPredicate(format: "value != %@", "Cancelling. Checking what finished..."),
+            evaluatedWith: summary
+        )
+        wait(for: [settled], timeout: 15)
         let check = app.buttons["checkRemoteResult"]
         if check.waitForExistence(timeout: 3) {
             check.click()
