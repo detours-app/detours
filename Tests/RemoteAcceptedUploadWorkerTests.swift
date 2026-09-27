@@ -28,7 +28,9 @@ final class RemoteAcceptedUploadWorkerTests: XCTestCase {
         if receivedData != expected {
             let firstDifference = zip(receivedData, expected).enumerated().first { $0.element.0 != $0.element.1 }?.offset
             let differenceCount = zip(receivedData, expected).reduce(0) { $0 + ($1.0 == $1.1 ? 0 : 1) }
-            XCTFail("received != expected; firstDifference=\(firstDifference.map(String.init) ?? "none") differences=\(differenceCount) received=\(receivedData.count) expected=\(expected.count) frame=\(expectedHandshake.count)")
+            let receivedHex = receivedData.prefix(64).map { String(format: "%02x", $0) }.joined()
+            let expectedHex = expected.prefix(64).map { String(format: "%02x", $0) }.joined()
+            XCTFail("received != expected; firstDifference=\(firstDifference.map(String.init) ?? "none") differences=\(differenceCount) identity=\(identity.id.operation) frame=\(expectedHandshake.count)\nreceived=\(receivedHex)\nexpected=\(expectedHex)")
         }
     }
 
