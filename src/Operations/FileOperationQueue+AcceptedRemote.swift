@@ -38,10 +38,10 @@ extension FileOperationQueue {
 
     private func planAndPerformRemoteTransfer(items: [Location], to destination: Location,
                                               isMove: Bool) async throws -> RemoteOperationStore.Snapshot {
-        guard case .remote(let hostID, _) = destination,
-              items.allSatisfy({ if case .remote = $0 { return true }; return false }) else {
-            throw FileProviderError.unsupportedOperation("This transfer requires verified remote hosts.")
+        if ([destination] + items).contains(where: { if case .local = $0 { return true }; return false }) {
+            try await ensureLocalTransferService()
         }
+        let hostID = Self.operationHostID(destination)
         let provider = try remoteProvider(for: hostID)
         let coordinator = try operationCoordinator()
         let operation = try await coordinator.create()

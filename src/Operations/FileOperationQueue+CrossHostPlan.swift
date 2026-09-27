@@ -4,9 +4,7 @@ import RemoteOperationSupport
 extension FileOperationQueue {
     func planCrossHostFile(_ source: Location, directory: OperationLocation.Path, isMove: Bool,
                            stagingDirectory: URL, plan: inout RemoteTransferPlan) async throws {
-        guard case .remote(let sourceHost, _) = source else {
-            throw FileProviderError.unsupportedOperation("A verified source host is required.")
-        }
+        let sourceHost = Self.operationHostID(source)
         try checkCancelled()
         let coordinator = try operationCoordinator()
         let sourceProvider = try remoteProvider(for: sourceHost)
@@ -71,7 +69,7 @@ extension FileOperationQueue {
                 } else {
                     try await stageLocation(source, provider: sourceProvider, to: staged)
                 }
-                let prepared = try prepareStagedTransfer(staged, in: stagingDirectory)
+                let prepared = try prepareStagedTransfer(staged, in: stagingDirectory, archiveFolders: plan.hostID != Self.localTransferHostID)
                 (payload, treeProof, work) = prepared
                 guard case .found(let current) = try await coordinator.sourceManifest(sourcePath, hostID: sourceHost).result,
                       current == manifest else { throw OperationFilesystemError.identityChanged }
@@ -85,7 +83,8 @@ extension FileOperationQueue {
         plan.items.append(.init(intent: copy, hostID: plan.hostID, work: work, preflightFailure: failure))
         var children = [copy.id]
         for (path, error) in omissions {
-            let omittedPath = try await sourceProvider.operationPath(.remote(hostID: sourceHost, path: path.path))
+            let omittedLocation: Location = sourceHost == Self.localTransferHostID ? .local(path) : .remote(hostID: sourceHost, path: path.path)
+            let omittedPath = try await sourceProvider.operationPath(omittedLocation)
             let omitted = OperationIntent(id: .init(operation: plan.operation, item: UUID()), action: .copy,
                 sources: [.init(account: observed.location.account, path: omittedPath)], destination: nil,
                 sourceObservations: [], conflict: .createNew)

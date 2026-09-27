@@ -2,7 +2,7 @@ import Foundation
 import RemoteOperationSupport
 
 extension FileOperationQueue {
-    func prepareStagedTransfer(_ staged: URL, in stagingDirectory: URL) throws
+    func prepareStagedTransfer(_ staged: URL, in stagingDirectory: URL, archiveFolders: Bool = true) throws
         -> (OperationContentProof, OperationContentProof?, RemoteOperationCoordinator.Work) {
         let directory = try OperationDirectory(path: Data(stagingDirectory.path.utf8))
         let observed = try directory.observe(Data(staged.lastPathComponent.utf8))
@@ -12,6 +12,10 @@ extension FileOperationQueue {
             return (.init(byteCount: proof.byteCount, sha256: digest), nil, .upload(staged))
         }
         guard observed.kind == .directory else { throw OperationFilesystemError.unsupported }
+        if !archiveFolders {
+            let tree = try directory.manifest(Data(staged.lastPathComponent.utf8), progress: { _ in try Task.checkCancellation() })
+            return (tree.proof, tree.proof, .upload(staged))
+        }
         let workspace = try OperationWorkspace(parent: directory, id: .init(operation: UUID(), item: UUID()))
         let output = try workspace.createFile(named: Data("tree.zip".utf8))
         defer { try? output.close() }

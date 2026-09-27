@@ -1,11 +1,23 @@
 import CryptoKit
 import DetoursProcess
 import Foundation
+import RemoteOperationSupport
 
 actor LocalFileProvider: FileProvider {
     static let shared = LocalFileProvider()
 
     private var watchers: [FileProviderWatch: MultiDirectoryWatcher] = [:]
+
+    func operationPath(_ location: Location) async throws -> OperationLocation.Path {
+        .unix(Data(try localURL(from: location).path.utf8))
+    }
+
+    func displayLocation(_ path: OperationLocation.Path) async throws -> Location {
+        guard case .unix(let bytes) = path, let name = String(data: bytes, encoding: .utf8), name.hasPrefix("/") else {
+            throw OperationFilesystemError.invalidPath
+        }
+        return .local(URL(fileURLWithPath: name))
+    }
 
     func list(_ location: Location, showHidden: Bool) async throws -> [LoadedFileEntry] {
         try await DirectoryLoader.shared.loadDirectory(localURL(from: location), showHidden: showHidden)

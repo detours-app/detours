@@ -7,8 +7,8 @@ extension FileOperationQueue {
         to destination: Location,
         undoManager: UndoManager? = nil
     ) async throws -> [Location] {
-        guard case .remote = destination, remoteGroups(from: items) != nil else {
-            throw FileProviderError.unsupportedOperation("Remote copy requires remote sources and destination")
+        guard !remoteHostIDs(from: items, destination: destination).isEmpty else {
+            throw FileProviderError.unsupportedOperation("This transfer requires a remote location")
         }
 
         let operation = FileOperation.copy(
@@ -43,8 +43,8 @@ extension FileOperationQueue {
     }
 
     func performRemoteMove(items: [Location], to destination: Location, undoManager: UndoManager? = nil) async throws -> [Location] {
-        guard case .remote = destination, remoteGroups(from: items) != nil else {
-            throw FileProviderError.unsupportedOperation("Remote move requires remote sources and destination")
+        guard !remoteHostIDs(from: items, destination: destination).isEmpty else {
+            throw FileProviderError.unsupportedOperation("This transfer requires a remote location")
         }
 
         let operation = FileOperation.move(

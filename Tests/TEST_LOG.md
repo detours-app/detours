@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry local destination publication | `33b8e07` | PASS: signed build and all 11 local/imported-tree checks passed in 0.239 seconds. Local folders and files remain private until non-replacing commit; cancellation, changed prepared children and competing names preserve originals. Approved replacement retains the displaced original. |
 | Foundry cross-volume move and cleanup | `c11f6df` | PASS: signed build and the actual mounted-volume move test passed in 1.421 seconds. Destination bytes match, source Trash is independently recorded after verified copy, and image detach succeeds with the original bounded deadline. |
 | Foundry actual cross-volume move | `57d4318` | FAIL: signed build and 20 regression checks passed. The actual-volume move test reached final image detach but timed out there; 21 checks ran in 13.369 seconds. Checking fixture handle lifetime and mount cleanup before repeating it. |
 | Live Windows imported-tree publication | `d7e6b53` | PASS: the live import check passed in 26.942 seconds after Windows SSH became reachable. Premature commit and wrong tree proof publish nothing; the verified folder preserves the empty directory and Unicode child. Fixture cleanup passed. |
