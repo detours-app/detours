@@ -34,7 +34,7 @@ final class WindowsRemoteUITests: BaseUITest {
 
         let label = app.staticTexts["remoteReconnectBannerLabel"]
         XCTAssertTrue(label.waitForExistence(timeout: 2), "Reconnect banner label should exist")
-        XCTAssertEqual(accessibilityText(label), "Connection lost for UITest Windows")
+        XCTAssertEqual(accessibilityText(label), "Couldn't reconnect to UITest Windows.")
 
         let reconnect = app.buttons["remoteReconnectButton"]
         XCTAssertTrue(reconnect.waitForExistence(timeout: 2), "Reconnect button should be visible")

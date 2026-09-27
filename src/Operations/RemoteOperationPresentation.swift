@@ -72,6 +72,17 @@ struct RemoteOperationPresentation {
 
     func status(_ item: RemoteOperationStore.Item) -> String {
         if item.result.intent.conflict == .skip { return "Skipped. No files changed." }
+        if let failure = item.preflightFailure {
+            switch failure {
+            case .sourceMissing: return "Not started. The source no longer exists."
+            case .denied: return "Not started. Access was denied."
+            case .disconnected: return "Not started. The host disconnected before this change."
+            case .unsupported: return "Not started. This item cannot be changed safely on this host."
+            case .linkLoop: return "Skipped link. Its target loops back to a parent."
+            case .linkTargetMissing: return "Skipped link. Its target could not be found."
+            case .recoveryChanged: return "Not restored. The recorded item changed or its original name is occupied."
+            }
+        }
         switch item.outcome {
         case .notStarted: return "Not started."
         case .running: return "In progress."

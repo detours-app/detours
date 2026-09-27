@@ -89,7 +89,7 @@ struct RemoteOperationDetailView: View {
     @ViewBuilder
     private func itemDetails(_ item: RemoteOperationStore.Item) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(model.presentation.hostName(item)).fontWeight(.semibold)
+            Text(model.presentation.hostName(item)).fontWeight(.semibold).accessibilityIdentifier("remoteOperationHost")
             ForEach(item.result.intent.sources, id: \.self) { source in
                 Text("Source: \(RemoteOperationPresentation.path(source))")
             }

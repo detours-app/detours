@@ -60,6 +60,22 @@ final class PaneMessageWidthTests: XCTestCase {
         )
     }
 
+    func testConnectionBannerTracksReadinessAndDisablesRepeatedReconnect() {
+        let pane = makePane()
+        let host = RemoteHost(displayName: "Test host", sshTarget: "test-host")
+        pane.showConnectionBanner(for: host, state: .connecting)
+        XCTAssertEqual(pane.reconnectBannerLabel.stringValue, "Connecting to Test host...")
+        XCTAssertFalse(pane.reconnectButton.isEnabled)
+        pane.showConnectionBanner(for: host, state: .reconnecting(attempt: 1, nextDelay: 1))
+        XCTAssertTrue(pane.reconnectBannerLabel.stringValue.contains("Listing may be out of date"))
+        XCTAssertFalse(pane.reconnectButton.isEnabled)
+        pane.showConnectionBanner(for: host, state: .failed(reason: .timedOut))
+        XCTAssertEqual(pane.reconnectBannerLabel.stringValue, "Couldn't reconnect to Test host.")
+        XCTAssertTrue(pane.reconnectButton.isEnabled)
+        pane.showConnectionBanner(for: host, state: .connected)
+        XCTAssertTrue(pane.reconnectBanner.isHidden)
+    }
+
     func testReconnectBannerDoesNotWidenPane() {
         let pane = makePane()
 

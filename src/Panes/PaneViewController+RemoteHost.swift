@@ -42,7 +42,7 @@ extension PaneViewController {
             tab.showPendingRemoteHost(host, path: path)
             reloadTabBar()
         }
-        hideReconnectBanner()
+        showConnectionBanner(for: host, state: .connecting)
         updateStatusBar()
     }
 
@@ -117,23 +117,37 @@ extension PaneViewController {
             return
         }
 
-        if case .failed = change.newState {
-            showReconnectBanner(for: host)
-        } else if change.newState == .connected {
-            // A successful connection clears any prior dismissal for this host.
-            if dismissedReconnectHostID == host.id {
-                dismissedReconnectHostID = nil
-            }
-            hideReconnectBanner()
-        }
+        if change.newState == .connected { dismissedReconnectHostID = nil }
+        showConnectionBanner(for: host, state: change.newState)
     }
 
-    private func showReconnectBanner(for host: RemoteHost) {
-        // Honor a manual dismissal until the host actually reconnects.
-        guard dismissedReconnectHostID != host.id else { return }
-        reconnectBannerLabel.stringValue = "Couldn't reconnect to \(host.displayName)."
+    func showConnectionBanner(for host: RemoteHost, state: SSHConnectionState) {
+        let message: String
+        switch state {
+        case .connecting:
+            message = "Connecting to \(host.displayName)..."
+            reconnectButton.isEnabled = false
+        case .reconnecting:
+            message = "Reconnecting to \(host.displayName)... Listing may be out of date."
+            reconnectButton.isEnabled = false
+        case .failed:
+            guard dismissedReconnectHostID != host.id else { return }
+            message = "Couldn't reconnect to \(host.displayName)."
+            reconnectButton.isEnabled = true
+        case .connected, .disconnected:
+            hideReconnectBanner()
+            return
+        }
+        let changed = reconnectBanner.isHidden || reconnectBannerLabel.stringValue != message
+        reconnectBannerLabel.stringValue = message
+        reconnectBannerLabel.toolTip = message
         reconnectBanner.isHidden = false
         reconnectBannerHeightConstraint?.constant = 30
+        if changed {
+            NSAccessibility.post(element: reconnectBannerLabel, notification: .announcementRequested, userInfo: [
+                .announcement: message, .priority: NSAccessibilityPriorityLevel.high.rawValue
+            ])
+        }
     }
 
     func hideReconnectBanner() {
@@ -147,11 +161,7 @@ extension PaneViewController {
             return
         }
 
-        if case .failed = RemoteConnectionStateStore.shared.state(for: host.id) {
-            showReconnectBanner(for: host)
-        } else {
-            hideReconnectBanner()
-        }
+        showConnectionBanner(for: host, state: RemoteConnectionStateStore.shared.state(for: host.id))
     }
 
     private func selectedReconnectHost() -> RemoteHost? {
@@ -172,7 +182,7 @@ extension PaneViewController {
             .failed(reason: .transport("UI test connection dropped")),
             for: host.id
         )
-        showReconnectBanner(for: host)
+        showConnectionBanner(for: host, state: RemoteConnectionStateStore.shared.state(for: host.id))
         return true
     }
 
@@ -198,7 +208,7 @@ extension PaneViewController {
                 hideReconnectBanner()
                 selectedTab?.fileListViewController.refresh()
             } catch {
-                showReconnectBanner(for: host)
+                showConnectionBanner(for: host, state: .failed(reason: RemoteHostSession.reason(for: error)))
             }
         }
     }

@@ -81,6 +81,8 @@ final class QualificationConnectionUITests: BaseUITest {
         let summary = app.staticTexts["remoteOperationSummary"]
         XCTAssertTrue(summary.waitForExistence(timeout: 3))
         XCTAssertEqual(summary.value as? String ?? summary.label, "1 item completed.")
+        let host = app.staticTexts["remoteOperationHost"]
+        XCTAssertEqual(host.value as? String ?? host.label, qualificationRemoteTarget)
         XCTAssertTrue(app.staticTexts["Destination: " + home + "/" + scenario + "/Folder"].exists)
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Recorded remote folder result and available undo"

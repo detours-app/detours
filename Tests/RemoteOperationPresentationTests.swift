@@ -103,6 +103,16 @@ final class RemoteOperationPresentationTests: XCTestCase {
         XCTAssertEqual(queue.remoteOperationResults[operation], snapshot)
     }
 
+    func testDetailsExplainPreflightRefusalAndUseTheHostDisplayName() throws {
+        var snapshot = try move(copy: .notStarted, trash: .notStarted).snapshot
+        snapshot.items[0].preflightFailure = .sourceMissing
+        let result = RemoteOperationPresentation(snapshot: snapshot, active: false,
+            hostNames: [snapshot.items[0].hostID: "devtest"])
+        XCTAssertEqual(result.hostName(snapshot.items[0]), "devtest")
+        XCTAssertEqual(result.status(snapshot.items[0]), "Not started. The source no longer exists.")
+        XCTAssertFalse(result.selections[0].completed)
+    }
+
     func testByteExactUndecodablePathIsNotSilentlyReplaced() {
         let location = OperationLocation(account: account, path: .unix(Data([47, 255])))
         XCTAssertEqual(RemoteOperationPresentation.path(location), "\\x2f\\xff")

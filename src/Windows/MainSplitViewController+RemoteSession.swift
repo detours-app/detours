@@ -15,7 +15,7 @@ extension MainSplitViewController {
                 guard route.deploysHelper else { throw RemoteFileProviderError.invalidResponse("Unsupported remote host kind.") }
                 resources = try await createUnixSession(for: host, owner: owner)
             }
-            FileOperationQueue.shared.registerRemoteFileProvider(resources.provider, for: host.id,
+            FileOperationQueue.shared.registerRemoteFileProvider(resources.provider, for: host.id, displayName: host.displayName,
                                                                  operationEndpoint: resources.operationEndpoint)
             RemoteHostStore.shared.markConnected(id: host.id)
             return resources
