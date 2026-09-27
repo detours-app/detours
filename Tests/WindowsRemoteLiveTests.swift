@@ -550,21 +550,6 @@ private actor WindowsLiveFixture {
             hostID: hostID, channel: channel, transferChannel: transferChannel, watchChannel: watchChannel
         )
         self.provider = provider
-        let home = try await provider.homeDirectory()
-        let rootLocation = Location.remote(hostID: hostID, path: home)
-            .appendingPathComponent("DetoursLiveTests-\(UUID().uuidString)")
-        root = rootLocation
-        guard let nativeRoot = try WindowsPath(location: rootLocation, hostID: hostID).nativePath else {
-            throw WindowsPathError.nativePathRequired(rootLocation.path)
-        }
-        try await channel.run(
-            PowerShellScript(source: PowerShellScript.prelude(operationBody: """
-                param($Arguments)
-                New-Item -ItemType Directory -Path $Arguments.path -Force | Out-Null
-                $true
-                """), arguments: PathArguments(path: nativeRoot)),
-            operation: "PrepareRoot"
-        )
         let session = RemoteHostSession(transport: WindowsHostSessionTransport(channel: channel), publish: { _, _ in })
         self.session = session
         await channel.bind(session: session)
@@ -574,6 +559,34 @@ private actor WindowsLiveFixture {
             request: { try await provider.operationRequest($0) },
             upload: { try await provider.prepareAcceptedUpload($0, identity: $1) }
         )
+        let home = try await provider.homeDirectory()
+        let rootLocation = Location.remote(hostID: hostID, path: home)
+            .appendingPathComponent("DetoursLiveTests-\(UUID().uuidString)")
+        root = rootLocation
+        guard let nativeRoot = try WindowsPath(location: rootLocation, hostID: hostID).nativePath else {
+            throw WindowsPathError.nativePathRequired(rootLocation.path)
+        }
+        try Self.createDirectoryOnHost(target: target, nativePath: nativeRoot)
+    }
+
+    private static func createDirectoryOnHost(target: String, nativePath: String) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
+        process.arguments = [
+            "-o", "BatchMode=yes",
+            "-o", "ConnectTimeout=10",
+            target,
+            "New-Item -ItemType Directory -Force -Path '\(nativePath)' | Out-Null",
+        ]
+        let standardError = Pipe()
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = standardError
+        try process.run()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            let message = String(data: standardError.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+            throw WindowsPathError.nativePathRequired("Could not create the live root: \(message)")
+        }
     }
 
     func cleanup() async throws {
