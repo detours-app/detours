@@ -181,21 +181,34 @@ final class OperationPublicationTests: XCTestCase {
     }
 
     func testLostCommitConclusionRetainsBothPossibleLocations() async throws {
-        let fixture = try await Fixture()
-        defer { fixture.cleanup() }
-        let ownership = try await fixture.prepare()
-        try Data("competitor".utf8).write(to: fixture.destination)
-        do {
-            _ = try await OperationPublication.publish(journal: fixture.journal, id: fixture.id, ownership: ownership)
-            XCTFail("A competing destination was overwritten")
-        } catch {
-            XCTAssertEqual(try Data(contentsOf: fixture.destination), Data("competitor".utf8))
+        for moved in [false, true] {
+            let fixture = try await Fixture()
+            defer { fixture.cleanup() }
+            let ownership = try await fixture.prepare()
+            let destination = try XCTUnwrap(fixture.intent.destination)
+            let uncertain = OperationRecoveryReference(
+                identity: fixture.payload.observation.identity, purpose: .scratch, original: nil,
+                knownLocation: nil, possibleLocations: [fixture.payload.location, destination])
+            try fixture.journal.record(OperationReceipt(
+                id: fixture.id, account: fixture.journal.account, epoch: fixture.journal.epoch,
+                intentDigest: "digest", revision: 2, phase: .committing, outcome: .running,
+                contentVerified: true, preparedPayload: fixture.payload, recovery: [uncertain]
+            ), ownership: ownership)
+            if moved {
+                let parent = try OperationDirectory(path: Data(fixture.root.path.utf8))
+                _ = try fixture.workspace.directory.moveExclusive(Data("payload".utf8), to: parent,
+                    named: Data("final".utf8), expected: fixture.payload.observation)
+            }
+            let reopened = try await OperationJournal(root: fixture.root.appendingPathComponent("journal"),
+                                                       account: fixture.journal.account)
+            let receipt = try XCTUnwrap(reopened.read(fixture.id).receipt)
+            XCTAssertEqual(receipt.phase, .committing)
+            XCTAssertEqual(receipt.recovery.first?.possibleLocations, [fixture.payload.location, destination])
+            XCTAssertNil(receipt.recovery.first?.knownLocation)
+            XCTAssertTrue(receipt.effects.isEmpty)
+            XCTAssertEqual(FileManager.default.fileExists(atPath: fixture.destination.path), moved)
+            withExtendedLifetime(ownership) {}
         }
-        let receipt = try XCTUnwrap(fixture.journal.read(fixture.id).receipt)
-        XCTAssertEqual(receipt.phase, .committing)
-        XCTAssertEqual(receipt.recovery.first?.possibleLocations.count, 2)
-        XCTAssertNil(receipt.recovery.first?.knownLocation)
-        XCTAssertTrue(receipt.effects.isEmpty)
     }
 
     private struct Fixture {
