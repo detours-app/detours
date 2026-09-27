@@ -19,9 +19,8 @@ final class AcceptedCrossVolumeMoveTests: XCTestCase {
                              "-volname", "Detours Cross Volume", image.path])
         try await diskImage(["attach", "-quiet", "-nobrowse", "-mountpoint", mount.path, image.path])
         do {
-            let sourceDirectory = try OperationDirectory(path: Data(fixture.root.path.utf8))
-            let targetDirectory = try OperationDirectory(path: Data(mount.path.utf8))
-            XCTAssertNotEqual(sourceDirectory.identity.volume, targetDirectory.identity.volume)
+            XCTAssertNotEqual(try OperationDirectory(path: Data(fixture.root.path.utf8)).identity.volume,
+                              try OperationDirectory(path: Data(mount.path.utf8)).identity.volume)
             let service = fixture.boundary.service
             let endpoint = RemoteOperationCoordinator.Endpoint(session: fixture.session,
                 request: { try await service.reply(to: $0) }, upload: { _, _ in throw OperationContractError.invalidReceipt })
