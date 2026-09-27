@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry cross-volume move and cleanup | `c11f6df` | PASS: signed build and the actual mounted-volume move test passed in 1.421 seconds. Destination bytes match, source Trash is independently recorded after verified copy, and image detach succeeds with the original bounded deadline. |
 | Foundry actual cross-volume move | `57d4318` | FAIL: signed build and 20 regression checks passed. The actual-volume move test reached final image detach but timed out there; 21 checks ran in 13.369 seconds. Checking fixture handle lifetime and mount cleanup before repeating it. |
 | Live Windows imported-tree publication | `d7e6b53` | PASS: the live import check passed in 26.942 seconds after Windows SSH became reachable. Premature commit and wrong tree proof publish nothing; the verified folder preserves the empty directory and Unicode child. Fixture cleanup passed. |
 | Foundry cross-host folder queue | `d7e6b53` | PASS: signed build and all 26 focused checks passed in 0.886 seconds. Public moves publish complete trees before source Trash, retain whole sources for omitted nested links, reject ordinary child read failures, preserve changed sources and move selected links without disposing their referents. Regular-file, imported-tree and source-disposition regressions passed. |
