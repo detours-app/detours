@@ -257,7 +257,7 @@ Marco clarified on 2026-09-26 that each code task includes its corresponding tes
 - [x] **C15** Update RemoteOperationError, OperationDetailPopover, StatusBarView, PaneViewController operation/remote-host extensions and MainSplitViewController pane wiring to consume stable result snapshots.
 - [x] **C16** Restore unfinished operation records on startup, run one bounded status pass and keep unresolved details accessible independently of tab restoration and later operations.
 - [x] **C17** Replace simulator-only cancellation/backoff closure tests with dependency controls around the actual implementation, and extend guarded fixtures for receipt and filesystem evidence.
-- [ ] **C18** Reconcile the remote guide, user guide and review finding status with implemented behaviour and recorded verification, retaining any unproved limits.
+- [x] **C18** Reconcile the remote guide, user guide and review finding status with implemented behaviour and recorded verification, retaining any unproved limits.
 
 ---
 
@@ -315,6 +315,8 @@ Use the existing guarded runner and independent prompt sentries for installed ch
 ---
 
 ## Build Log
+
+- **C18** Reconciled the remote guide, the user guide and the reliability review with implemented behaviour and recorded verification. Both guides now describe verified readiness, the bounded recovery budget and its wording, per-item results (confirmed, skipped, failed and unknown separately), cancellation wording, Check Result, Restore Original, source-retained move copies and the independent Remote Operations window, and they correct the previous claim that interrupted remote copies resume. The review records a per-finding status with its proving run and keeps every unproved limit: the live Linux and Windows matrices, the SFTP late-writer case, native Trash handoff, interrupted installed journeys and the Windows host timeout. Documentation only; validated with markdownlint.
 
 - **C17** Replaced the simulator-only reconnect/backoff and download-cancellation closure tests with dependency controls around the shipping code. Session tests inject the recovery delay sequence and prove a rejected account stops without spending the budget; the production download loop runs against an injected byte source that proves cancellation cleanup, byte-count refusal and non-zero exit. Windows uploads now select the bounded PowerShell fallback from a real, cached SFTP availability probe instead of a hardcoded assumption, proven for both the unavailable and available paths. The guarded remote fixture now reports filesystem evidence (kind, byte count and SHA-256) and receipt evidence (recorded operation summaries and per-item statuses) from inside the app. At `cae88b6a`, the signed Foundry build, all 20 recovery/cancel checks and all 24 Windows provider/transfer checks passed.
 

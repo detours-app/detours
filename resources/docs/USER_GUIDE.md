@@ -321,6 +321,14 @@ Current remote exceptions:
 
 Large transfers use a second SSH channel so listings, git status, Quick Open search, and watch events can continue on the metadata channel. A transfer the host refuses fails with the host's own message and leaves nothing at the destination. Remote git status runs after the directory listing completes; a slow repository should not block the list refresh.
 
+### Remote Operation Results
+
+Detours shows a remote host as connected only once it can answer requests. While it reconnects, the last listing stays visible and is marked as possibly out of date, and the banner names the host. Recovery is bounded: attempts stop after a 60-second deadline from the first failure, and an authentication or compatibility failure stops automatic recovery. "Couldn't reconnect to {host}." means Reconnect is available; reconnecting checks unfinished work and never repeats a change.
+
+Each remote change reports its own per-item result. Confirmed items, skipped items, known failures and unknown items are counted separately, and a confirmed item keeps its own Undo even when another item failed. Cancel asks the host to stop and then reports only what is known: "Cancelled. No files changed." once the files are confirmed untouched, a partial count when some items finished, or "Couldn't confirm whether '{item}' was {action} on {host}." when the outcome is unknown.
+
+Window > Remote Operations lists every saved result independently of the open tabs. Open it to see the host, recorded source and destination, confirmed locations, retained originals and recovery locations, and to use Check Result (status and filesystem reads only) or Restore Original (returns a retained original to a free name). Details stay available after you navigate away, close a tab or complete later work, and Detours never repeats a change to resolve an unfinished one.
+
 ### Automatic Remote Updates
 
 Remote listings update automatically. On supported macOS and Linux hosts, native notifications normally trigger a refresh after a 100 ms quiet period; a once-per-second check catches missed changes and in-place edits. Network and listing time add to that delay. Reconnects restore watches and reload visible folders, and transient failures retry automatically. Persistent errors use a compact banner above the list. See [Automatic Remote Updates](remote-vm-browsing.md#automatic-remote-updates) for timing and platform details.
@@ -329,7 +337,7 @@ An open remote tab keeps its connection active even when you are not interacting
 
 ### Remote Trash
 
-Remote deletes do not use the Mac Trash. On macOS and Linux hosts, Detours uses the remote user's FreeDesktop trash. On Windows hosts, it uses a Detours-managed `.detours-trash` folder in the user's profile. Undo restores items from the corresponding host-side trash. The first remote delete shows an explainer; it is also available from Help → About Remote Trash.
+Remote deletes do not use the Mac Trash. On macOS and Linux hosts, Detours uses the remote user's FreeDesktop trash. On Windows hosts, it uses a Detours-managed `.detours-trash` folder in the user's profile. Undo restores items from the corresponding host-side trash using the recorded receipt, and never overwrites a name that is already occupied. The first remote delete shows an explainer; it is also available from Help → About Remote Trash.
 
 ---
 

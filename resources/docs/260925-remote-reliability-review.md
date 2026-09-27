@@ -102,6 +102,22 @@ SSHConnection defines in-flight operation and active-watch counters, but source 
 
 Required proof: closing the final pane does not terminate an active operation; releasing its final real owner permits idle cleanup.
 
+## Finding status
+
+Reconciled 2026-09-27 against `fix/remote-operation-reliability`. The reviewed source above is unchanged history; this section records what the implementation now does, the run that proved it, and the limits that remain unproved.
+
+| Finding | Status | Recorded verification | Unproved limit |
+| --- | --- | --- | --- |
+| 1 Lost replies replay completed operations | Addressed | Immutable intent is persisted before sending, and no transport, provider or queue retries a sent mutation; unknown outcomes are retained and resolved by status reads only. Coordinator, store, reducer and lost-reply checks passed at `6b4f7b3` and `d45c039`. | Full live adapter matrices stay with T13-T14; the file-change/receipt-write interval is proved deterministically, not on a live lost reply. |
+| 2 Readiness announced before the host is ready | Addressed | `RemoteHostSession` publishes ready only after the version-2 handshake validates protocol, capabilities, account and epoch, and runs one recovery budget (1, 2, 4, 8, 16 s, capped at a 60 s monotonic deadline). The reconstructed simulator was removed and the real loop now runs under injected delays at `27e75c0a`; guards and installed checks passed at `121fa67`. | Live Windows recovery stays with T14, and the Windows host timeout is an explicit acceptance dependency. |
+| 3 Cancellation does not own the live transfer | Addressed | RPC, streaming and SFTP run as cancellable owned workers with concurrent pipe draining, an independent control channel and a measured-progress deadline; source disposition is checked immediately before it starts. Channel checks passed at `cf7eeea`, `b04d53c` and `f823a98`; the cancellation test now drives the production download loop at `27e75c0a`. | Live cancellation on both hosts stays with T5 and T13-T14. |
+| 4 Failed folder uploads leave a partial destination | Addressed | A new folder is prepared completely before publication and each child commits with its own receipt; planned nested-link omissions are reported as partial and never authorize source disposal. Preparation, merge and live Windows later-child checks passed at `33a8de2`, `c9c8c8f` and later. | Live Linux and Windows folder matrices stay with T9 and T15. |
+| 5 Replacement safety varies by size and platform | Addressed | One commit contract covers Unix RPC, Unix streaming, Windows SFTP and its fallback: exclusively allocated payloads, verified publication through a non-replacing rename, displacement into private holding, and backup handoff to Trash. Windows SFTP now selects its bounded fallback from a real availability probe instead of a hardcoded assumption at `cae88b6a`. | Native macOS Trash handoff and the live SFTP late-writer case stay with T17-T18; Windows live parity stays with T14. |
+| 6 Batch results and undo are lost | Addressed | Mutations return typed per-item receipts and committed items retain undo after a later failure. Batch, undo and caller checks passed at `d45c039`, `bf6311a9` and `2ea6a1a8`. | Full live batch matrices stay with T10, T13 and T14. |
+| 7 Lookup confuses uncertainty with absence | Addressed | Lookup returns typed found, missing, denied, disconnected or unsupported; only typed missing permits the new-item path and commit still refuses to replace. Lookup checks passed at `43a3513` and `d45c039`. | A controlled denied-lookup case on a live host stays with T13-T14. |
+| 8 Temporary-file naming does not establish ownership | Addressed | Working directories are exclusively allocated and named with operation and item identities plus a random suffix; scratch cleanup removes only recorded app-created objects whose identity still matches, never a pre-existing sibling. Workspace and cleanup checks passed at `0e516a5` and `238b0ce`. | Concurrent-transfer scratch proof stays with T4 and T7. |
+| 9 Unix idle guards disconnected from production | Addressed | Owned lifetime tokens cover panes, watches, readers and accepted operations; the five-minute idle grace starts only after the last live token is released. Lifetime checks passed at `1128c8f` and `9d8c7bd`. | The interrupted installed journey stays with T16. |
+
 ## Architectural changes supported by the findings
 
 1. **Host-session module.** Put verified readiness, one bounded reconnect task, process lifetime and active-work accounting behind one interface. Keep Unix and Windows transport adapters. This improves locality of connection truth and gives pane and queue callers the same meaning of connected. Tests must cross the production session seam, not a second state-machine implementation.
@@ -109,6 +125,8 @@ Required proof: closing the final pane does not terminate an active operation; r
 3. **Transfer commit module.** Concentrate operation-owned staging, new-file versus replacement intent, validation, finalization and rollback. RPC, streaming and SFTP remain adapters for transport. One contract suite should prove the same safety properties through all of them. Do not introduce a generic distributed transaction framework; first define the concrete filesystem outcomes these operations need.
 
 These are redesign candidates requiring Marco's choice before implementation. No product or test code was changed for this review.
+
+Implementation status: all three candidates were built under the accepted specification `260925-remote-operation-reliability.md`: the host session (`RemoteHostSession`), the remote-operation module (`RemoteOperationCoordinator` and `RemoteOperationStore`) and the shared commit/recovery support consumed by the app and helper. See that specification's Build Log for per-task evidence.
 
 ## Foundations to retain
 
@@ -135,6 +153,8 @@ Spectre and Foundry were clean. Foundry was fast-forwarded from `bf57a07` to the
 
 Foundry retains both result bundles, prompt audits, cleanup records and the refresh screenshot under `.build/qualification/410f826883ef46292c4b5b3439c1368ca451c052/`, in the run directories named above. These are normal-path checks, not reproduction of the interruption findings.
 
+Later work under the accepted specification reached `detours-windows` again and exercised the real SFTP and fallback paths, the private Windows Trash, and folder merges with later-child failure; the Windows host's SSH timeout remains an intermittent acceptance dependency and no unavailable-host skip counts. The per-task runs, including the deterministic and guarded checks, are recorded in the specification's Build Log and `Tests/TEST_LOG.md`.
+
 The nine live cases cover small upload/download, queue move to local storage, remote rename, Trash/restore, recursive folder routing, remote editor save, same-host copy/move and large uploads with spaces. Small-transfer cases compare known contents; the large-upload case checks size, not a content hash. The channel cases cover PowerShell request serialization and state, simulated Unix transfer finalization/cancellation, Windows partial-download cleanup and fallback. Their passing result does not close findings 1, 3 or 5.
 
 The integration sessions use `ProcessRemoteRPCClient`, while the app uses the persistent `SSHRemoteRPCClient`. They prove real helper behaviour but cannot alone certify the app's persistent connection lifecycle. The installed checks exercise the app, but not interruption during mutation.
@@ -151,3 +171,5 @@ The integration sessions use `ProcessRemoteRPCClient`, while the app uses the pe
 | Windows parity | Live detours-windows runs through both ordinary SFTP and fallback paths once SSH is reachable. |
 
 Passing a connection smoke test or existing successful transfer cases cannot close the architectural findings. A completion claim requires regression evidence at the real operation seam and live confirmation of the affected platform adapters.
+
+Status at `fix/remote-operation-reliability`: the connection, transfer, replacement, failure-outcome and lookup contracts now carry deterministic and focused installed evidence, recorded in the specification's Build Log and `Tests/TEST_LOG.md`. The complete live Linux and Windows matrices, the interrupted installed journeys and the final install-only build remain with T13-T21, so the review's original limit stands: live confirmation of the affected platform adapters is still required for completion.
