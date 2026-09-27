@@ -663,6 +663,7 @@ private struct WindowsLiveFixture {
     }
 }
 
+@MainActor
 private func XCTAssertThrowsErrorAsync(
     _ expression: @autoclosure () async throws -> some Any,
     file: StaticString = #filePath,
