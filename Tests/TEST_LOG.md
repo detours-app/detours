@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry paste/drop caller test compilation | `e19fd784` | FAIL: signed build passed, but the new responder and drag/drop fixtures omitted the helper test import, so the internal reply method was inaccessible. Adding those two imports; no runtime test result is claimed. |
 | Foundry accepted New File and transfer regressions | `0390c6ef` | PASS: signed build and all 41 focused checks passed in 1.305 seconds. New File preserves occupied names, verifies actual bytes and refuses a competing final name. Cross-host files/trees, local transfers, queue continuation and Trash/restore remain green after removal of the unused legacy mutation path. |
 | Foundry accepted extraction and live Windows layouts | `c31a7c5f` | PASS: signed build and all 16 checks passed in 229.136 seconds. All five Unix extraction formats, encrypted ZIP/7z retries, single-file names, wrappers and source/destination races passed. Both live Windows journeys passed in 223.122 seconds, including ZIP, 7z and compressed TAR layout inspection and independent extraction. Resolves the invalid account check recorded below. |
 | Foundry accepted extraction callers and Windows layouts | `aaa2be10` | FAIL: signed build, all 141 Linux checks and all 14 extraction/archive/protocol checks passed. The two live Windows journeys had three failed layout assertions because the layout request checked the account identity at the wrong nesting level. Correcting that account check and rerunning the live journeys. |

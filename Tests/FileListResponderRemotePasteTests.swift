@@ -2,6 +2,7 @@ import AppKit
 import XCTest
 import RemoteOperationSupport
 @testable import Detours
+@testable import detours_server
 
 extension FileListResponderTests {
     func testRemotePasteUsesExplicitFolderFileParentOrCurrentDirectory() {
