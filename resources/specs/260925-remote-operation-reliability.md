@@ -273,7 +273,7 @@ All tests, fixture writes, builds and screenshots run on Foundry. Each test entr
 - [x] **T4** Run two helper processes and competing Windows workers against one account journal; prove item exclusion, short namespace-only commit serialization, unrelated commit progress during hashing and status/cancel availability while a worker is occupied (A2, A4).
 - [x] **T5** Cancel actual RPC, streaming and SFTP workers during byte transfer, before commit and after destination commit; prohibit source disposition when cancellation wins its authorization check, and report actual committed/unknown results when cancelling an already-started source-Trash step (A4, A7).
 - [x] **T6** Apply the same creation/replacement contract at 0 bytes, 1 MiB minus 1, 1 MiB and 1 MiB plus 1, covering content hashes, byte mismatch, interrupted receive, displacement failure, publication conflict and failed rollback (A5, A6).
-- [ ] **T7** Preserve a sentinel named with the old partial suffix and another operation's temporary objects while two real transfers target one final name; exactly one new-file publication succeeds (A6).
+- [x] **T7** Preserve a sentinel named with the old partial suffix and another operation's temporary objects while two real transfers target one final name; exactly one new-file publication succeeds (A6).
 - [x] **T8** Test found/missing/denied/disconnected lookup and a destination created after lookup; only missing permits preparation, and final commit still refuses overwrite (A6).
 - [ ] **T9** Fail a real later child in both a new folder and existing Windows merge, and distinguish ordinary transfer failure from planned nested-link omissions; assert publication rules, exact child results, preserved sources/unrelated contents and committed-item undo (A3, A8).
 - [x] **T10** Exercise batch success then known failure, unknown result, user Skip and cancellation; confirm the stated continue/stop policy and exactly-once undo registration from repeated receipts (A3, A4).
@@ -315,6 +315,8 @@ Use the existing guarded runner and independent prompt sentries for installed ch
 ---
 
 ## Build Log
+
+- **T7** Two staged transfers publish to one final name concurrently and exactly one wins while the other is refused by the native no-clobber rename. An old-suffix `destination.detours-partial` sentinel and an unrelated `.detours-partial-` temporary in the same directory both survive, the legacy upload path refuses before touching either, and a real SFTP interruption preserves an unrelated partial-suffix sentinel. At `52d69ce4`, the 13 filesystem, four transfer-mode and the live SFTP checks passed on Foundry.
 
 - **T6** The creation and replacement contract is applied at 0 bytes, 1 MiB minus one, 1 MiB and 1 MiB plus one: content hashes match the accepted proof, a wrong byte count or hash leaves the destination untouched, a short or stalled receive publishes nothing, a changed source and a competing name refuse before allocation, displacement failure and a failed rollback retain the original, and a confirmed receipt is returned once. At `fbf45662`, all 67 helper-service, backup, publication, filesystem, Windows-transfer and provider checks passed on Foundry.
 
