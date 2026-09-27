@@ -76,12 +76,12 @@ extension FileOperationQueue {
                         // the rest of the batch continue, instead of aborting every selection.
                         let omitted = OperationIntent(id: .init(operation: plan.operation, item: UUID()), action: .copy,
                             sources: [observed.location], destination: nil,
-                            sourceObservations: proof.map { [$0] } ?? [], conflict: .createNew)
+                            sourceObservations: [proof], conflict: .createNew)
                         plan.items.append(.init(intent: omitted, hostID: sourceHost, work: .execute,
                             preflightFailure: Self.linkPreflightFailure(error)))
                         plan.selections.append(.init(id: .init(operation: plan.operation, item: UUID()),
                             action: isMove ? .move : .copy, sources: [observed.location], destination: target.location,
-                            sourceObservations: proof.map { [$0] } ?? [], conflict: conflict, children: [omitted.id]))
+                            sourceObservations: [proof], conflict: conflict, children: [omitted.id]))
                         return
                     }
                 } else {
