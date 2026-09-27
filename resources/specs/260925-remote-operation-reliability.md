@@ -288,7 +288,7 @@ The new interruption controls suspend or lose a response around the actual opera
 - [x] **T14** Run detours-windows through real SFTP and explicitly selected small-file fallback for the same applicable safety matrix, including committed rename/Trash reply loss and actual SFTP interruption; no unavailable-host skip counts as acceptance (A1-A11).
 - [x] **T15** Run local-to-Linux, Linux-to-local, local-to-Windows, Windows-to-local and both Linux/Windows directions with known manifests, empty directories, spaces, planned link omissions and selected-link move/undo; compare transformed payloads and original source disposition (A5-A11).
 - [ ] **T16** Run guarded focused XCUI journeys on Foundry for normal connection, visible partial/unknown/cancelling states, tab closure during work, restart recovery, Check Result and available undo; inspect exported screenshots and preserve unrelated local work (A1, A3, A4, A9, A10, A12).
-- [ ] **T17** Keep an actual SFTP ingress writer open across helper finalization and change ingress afterward; the published helper-owned payload retains its verified hash, while uncertain ingress cleanup remains recorded (A5, A6).
+- [x] **T17** Keep an actual SFTP ingress writer open across helper finalization and change ingress afterward; the published helper-owned payload retains its verified hash, while uncertain ingress cleanup remains recorded (A5, A6).
 - [x] **T18** Exercise known unchanged, confirmed and lost-return native macOS Trash handoffs using real temporary files; retain accurate backup location/uncertainty and disable undo that would require an unlocated original (A3, A5, A10).
 - [x] **T19** Drive clipboard, drag/drop, rename, create-folder, archive creation/extraction, editor save, restore and explicitly confirmed permanent-delete callers through accepted coordinator context; assert typed results, editor replacement failure recovery and no raw mutation bypass (A2-A6, A10).
 - [ ] **T20** Run focused local and macOS-helper filesystem regressions plus the full Foundry suite once after shared changes stabilize, separating the two login-session classes as required, and run the three-minute blocking qualification once with zero unexplained failures or skips.
@@ -315,6 +315,8 @@ Use the existing guarded runner and independent prompt sentries for installed ch
 ---
 
 ## Build Log
+
+- **T17** A real SFTP ingress writer is held open across sealing: the upload allocates the ingress, a second PowerShell session opens a FileStream on it, the helper seals a distinct helper-owned payload, and the commit records the open writer as an ingress cleanup obligation. After commit a late byte is written through the still-open writer, and a fresh proof of the published file shows the same hash and object identity as the committed effect, so the late ingress write cannot alter it. This runs inside the Windows accepted-operation live test. At `8a884095`, that test passed on Foundry.
 
 - **T18** The native macOS Trash handoff for a local source disposition is exercised against real temporary files with the Trash call injected: a confirmed handoff records the known Trash location and leaves the original gone, a known-unchanged handoff that never moved the object retains it with its holding location, and a lost-return handoff where the object moved without reporting where stays unknown. The seam defaults to the real `FileManager` Trash call and does not regress the cross-host, local-transfer and trash-caller suites. At `503d3bb2`, the three handoff checks and the 22 caller checks passed on Foundry.
 
