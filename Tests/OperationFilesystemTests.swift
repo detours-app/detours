@@ -261,9 +261,72 @@ final class OperationFilesystemTests: XCTestCase {
         XCTAssertEqual((try FileManager.default.attributesOfItem(atPath: original.path)[.posixPermissions] as? NSNumber)?.intValue, 0o555)
     }
 
+    func testTwoTransfersToOneFinalNamePublishExactlyOne() throws {
+        let root = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let directory = try OperationDirectory(path: Data(root.path.utf8))
+        let finalName = Data("final".utf8)
+
+        // An earlier operation's old-suffix sentinel and a separate temporary must both survive.
+        let oldSuffix = root.appendingPathComponent("final.detours-partial")
+        try Data("old suffix sentinel".utf8).write(to: oldSuffix)
+        let otherTemporary = root.appendingPathComponent(".detours-partial-\(UUID().uuidString)")
+        try Data("other operation".utf8).write(to: otherTemporary)
+
+        func stage(_ body: String) throws -> (OperationWorkspace, Data, OperationObservation) {
+            let workspace = try OperationWorkspace(parent: directory, id: .init(operation: UUID(), item: UUID()))
+            let name = Data("payload".utf8)
+            let handle = try workspace.createFile(named: name)
+            try handle.write(contentsOf: Data(body.utf8))
+            try handle.close()
+            try workspace.synchronizeFile(named: name)
+            return (workspace, name, try workspace.directory.observe(name))
+        }
+        let first = try stage("first")
+        let second = try stage("second")
+        let results = PublicationRaceResults()
+
+        DispatchQueue.concurrentPerform(iterations: 2) { index in
+            let (workspace, name, observation) = index == 0 ? first : second
+            do {
+                _ = try workspace.directory.moveExclusive(name, to: directory, named: finalName, expected: observation)
+                results.recordSuccess()
+            } catch {
+                results.recordFailure()
+            }
+        }
+
+        XCTAssertEqual(results.successes, 1, "exactly one transfer may publish the final name")
+        XCTAssertEqual(results.failures, 1)
+        let published = try Data(contentsOf: root.appendingPathComponent("final"))
+        XCTAssertTrue(published == Data("first".utf8) || published == Data("second".utf8))
+        XCTAssertEqual(try Data(contentsOf: oldSuffix), Data("old suffix sentinel".utf8))
+        XCTAssertEqual(try Data(contentsOf: otherTemporary), Data("other operation".utf8))
+        try? first.0.removeScratch()
+        try? second.0.removeScratch()
+    }
+
     private func fixture() throws -> URL {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         return root
+    }
+}
+
+private final class PublicationRaceResults: @unchecked Sendable {
+    private let lock = NSLock()
+    private(set) var successes = 0
+    private(set) var failures = 0
+
+    func recordSuccess() {
+        lock.lock()
+        defer { lock.unlock() }
+        successes += 1
+    }
+
+    func recordFailure() {
+        lock.lock()
+        defer { lock.unlock() }
+        failures += 1
     }
 }
