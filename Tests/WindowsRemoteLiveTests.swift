@@ -1,6 +1,7 @@
 import XCTest
 @testable import Detours
 
+@MainActor
 final class WindowsRemoteLiveTests: XCTestCase {
     /// The dedicated Windows qualification host, named by default the same way
     /// the Linux live tests name theirs. Waiting to be told meant these never
