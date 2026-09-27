@@ -481,6 +481,9 @@ final class RemoteIntegrationTests: XCTestCase {
         let session = try await RemoteIntegrationSession.make()
         let remoteRoot = try Self.makeRemoteFixtureRoot()
         defer { Self.cleanupRemote(remoteRoot) }
+        let queue = FileOperationQueue.shared
+        queue.registerRemoteFileProvider(session.provider, for: session.hostID, operationEndpoint: session.endpoint)
+        defer { queue.unregisterRemoteFileProvider(for: session.hostID) }
         try Self.runSSH("printf original > \(Self.shellQuote(remoteRoot + "/notes.md"))")
         let location = Location.remote(hostID: session.hostID, path: remoteRoot + "/notes.md")
         var openedURL: URL?
