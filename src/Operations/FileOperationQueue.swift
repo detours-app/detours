@@ -132,20 +132,6 @@ final class FileOperationQueue {
     /// Forces the same rollback-safe sibling fallback used by mounted volumes
     /// that do not implement Finder Trash.
     var forceLocalDisplacementFallbackForTesting = false
-    /// Test seam: holds the next accepted remote transfer until the release action. Placed
-    /// after the operation record is registered, so an installed journey can cancel a live
-    /// transfer through the same control the user has.
-    private let remoteOperationHoldForTesting = RemoteOperationHoldForTesting()
-
-    func installRemoteOperationHoldForTesting() async throws {
-        remoteOperationHoldForTesting.arm()
-        let gate: @Sendable () async -> Void = { [hold = remoteOperationHoldForTesting] in await hold.wait() }
-        try await operationCoordinator().setTestHoldBeforeFirstItem(gate)
-    }
-
-    func releaseRemoteOperationHoldForTesting() {
-        remoteOperationHoldForTesting.open()
-    }
     #endif
 
     var pendingCount: Int { pending.count }
@@ -624,41 +610,3 @@ final class FileOperationQueue {
         return (title, body.joined(separator: "\n\n"))
     }
 }
-
-#if DEBUG
-/// Holds an accepted remote transfer open until a test releases it.
-final class RemoteOperationHoldForTesting: @unchecked Sendable {
-    private let lock = NSLock()
-    private var continuation: CheckedContinuation<Void, Never>?
-    private var opened = false
-
-    func arm() {
-        lock.lock()
-        continuation = nil
-        opened = false
-        lock.unlock()
-    }
-
-    func wait() async {
-        await withCheckedContinuation { continuation in
-            lock.lock()
-            if opened {
-                lock.unlock()
-                continuation.resume()
-                return
-            }
-            self.continuation = continuation
-            lock.unlock()
-        }
-    }
-
-    func open() {
-        lock.lock()
-        opened = true
-        let waiting = continuation
-        continuation = nil
-        lock.unlock()
-        waiting?.resume()
-    }
-}
-#endif

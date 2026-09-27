@@ -20,12 +20,6 @@ extension RemoteOperationCoordinator {
         }
         try await persistPlan(plan, operation: operation)
         try recordSelections(selections, operation: operation)
-        #if DEBUG
-        if let gate = testHoldBeforeFirstItem {
-            testHoldBeforeFirstItem = nil
-            await gate()
-        }
-        #endif
         guard try snapshot(operation).record.intents.map(\.id) == plan.map({ $0.intent.id }) else {
             throw OperationContractError.intentMismatch
         }

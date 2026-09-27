@@ -29,13 +29,6 @@ actor RemoteOperationCoordinator {
     private let resolve: @Sendable (UUID) async throws -> Endpoint
     private var active: Set<OperationItemID> = []
     var activeBatches: Set<UUID> = []
-    #if DEBUG
-    var testHoldBeforeFirstItem: (@Sendable () async -> Void)?
-
-    func setTestHoldBeforeFirstItem(_ gate: @escaping @Sendable () async -> Void) {
-        testHoldBeforeFirstItem = gate
-    }
-    #endif
     private static let logger = Logger(subsystem: "com.detours", category: "remote-operation")
 
     init(store: RemoteOperationStore, resolve: @escaping @Sendable (UUID) async throws -> Endpoint) {

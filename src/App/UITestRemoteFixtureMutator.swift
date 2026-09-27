@@ -48,8 +48,7 @@ enum UITestRemoteFixtureMutator {
                 throw error
             }
             return nil
-        case "createDirectory", "write", "move", "remove", "gitInit", "symlink", "stat", "fingerprint", "receipts", "cleanup",
-             "holdOperations", "releaseOperations":
+        case "createDirectory", "write", "move", "remove", "gitInit", "symlink", "stat", "fingerprint", "receipts", "cleanup":
             guard let sentinelID = command.sentinelID, UUID(uuidString: sentinelID) != nil else {
                 throw MutationError.invalidSentinel
             }
@@ -184,14 +183,6 @@ enum UITestRemoteFixtureMutator {
                     }
             case "cleanup":
                 try await trashFixture(scenario, hostID: hostID)
-            case "holdOperations":
-                #if DEBUG
-                try await FileOperationQueue.shared.installRemoteOperationHoldForTesting()
-                #endif
-            case "releaseOperations":
-                #if DEBUG
-                FileOperationQueue.shared.releaseRemoteOperationHoldForTesting()
-                #endif
             default:
                 break
             }
