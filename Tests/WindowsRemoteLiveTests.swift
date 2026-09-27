@@ -550,9 +550,11 @@ private actor WindowsLiveFixture {
             hostID: hostID, channel: channel, transferChannel: transferChannel, watchChannel: watchChannel
         )
         self.provider = provider
-        let session = RemoteHostSession(transport: WindowsHostSessionTransport(channel: channel), publish: { _, _ in })
+        let transport = WindowsHostSessionTransport(channel: channel)
+        let session = RemoteHostSession(transport: transport, publish: { _, _ in })
         self.session = session
         await channel.bind(session: session)
+        await transport.bind(provider: provider)
         _ = try await session.ensureReady()
         endpoint = RemoteOperationCoordinator.Endpoint(
             session: session,
