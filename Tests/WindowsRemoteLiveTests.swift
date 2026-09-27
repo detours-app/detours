@@ -555,13 +555,14 @@ private actor WindowsLiveFixture {
         self.session = session
         await channel.bind(session: session)
         await transport.bind(provider: provider)
-        _ = try await session.ensureReady()
+        do { _ = try await session.ensureReady() } catch { throw WindowsPathError.nativePathRequired("ensureReady failed: \(error)") }
         endpoint = RemoteOperationCoordinator.Endpoint(
             session: session,
             request: { try await provider.operationRequest($0) },
             upload: { try await provider.prepareAcceptedUpload($0, identity: $1) }
         )
-        let home = try await provider.homeDirectory()
+        let home: String
+        do { home = try await provider.homeDirectory() } catch { throw WindowsPathError.nativePathRequired("homeDirectory failed: \(error)") }
         let rootLocation = Location.remote(hostID: hostID, path: home)
             .appendingPathComponent("DetoursLiveTests-\(UUID().uuidString)")
         root = rootLocation
