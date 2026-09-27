@@ -1,6 +1,8 @@
 import AppKit
 import XCTest
+import RemoteOperationSupport
 @testable import Detours
+@testable import detours_server
 
 @MainActor
 final class FileListResponderTests: XCTestCase {
@@ -61,36 +63,38 @@ final class FileListResponderTests: XCTestCase {
         SettingsManager.shared.folderExpansionEnabled = true
         defer { SettingsManager.shared.folderExpansionEnabled = originalExpansionEnabled }
 
-        let hostID = UUID()
-        let root = Location.remote(hostID: hostID, path: "/home/marco")
-        let parent = Location.remote(hostID: hostID, path: "/home/marco/Parent")
-        let created = Location.remote(hostID: hostID, path: "/home/marco/Parent/Folder")
-        let provider = FileListRemoteProvider(
-            hostID: hostID,
-            listings: [
-                root.path: [
-                    .remoteDirectory(hostID: hostID, path: parent.path, name: "Parent"),
-                ],
-                parent.path: [],
-            ]
-        )
-        FileOperationQueue.shared.registerRemoteFileProvider(provider, for: hostID)
+        let fixture = try await CoordinatorFixture()
+        let queue = FileOperationQueue.shared
+        queue.resetRemoteQueueStateForTesting()
         defer {
-            FileOperationQueue.shared.unregisterRemoteFileProvider(for: hostID)
-            ClipboardManager.shared.clear()
+            queue.resetRemoteQueueStateForTesting()
+            fixture.cleanup()
         }
+        let parentURL = fixture.root.appendingPathComponent("Parent")
+        try FileManager.default.createDirectory(at: parentURL, withIntermediateDirectories: false)
+        let createdURL = parentURL.appendingPathComponent("Folder")
+        let provider = acceptedProvider(fixture)
+        let root = Location.remote(hostID: fixture.hostID, path: fixture.root.path)
+        let parent = Location.remote(hostID: fixture.hostID, path: parentURL.path)
+        let created = Location.remote(hostID: fixture.hostID, path: createdURL.path)
 
         let viewController = FileListViewController()
         viewController.loadViewIfNeeded()
-        let host = RemoteHost(id: hostID, displayName: "Dev VM", sshTarget: "dev")
-
-        viewController.loadRemoteDirectory(host: host, path: root.path, provider: provider)
-        let didLoadRows = await waitForRowCount(1, in: viewController.tableView)
-        XCTAssertTrue(didLoadRows)
+        viewController.currentRemoteLocation = root
+        viewController.currentRemoteProvider = provider
+        viewController.dataSource.currentRemoteDirectoryForGit = root
+        viewController.dataSource.currentRemoteProvider = provider
+        viewController.dataSource.applier.setRootItems([
+            FileItem(name: "Parent", location: parent, isDirectory: true, size: nil,
+                     dateModified: Date(), icon: NSImage())
+        ])
+        viewController.tableView.reloadData()
         viewController.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
 
         viewController.createNewFolder()
 
+        let createdOnDisk = await waitForCondition { FileManager.default.fileExists(atPath: createdURL.path) }
+        XCTAssertTrue(createdOnDisk)
         let didSelectCreatedFolder = await waitForSelectedLocations([created], in: viewController)
         XCTAssertTrue(didSelectCreatedFolder)
         XCTAssertEqual(viewController.selectedLocations, [created])
@@ -352,50 +356,65 @@ final class FileListResponderTests: XCTestCase {
         line: UInt = #line
     ) async throws {
         RemoteTrashExplainer.markDismissed()
-        let hostID = UUID()
-        let location = Location.remote(hostID: hostID, path: "/home/marco/file.txt")
-        let provider = FileListRemoteProvider(
-            hostID: hostID,
-            listings: [
-                "/home/marco": [
-                    .remoteFile(hostID: hostID, path: location.path, name: "file.txt"),
-                ],
-            ]
-        )
-        FileOperationQueue.shared.registerRemoteFileProvider(provider, for: hostID)
-        defer { FileOperationQueue.shared.unregisterRemoteFileProvider(for: hostID) }
+        let fixture = try await CoordinatorFixture()
+        let queue = FileOperationQueue.shared
+        queue.resetRemoteQueueStateForTesting()
+        defer {
+            queue.resetRemoteQueueStateForTesting()
+            fixture.cleanup()
+        }
+        let input = fixture.root.appendingPathComponent("input")
+        try FileManager.default.createDirectory(at: input, withIntermediateDirectories: false)
+        let fileURL = input.appendingPathComponent("file.txt")
+        try fixture.bytes.write(to: fileURL)
+        let provider = acceptedProvider(fixture)
+        let location = Location.remote(hostID: fixture.hostID, path: fileURL.path)
 
         let viewController = FileListViewController()
         viewController.loadViewIfNeeded()
-        let host = RemoteHost(id: hostID, displayName: "Dev VM", sshTarget: "dev")
-
-        viewController.loadRemoteDirectory(host: host, path: "/home/marco", provider: provider)
-        let loaded = await waitForRowCount(1, in: viewController.tableView)
-        XCTAssertTrue(loaded, file: file, line: line)
+        let root = Location.remote(hostID: fixture.hostID, path: input.path)
+        viewController.currentRemoteLocation = root
+        viewController.currentRemoteProvider = provider
+        viewController.dataSource.currentRemoteDirectoryForGit = root
+        viewController.dataSource.currentRemoteProvider = provider
+        viewController.dataSource.applier.setRootItems([
+            FileItem(name: "file.txt", location: location, isDirectory: false, size: 24,
+                     dateModified: Date(), icon: NSImage())
+        ])
+        viewController.tableView.reloadData()
         viewController.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
 
         XCTAssertTrue(viewController.handleKeyDown(event), file: file, line: line)
-        let routed = await waitForTrashCalls(in: provider, expectedCount: 1)
+        let routed = await waitForCondition {
+            queue.remoteOperationResults.values.contains { $0.items.first?.result.intent.action == .trash }
+        }
         XCTAssertTrue(routed, file: file, line: line)
-        let calls = await provider.recordedTrashCalls()
-        XCTAssertEqual(calls, [[location]], file: file, line: line)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fileURL.path), file: file, line: line)
     }
 
-    private func waitForTrashCalls(
-        in provider: FileListRemoteProvider,
-        expectedCount: Int,
-        timeout: TimeInterval = 2.0
+    /// A real remote provider over the fixture's helper service, registered with its endpoint,
+    /// so queue operations run through the coordinator exactly as the app does.
+    private func acceptedProvider(_ fixture: CoordinatorFixture) -> RemoteFileProvider {
+        let service = fixture.boundary.service
+        let endpoint = RemoteOperationCoordinator.Endpoint(session: fixture.session,
+            request: { try await service.reply(to: $0) }, upload: { _, _ in throw OperationContractError.invalidReceipt })
+        let provider = RemoteFileProvider(hostID: fixture.hostID, rpcClient: AcceptedProviderRPC(service: service),
+            transferChannel: RemoteTransferChannel(sshTarget: "unused"))
+        FileOperationQueue.shared.registerRemoteFileProvider(provider, for: fixture.hostID, operationEndpoint: endpoint)
+        FileOperationQueue.shared.acceptedCoordinator = RemoteOperationCoordinator(store: fixture.store) { _ in endpoint }
+        return provider
+    }
+
+    private func waitForCondition(
+        timeout: TimeInterval = 2.0,
+        _ condition: @escaping @MainActor () async -> Bool
     ) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
-
         while Date() < deadline {
-            if await provider.recordedTrashCalls().count >= expectedCount {
-                return true
-            }
-            try? await Task.sleep(nanoseconds: 50_000_000)
+            if await condition() { return true }
+            try? await Task.sleep(nanoseconds: 20_000_000)
         }
-
-        return await provider.recordedTrashCalls().count >= expectedCount
+        return await condition()
     }
 
     func inlineRenameFieldCount(in tableView: NSTableView) -> Int {
