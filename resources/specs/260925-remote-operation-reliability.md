@@ -275,7 +275,7 @@ All tests, fixture writes, builds and screenshots run on Foundry. Each test entr
 - [x] **T6** Apply the same creation/replacement contract at 0 bytes, 1 MiB minus 1, 1 MiB and 1 MiB plus 1, covering content hashes, byte mismatch, interrupted receive, displacement failure, publication conflict and failed rollback (A5, A6).
 - [x] **T7** Preserve a sentinel named with the old partial suffix and another operation's temporary objects while two real transfers target one final name; exactly one new-file publication succeeds (A6).
 - [x] **T8** Test found/missing/denied/disconnected lookup and a destination created after lookup; only missing permits preparation, and final commit still refuses overwrite (A6).
-- [ ] **T9** Fail a real later child in both a new folder and existing Windows merge, and distinguish ordinary transfer failure from planned nested-link omissions; assert publication rules, exact child results, preserved sources/unrelated contents and committed-item undo (A3, A8).
+- [x] **T9** Fail a real later child in both a new folder and existing Windows merge, and distinguish ordinary transfer failure from planned nested-link omissions; assert publication rules, exact child results, preserved sources/unrelated contents and committed-item undo (A3, A8).
 - [x] **T10** Exercise batch success then known failure, unknown result, user Skip and cancellation; confirm the stated continue/stop policy and exactly-once undo registration from repeated receipts (A3, A4).
 - [ ] **T11** Test destination-committed/source-present moves, changed source, lost source-Trash reply, selected-link moves and conflicting undo/restore names; compare the source-observation manifest and preserve the only confirmed copy and original link recovery (A5, A7, A10).
 - [ ] **T12** Close the final pane during actual work, expire idle time, finish/cancel the worker and restart the client; live ownership drains exactly once while unresolved records survive (A9, A12).
@@ -315,6 +315,8 @@ Use the existing guarded runner and independent prompt sentries for installed ch
 ---
 
 ## Build Log
+
+- **T9** A real later child failure is exercised in a new folder and in an existing Windows same-name merge: the published result lists exact child outcomes, a later failure preserves the source and unrelated destination contents, and an earlier committed child keeps its undo. Planned nested-link omissions are recorded exactly and distinguished from an ordinary transfer failure. At `fe5467f7`, the 34 deterministic tree, archive, undo, batch and symlink checks and the live Windows later-child-failure merge passed on Foundry.
 
 - **T7** Two staged transfers publish to one final name concurrently and exactly one wins while the other is refused by the native no-clobber rename. An old-suffix `destination.detours-partial` sentinel and an unrelated `.detours-partial-` temporary in the same directory both survive, the legacy upload path refuses before touching either, and a real SFTP interruption preserves an unrelated partial-suffix sentinel. At `52d69ce4`, the 13 filesystem, four transfer-mode and the live SFTP checks passed on Foundry.
 
