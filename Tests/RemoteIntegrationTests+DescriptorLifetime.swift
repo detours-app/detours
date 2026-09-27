@@ -33,7 +33,16 @@ extension RemoteIntegrationTests {
         for _ in 0..<32 {
             _ = try request(.gitStatus(directory: RemotePath(root)))
         }
-        let after = try descriptorCount()
+        // A child that is mid-reap can add one descriptor for a moment; settle before measuring so
+        // the assertion still catches a real retained leak but not a single transient handle.
+        var after = try descriptorCount()
+        let settleDeadline = ContinuousClock.now.advanced(by: .seconds(2))
+        while ContinuousClock.now < settleDeadline {
+            let current = try descriptorCount()
+            if current >= after { break }
+            after = current
+            try await Task.sleep(for: .milliseconds(50))
+        }
         XCTAssertLessThanOrEqual(after, before + 2,
                                  "Repeated Git refreshes retained descriptors: \(before) -> \(after)")
         let listing = try request(.list(path: RemotePath(root), showHidden: true))

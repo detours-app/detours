@@ -5,14 +5,10 @@ extension FileOperationQueue {
     func performRemoteCopy(
         items: [Location],
         to destination: Location,
-        undoManager: UndoManager? = nil,
-        resume: RemoteCopyResumeState? = nil
+        undoManager: UndoManager? = nil
     ) async throws -> [Location] {
-        guard case .remote(let destinationHostID, _) = destination,
-              let groups = remoteGroups(from: items),
-              groups.count == 1,
-              groups[destinationHostID] != nil else {
-            throw FileProviderError.unsupportedOperation("Remote copy supports one host per operation")
+        guard !remoteHostIDs(from: items, destination: destination).isEmpty else {
+            throw FileProviderError.unsupportedOperation("This transfer requires a remote location")
         }
 
         let operation = FileOperation.copy(
@@ -23,54 +19,21 @@ extension FileOperationQueue {
         defer { finishOperation() }
 
         try checkCancelled()
-        let provider = try remoteProvider(for: destinationHostID)
-        if let windows = provider as? WindowsRemoteProvider {
-            return try await performWindowsTransfer(
-                items: items, to: destination, provider: windows,
-                isMove: false, undoManager: undoManager
-            )
-        }
+        let result = try await performAcceptedRemoteTransfer(items: items, to: destination, isMove: false)
+        let copied = try await acceptedLocations(result)
+        updateProgress(operation: operation, currentItem: copied.last.map { Location.remoteFileURL($0.path) },
+                       completed: copied.count, total: items.count)
+        let firstName = copied.first?.lastPathComponent ?? ""
+        let actionName = copied.count == 1 ? "Copy \"\(firstName)\"" : "Copy \(copied.count) Items"
+        try await registerAcceptedUndo(result, with: undoManager, name: actionName)
 
-        // One item per request, so an interruption leaves the untransferred remainder in `state`.
-        // Re-sending an item the server already wrote would land it under a numbered suffix.
-        let state = resume ?? RemoteCopyResumeState(items: items)
-        while let source = state.next {
-            try checkCancelled()
-            let copiedItem = try await provider.copy([source], to: destination)
-            state.recordCopied(copiedItem)
-            updateProgress(
-                operation: operation,
-                currentItem: URL(fileURLWithPath: source.path),
-                completed: state.copied.count,
-                total: items.count
-            )
-        }
-        let copied = state.copied
-
-        if !copied.isEmpty, let undoManager {
-            undoManager.registerUndo(withTarget: self) { target in
-                Task { @MainActor in
-                    do {
-                        try await target.performRemoteDelete(items: copied, undoManager: nil)
-                    } catch {
-                        target.presentError(error)
-                    }
-                }
-            }
-            let firstName = copied.first?.lastPathComponent ?? ""
-            let actionName = copied.count == 1 ? "Copy \"\(firstName)\"" : "Copy \(copied.count) Items"
-            undoManager.setActionName(actionName)
-        }
-
+        try requireSuccessfulBatch(result)
         return copied
     }
 
     func performRemoteMove(items: [Location], to destination: Location, undoManager: UndoManager? = nil) async throws -> [Location] {
-        guard case .remote(let destinationHostID, _) = destination,
-              let groups = remoteGroups(from: items),
-              groups.count == 1,
-              groups[destinationHostID] != nil else {
-            throw FileProviderError.unsupportedOperation("Remote move supports one host per operation")
+        guard !remoteHostIDs(from: items, destination: destination).isEmpty else {
+            throw FileProviderError.unsupportedOperation("This transfer requires a remote location")
         }
 
         let operation = FileOperation.move(
@@ -81,14 +44,8 @@ extension FileOperationQueue {
         defer { finishOperation() }
 
         try checkCancelled()
-        let provider = try remoteProvider(for: destinationHostID)
-        if let windows = provider as? WindowsRemoteProvider {
-            return try await performWindowsTransfer(
-                items: items, to: destination, provider: windows,
-                isMove: true, undoManager: undoManager
-            )
-        }
-        let moved = try await provider.move(items, to: destination)
+        let result = try await performAcceptedRemoteTransfer(items: items, to: destination, isMove: true)
+        let moved = try await acceptedLocations(result)
         updateProgress(
             operation: operation,
             currentItem: moved.last.map { URL(fileURLWithPath: $0.path) },
@@ -96,143 +53,43 @@ extension FileOperationQueue {
             total: items.count
         )
 
-        if moved.count == items.count, let undoManager {
-            let originalItems = items
-            let movedItems = moved
-            undoManager.registerUndo(withTarget: self) { target in
-                Task { @MainActor in
-                    do {
-                        // Restore each item to its own original parent, not just the first item's:
-                        // a move can span several source directories on the same host.
-                        let pairs = Array(zip(movedItems, originalItems))
-                        var handledParents: Set<String> = []
-                        for (_, original) in pairs {
-                            let parent = original.deletingLastPathComponent()
-                            guard handledParents.insert(parent.path).inserted else { continue }
-                            let itemsForParent = pairs
-                                .filter { $0.1.deletingLastPathComponent().path == parent.path }
-                                .map(\.0)
-                            let restored = try await target.performRemoteMove(
-                                items: itemsForParent,
-                                to: parent,
-                                undoManager: nil
-                            )
-                            target.announceRestored(restored)
-                        }
-                    } catch {
-                        target.presentError(error)
-                    }
-                }
-            }
-            let firstName = moved.first?.lastPathComponent ?? ""
-            let actionName = moved.count == 1 ? "Move \"\(firstName)\"" : "Move \(moved.count) Items"
-            undoManager.setActionName(actionName)
-        }
+        let firstName = moved.first?.lastPathComponent ?? ""
+        let actionName = moved.count == 1 ? "Move \"\(firstName)\"" : "Move \(moved.count) Items"
+        try await registerAcceptedUndo(result, with: undoManager, name: actionName)
 
+        try requireSuccessfulBatch(result)
         return moved
     }
 
     func performRemoteDelete(items: [Location], undoManager: UndoManager? = nil) async throws {
-        guard let groups = remoteGroups(from: items) else {
+        guard remoteGroups(from: items) != nil else {
             throw FileProviderError.unsupportedOperation("Mixed local and remote delete is not implemented yet")
         }
-
         RemoteTrashExplainer.showIfNeeded()
-
         let operation = FileOperation.delete(items: items.map { URL(fileURLWithPath: $0.path) })
         startOperation(operation, totalCount: items.count)
         defer { finishOperation() }
-
-        var trashedItems: [TrashedItem] = []
-        var completed = 0
-
-        for (hostID, hostItems) in groups {
-            try checkCancelled()
-            if let current = hostItems.first {
-                updateProgress(
-                    operation: operation,
-                    currentItem: URL(fileURLWithPath: current.path),
-                    completed: completed,
-                    total: items.count
-                )
-            }
-
-            let provider = try remoteProvider(for: hostID)
-            let trashed = try await provider.trash(hostItems)
-            trashedItems.append(contentsOf: trashed)
-            completed += hostItems.count
-
-            if let current = hostItems.last {
-                updateProgress(
-                    operation: operation,
-                    currentItem: URL(fileURLWithPath: current.path),
-                    completed: completed,
-                    total: items.count
-                )
-            }
-        }
-
-        guard !trashedItems.isEmpty, let undoManager else { return }
-
-        undoManager.registerUndo(withTarget: self) { target in
-            Task { @MainActor in
-                do {
-                    let restored = try await target.restoreRemoteTrashedItems(trashedItems)
-                    target.announceRestored(restored)
-                    undoManager.registerUndo(withTarget: target) { redoTarget in
-                        Task { @MainActor in
-                            do {
-                                try await redoTarget.performRemoteDelete(items: restored, undoManager: nil)
-                            } catch {
-                                redoTarget.presentError(error)
-                            }
-                        }
-                    }
-                } catch {
-                    target.presentError(error)
-                }
-            }
-        }
-
-        let firstName = trashedItems.first?.originalLocation.lastPathComponent ?? ""
-        let actionName = trashedItems.count == 1 ? "Delete \"\(firstName)\"" : "Delete \(trashedItems.count) Items"
-        undoManager.setActionName(actionName)
+        let result = try await performAcceptedRemoval(items, permanently: false)
+        let completed = result.items.filter { $0.outcome == .committed }.count
+        updateProgress(operation: operation, currentItem: items.last.map { Location.remoteFileURL($0.path) },
+                       completed: completed, total: items.count)
+        let firstName = items.first?.lastPathComponent ?? ""
+        try await registerAcceptedUndo(result, with: undoManager,
+            name: completed == 1 ? "Delete \"\(firstName)\"" : "Delete \(completed) Items")
+        try requireSuccessfulBatch(result)
     }
 
     func performRemoteDeleteImmediately(items: [Location]) async throws {
-        guard let groups = remoteGroups(from: items) else {
+        guard remoteGroups(from: items) != nil else {
             throw FileProviderError.unsupportedOperation("Mixed local and remote delete is not implemented yet")
         }
-
         let operation = FileOperation.deleteImmediately(items: items.map { URL(fileURLWithPath: $0.path) })
         startOperation(operation, totalCount: items.count)
         defer { finishOperation() }
-
-        var completed = 0
-        for (hostID, hostItems) in groups {
-            try checkCancelled()
-            if let current = hostItems.first {
-                updateProgress(
-                    operation: operation,
-                    currentItem: URL(fileURLWithPath: current.path),
-                    completed: completed,
-                    total: items.count
-                )
-            }
-
-            let provider = try remoteProvider(for: hostID)
-            try await provider.delete(hostItems)
-            completed += hostItems.count
-
-            if let current = hostItems.last {
-                updateProgress(
-                    operation: operation,
-                    currentItem: URL(fileURLWithPath: current.path),
-                    completed: completed,
-                    total: items.count
-                )
-            }
-        }
+        let result = try await performAcceptedRemoval(items, permanently: true)
+        updateProgress(operation: operation, currentItem: items.last.map { Location.remoteFileURL($0.path) },
+                       completed: result.items.filter { $0.outcome == .committed }.count, total: items.count)
+        try requireSuccessfulBatch(result)
     }
 
     func performDeleteImmediately(items: [URL]) async throws {
@@ -440,11 +297,8 @@ extension FileOperationQueue {
         startOperation(operation, totalCount: 1)
         defer { finishOperation() }
 
-        let provider = try provider(for: directory)
-        let destination = await uniqueCreatedLocation(in: directory, name: name, provider: provider)
-
         do {
-            try await provider.createDirectory(at: destination, withIntermediateDirectories: false)
+            let destination = try await performAcceptedCreateFolder(in: directory, name: name, undoManager: undoManager)
             updateProgress(
                 operation: operation,
                 currentItem: URL(fileURLWithPath: destination.path),
@@ -452,23 +306,9 @@ extension FileOperationQueue {
                 total: 1
             )
 
-            if let undoManager {
-                let created = destination
-                undoManager.registerUndo(withTarget: self) { target in
-                    Task { @MainActor in
-                        do {
-                            try await target.delete(items: [created], undoManager: nil)
-                        } catch {
-                            target.presentError(error)
-                        }
-                    }
-                }
-                undoManager.setActionName("New Folder")
-            }
-
             return destination
         } catch {
-            throw mapError(error, url: URL(fileURLWithPath: destination.path))
+            throw mapError(error, url: URL(fileURLWithPath: directory.path))
         }
     }
 
@@ -482,17 +322,8 @@ extension FileOperationQueue {
         startOperation(operation, totalCount: 1)
         defer { finishOperation() }
 
-        let provider = try provider(for: directory)
-        let destination = await uniqueCreatedLocation(in: directory, name: name, provider: provider)
-        let tempDirectory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("detours-create-\(UUID().uuidString)", isDirectory: true)
-        let tempFile = tempDirectory.appendingPathComponent(name)
-        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: tempDirectory) }
-
         do {
-            try content.write(to: tempFile)
-            try await provider.upload(tempFile, to: destination)
+            let destination = try await performAcceptedCreateFile(in: directory, name: name, content: content, undoManager: undoManager)
             updateProgress(
                 operation: operation,
                 currentItem: URL(fileURLWithPath: destination.path),
@@ -500,23 +331,9 @@ extension FileOperationQueue {
                 total: 1
             )
 
-            if let undoManager {
-                let created = destination
-                undoManager.registerUndo(withTarget: self) { target in
-                    Task { @MainActor in
-                        do {
-                            try await target.delete(items: [created], undoManager: nil)
-                        } catch {
-                            target.presentError(error)
-                        }
-                    }
-                }
-                undoManager.setActionName("New File")
-            }
-
             return destination
         } catch {
-            throw mapError(error, url: URL(fileURLWithPath: destination.path))
+            throw mapError(error, url: URL(fileURLWithPath: directory.path))
         }
     }
 
@@ -524,9 +341,10 @@ extension FileOperationQueue {
         items: [Location],
         format: ArchiveFormat,
         archiveName: String,
-        password: String?
+        password: String?,
+        undoManager: UndoManager? = nil
     ) async throws -> Location {
-        guard let groups = remoteGroups(from: items), groups.count == 1, let (hostID, hostItems) = groups.first else {
+        guard let groups = remoteGroups(from: items), groups.count == 1, let hostItems = groups.values.first else {
             throw FileProviderError.unsupportedOperation("Remote archive creation supports one host per operation")
         }
 
@@ -534,8 +352,7 @@ extension FileOperationQueue {
         startOperation(operation, totalCount: hostItems.count)
         defer { finishOperation() }
 
-        let provider = try remoteProvider(for: hostID)
-        let archive = try await provider.archiveCreate(hostItems, format: format, archiveName: archiveName, password: password)
+        let archive = try await performAcceptedArchive(items: hostItems, format: format, name: archiveName, password: password, undoManager: undoManager)
         updateProgress(
             operation: operation,
             currentItem: URL(fileURLWithPath: archive.path),
@@ -545,8 +362,8 @@ extension FileOperationQueue {
         return archive
     }
 
-    func performProviderExtract(archive: Location, password: String?) async throws -> Location {
-        guard case .remote(let hostID, _) = archive else {
+    func performProviderExtract(archive: Location, password: String?, undoManager: UndoManager? = nil) async throws -> Location {
+        guard case .remote = archive else {
             throw FileProviderError.expectedLocal(archive)
         }
         guard let format = ArchiveFormat.detect(from: URL(fileURLWithPath: archive.path)) else {
@@ -557,8 +374,7 @@ extension FileOperationQueue {
         startOperation(operation, totalCount: 1)
         defer { finishOperation() }
 
-        let provider = try remoteProvider(for: hostID)
-        let extracted = try await provider.archiveExtract(archive, password: password)
+        let extracted = try await performAcceptedExtraction(archive, format: format, password: password, undoManager: undoManager)
         updateProgress(
             operation: operation,
             currentItem: URL(fileURLWithPath: extracted.path),

@@ -12,13 +12,13 @@ final class RemoteErrorMessagingTests: XCTestCase {
         )
         XCTAssertEqual(error.errorDescription, "Couldn't copy \"Report.pdf\" on win-carriercall.")
         XCTAssertEqual(error.failureReason, "The Windows host stopped responding.")
-        XCTAssertEqual(error.recoverySuggestion, "Reconnect to the host and try again.")
+        XCTAssertEqual(error.recoverySuggestion, "Open operation details and check the result before making another change.")
     }
 
     func testRemoteUndoErrorNamesHost() {
         let error = RemoteOperationError.undo(host: "win-carriercall", underlying: PowerShellChannelError.unexpectedEOF)
         XCTAssertEqual(error.errorDescription, "Couldn't undo the last change on win-carriercall.")
-        XCTAssertEqual(error.recoverySuggestion, "Reconnect to the host and try again.")
+        XCTAssertEqual(error.recoverySuggestion, "Open operation details and check the result before making another change.")
     }
 
     func testPowerShellRemoteErrorKeepsHostMessageAsReason() {
@@ -43,7 +43,7 @@ final class RemoteErrorMessagingTests: XCTestCase {
         XCTAssertEqual(presentation.title, "Couldn't move \"data.bin\" on win-carriercall.")
         XCTAssertFalse(presentation.title.contains("Operation Failed"))
         XCTAssertTrue(presentation.body.contains("The connection to the Windows host failed."))
-        XCTAssertTrue(presentation.body.contains("Check that the host is reachable over SSH"))
+        XCTAssertTrue(presentation.body.contains("check the result before making another change"))
     }
 
     func testPresentationDescribesPermissionDeniedWithNextStep() {

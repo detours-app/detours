@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import RemoteOperationSupport
 
 /// Type-erased cancellable handle for a Task, so we can store tasks with different Success types.
 struct AnyCancellableTask: Sendable {
@@ -131,9 +132,6 @@ final class FileOperationQueue {
     /// Forces the same rollback-safe sibling fallback used by mounted volumes
     /// that do not implement Finder Trash.
     var forceLocalDisplacementFallbackForTesting = false
-    /// Test seam used after a real Windows target has moved to the recycle bin and before
-    /// the staged item is renamed. Live-host tests use it to exercise remote rollback.
-    var windowsReplacementFailureProbeForTesting: (() -> Bool)?
     #endif
 
     var pendingCount: Int { pending.count }
@@ -145,6 +143,30 @@ final class FileOperationQueue {
     var currentCancelFlag: CancelFlag?
     var currentProcess: Process?
     var remoteFileProviders: [UUID: any FileProvider] = [:]
+    var remoteOperationEndpoints: [UUID: RemoteOperationCoordinator.Endpoint] = [:]
+    var acceptedCoordinator: RemoteOperationCoordinator?
+    var remoteOperationResults: [UUID: RemoteOperationStore.Snapshot] = [:] {
+        didSet {
+            NotificationCenter.default.post(name: .remoteOperationResultsChanged, object: nil)
+            for (id, snapshot) in remoteOperationResults where oldValue[id] != snapshot {
+                onRemoteResultUpdate?(remotePresentation(snapshot))
+                let originals = Set(snapshot.items.compactMap { $0.result.intent.reverses?.operation })
+                for original in originals {
+                    if let saved = remoteOperationResults[original] { onRemoteResultUpdate?(remotePresentation(saved)) }
+                }
+            }
+        }
+    }
+    var onRemoteResultUpdate: ((RemoteOperationPresentation) -> Void)?
+    var activeRemoteResultIDs: Set<UUID> = []
+    var currentRemoteResultID: UUID?
+    var didRestoreRemoteResults = false
+    var checkingRemoteResults = false {
+        didSet { NotificationCenter.default.post(name: .remoteOperationResultsChanged, object: nil) }
+    }
+    var remoteRecoveryMessage: String? {
+        didSet { NotificationCenter.default.post(name: .remoteOperationResultsChanged, object: nil) }
+    }
     var remoteHostNames: [UUID: String] = [:]
     var pausedRemoteHosts: Set<UUID> = []
     var currentRemoteOperationHosts: Set<UUID> = []
@@ -177,13 +199,16 @@ final class FileOperationQueue {
 
     // MARK: - Public API
 
-    func registerRemoteFileProvider(_ provider: any FileProvider, for hostID: UUID, displayName: String? = nil) {
+    func registerRemoteFileProvider(_ provider: any FileProvider, for hostID: UUID, displayName: String? = nil,
+                                    operationEndpoint: RemoteOperationCoordinator.Endpoint? = nil) {
         remoteFileProviders[hostID] = provider
         remoteHostNames[hostID] = displayName ?? RemoteHostStore.shared.host(id: hostID)?.displayName
+        if let operationEndpoint { remoteOperationEndpoints[hostID] = operationEndpoint }
     }
 
     func unregisterRemoteFileProvider(for hostID: UUID) {
         remoteFileProviders.removeValue(forKey: hostID)
+        remoteOperationEndpoints.removeValue(forKey: hostID)
         remoteHostNames.removeValue(forKey: hostID)
         pausedRemoteHosts.remove(hostID)
     }
@@ -205,14 +230,8 @@ final class FileOperationQueue {
 
         guard let sourceURLs = localURLs(from: items), case .local(let destinationURL) = destination else {
             let hostIDs = remoteHostIDs(from: items, destination: destination)
-            // Built outside the closure: a reconnect retry re-invokes the closure, and the state is
-            // what tells the retry which items already reached the host.
-            let resume = RemoteCopyResumeState(items: items)
-            return try await enqueue(remoteHosts: hostIDs, retryAfterInterruption: true) {
-                if self.isSingleRemoteHostOperation(items: items, destination: destination) {
-                    return try await self.performRemoteCopy(items: items, to: destination, undoManager: undoManager, resume: resume)
-                }
-                return try await self.performProviderTransfer(items: items, to: destination, isMove: false, undoManager: undoManager)
+            return try await enqueue(remoteHosts: hostIDs) {
+                return try await self.performRemoteCopy(items: items, to: destination, undoManager: undoManager)
             }
         }
         return try await enqueue {
@@ -243,10 +262,7 @@ final class FileOperationQueue {
         guard let sourceURLs = localURLs(from: items), case .local(let destinationURL) = destination else {
             let hostIDs = remoteHostIDs(from: items, destination: destination)
             return try await enqueue(remoteHosts: hostIDs) {
-                if self.isSingleRemoteHostOperation(items: items, destination: destination) {
-                    return try await self.performRemoteMove(items: items, to: destination, undoManager: undoManager)
-                }
-                return try await self.performProviderTransfer(items: items, to: destination, isMove: true, undoManager: undoManager)
+                return try await self.performRemoteMove(items: items, to: destination, undoManager: undoManager)
             }
         }
         return try await enqueue {
@@ -314,21 +330,10 @@ final class FileOperationQueue {
         try await rename(item: .local(item), to: newName).url
     }
 
-    func rename(item: Location, to newName: String) async throws -> Location {
+    func rename(item: Location, to newName: String, undoManager: UndoManager? = nil) async throws -> Location {
         guard case .local(let itemURL) = item else {
-            return try await enqueue {
-                guard case .remote(let hostID, _) = item else {
-                    throw FileProviderError.unsupportedOperation("Mixed rename is not implemented yet")
-                }
-                try self.validateSinglePathComponent(newName)
-                let provider = try self.remoteProvider(for: hostID)
-                // The local path refuses a name that is already taken. Do the same here rather than
-                // letting the server's bare move surface as a raw error.
-                let destination = item.deletingLastPathComponent().appendingPathComponent(newName)
-                if (try? await provider.stat(destination)) != nil {
-                    throw FileOperationError.destinationExists(URL(fileURLWithPath: destination.path))
-                }
-                return try await provider.rename(item, to: newName)
+            return try await enqueue(remoteHosts: [Self.operationHostID(item)]) {
+                try await self.performAcceptedRename(item, name: newName, undoManager: undoManager)
             }
         }
 
@@ -343,7 +348,7 @@ final class FileOperationQueue {
         }
     }
 
-    private func validateSinglePathComponent(_ name: String) throws {
+    func validateSinglePathComponent(_ name: String) throws {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty,
               trimmed != ".",
@@ -419,7 +424,7 @@ final class FileOperationQueue {
     }
 
     @discardableResult
-    func archive(items: [Location], format: ArchiveFormat, archiveName: String, password: String?) async throws -> Location {
+    func archive(items: [Location], format: ArchiveFormat, archiveName: String, password: String?, undoManager: UndoManager? = nil) async throws -> Location {
         guard let itemURLs = localURLs(from: items) else {
             let hostIDs = remoteHostIDs(from: items)
             return try await enqueue(remoteHosts: hostIDs) {
@@ -427,7 +432,8 @@ final class FileOperationQueue {
                     items: items,
                     format: format,
                     archiveName: archiveName,
-                    password: password
+                    password: password,
+                    undoManager: undoManager
                 )
             }
         }
@@ -459,7 +465,7 @@ final class FileOperationQueue {
         guard case .local(let archiveURL) = archive else {
             let hostIDs = remoteHostIDs(from: [archive])
             return try await enqueue(remoteHosts: hostIDs) {
-                try await self.performProviderExtract(archive: archive, password: password)
+                try await self.performProviderExtract(archive: archive, password: password, undoManager: undoManager)
             }
         }
         return try await enqueue { () async throws -> Location in

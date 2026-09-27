@@ -36,19 +36,19 @@ enum UITestRemoteFixtureMutator {
             guard !existing.contains(where: { $0.location == scenario }) else {
                 throw MutationError.scenarioExists(scenarioPath)
             }
-            try await provider.createDirectory(at: scenario, withIntermediateDirectories: false)
+            _ = try await PaneFileOperationCoordinator.shared.perform(affecting: [home]) {
+                try await FileOperationQueue.shared.createFolder(in: home, name: command.scenarioName)
+            }
             do {
-                try await upload(
-                    Data(sentinelID.utf8),
-                    to: childLocation(sentinelName, scenarioPath: scenarioPath, hostID: hostID),
-                    provider: provider
-                )
+                _ = try await PaneFileOperationCoordinator.shared.perform(affecting: [scenario]) {
+                    try await FileOperationQueue.shared.createFile(in: scenario, name: sentinelName, content: Data(sentinelID.utf8))
+                }
             } catch {
-                try? await provider.delete([scenario])
+                try await trashFixture(scenario, hostID: hostID)
                 throw error
             }
             return nil
-        case "createDirectory", "write", "move", "remove", "gitInit", "symlink", "stat", "cleanup":
+        case "createDirectory", "write", "move", "remove", "gitInit", "symlink", "stat", "fingerprint", "receipts", "cleanup":
             guard let sentinelID = command.sentinelID, UUID(uuidString: sentinelID) != nil else {
                 throw MutationError.invalidSentinel
             }
@@ -65,7 +65,10 @@ enum UITestRemoteFixtureMutator {
                     scenarioPath: scenarioPath,
                     hostID: hostID
                 )
-                try await provider.createDirectory(at: location, withIntermediateDirectories: false)
+                _ = try await PaneFileOperationCoordinator.shared.perform(affecting: [location.deletingLastPathComponent()]) {
+                    try await FileOperationQueue.shared.createFolder(in: location.deletingLastPathComponent(),
+                        name: location.lastPathComponent)
+                }
             case "write":
                 guard let contents = command.contents else { throw MutationError.missingContents }
                 let location = try validatedChildLocation(
@@ -73,7 +76,14 @@ enum UITestRemoteFixtureMutator {
                     scenarioPath: scenarioPath,
                     hostID: hostID
                 )
-                try await upload(Data(contents.utf8), to: location, provider: provider)
+                // The accepted create path never overwrites, so a write to an existing path replaces it first.
+                if (try? await provider.stat(location)) != nil {
+                    try await trashFixture(location, hostID: hostID)
+                }
+                _ = try await PaneFileOperationCoordinator.shared.perform(affecting: [location.deletingLastPathComponent()]) {
+                    try await FileOperationQueue.shared.createFile(in: location.deletingLastPathComponent(),
+                        name: location.lastPathComponent, content: Data(contents.utf8))
+                }
             case "move":
                 let source = try validatedChildLocation(
                     command.relativePath,
@@ -88,14 +98,18 @@ enum UITestRemoteFixtureMutator {
                 guard source.deletingLastPathComponent() == destination.deletingLastPathComponent() else {
                     throw MutationError.crossDirectoryMove
                 }
-                _ = try await provider.rename(source, to: lastPathComponent(destination.path))
+                _ = try await PaneFileOperationCoordinator.shared.perform(affecting: [source.deletingLastPathComponent()]) {
+                    try await FileOperationQueue.shared.rename(item: source, to: lastPathComponent(destination.path))
+                }
             case "remove":
                 let location = try validatedChildLocation(
                     command.relativePath,
                     scenarioPath: scenarioPath,
                     hostID: hostID
                 )
-                try await provider.delete([location])
+                // The user-facing delete path shows the one-time remote Trash explainer, which would
+                // block a guarded run; the fixture removes through the accepted batch instead.
+                try await trashFixture(location, hostID: hostID)
             case "gitInit":
                 guard UITestEnvironment.realRemoteContext != "WINDOWS_TARGET",
                       let target = UITestEnvironment.realRemoteTarget else {
@@ -137,14 +151,52 @@ enum UITestRemoteFixtureMutator {
                 )
                 let entry = try await provider.stat(location)
                 return [entry.isSymbolicLink ? "link" : entry.isDirectory ? "directory" : "file"]
+            case "fingerprint":
+                // Reports byte-exact filesystem evidence for the host's current file: its kind,
+                // byte count and SHA-256, read inside the app so a sandboxed runner can compare
+                // payloads without writing into the guarded fixture.
+                let location = try validatedChildLocation(
+                    command.relativePath,
+                    scenarioPath: scenarioPath,
+                    hostID: hostID
+                )
+                let entry = try await provider.stat(location)
+                if entry.isSymbolicLink { return ["link"] }
+                if entry.isDirectory { return ["directory"] }
+                let temporary = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("detours-fixture-fingerprint-" + UUID().uuidString)
+                defer { try? FileManager.default.removeItem(at: temporary) }
+                try await provider.download(location, to: temporary)
+                let size = (try? temporary.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
+                let digest = try ServerDeployer.sha256Hex(of: temporary)
+                return ["file", String(size), digest]
+            case "receipts":
+                // Reports the app's recorded remote operation receipts as stable text, so a
+                // guarded journey can assert receipt evidence from inside the app.
+                let queue = FileOperationQueue.shared
+                return queue.remoteOperationResults.values
+                    .sorted { $0.record.operation.uuidString < $1.record.operation.uuidString }
+                    .flatMap { snapshot -> [String] in
+                        let presentation = queue.remotePresentation(snapshot)
+                        return ["operation " + snapshot.record.operation.uuidString + " " + presentation.summary]
+                            + snapshot.items.map { presentation.status($0) }
+                    }
             case "cleanup":
-                try await provider.delete([scenario])
+                try await trashFixture(scenario, hostID: hostID)
             default:
                 break
             }
             return nil
         default:
             throw MutationError.unknownAction(command.action)
+        }
+    }
+
+    private static func trashFixture(_ location: Location, hostID: UUID) async throws {
+        let queue = FileOperationQueue.shared
+        try await queue.enqueue(remoteHosts: [hostID]) {
+            let result = try await queue.performAcceptedRemoval([location], permanently: false)
+            try queue.requireSuccessfulBatch(result)
         }
     }
 
@@ -209,26 +261,6 @@ enum UITestRemoteFixtureMutator {
         try await provider.download(location, to: temporary)
         let actual = try String(contentsOf: temporary, encoding: .utf8)
         guard actual == expected else { throw MutationError.sentinelMismatch(scenarioPath) }
-    }
-
-    private static func upload(
-        _ data: Data,
-        to location: Location,
-        provider: any FileProvider
-    ) async throws {
-        if let windowsProvider = provider as? WindowsRemoteProvider {
-            try await windowsProvider.writeSmallControlFile(
-                data,
-                to: location,
-                hidden: lastPathComponent(location.path).hasPrefix(".")
-            )
-            return
-        }
-        let temporary = FileManager.default.temporaryDirectory
-            .appendingPathComponent("detours-remote-upload-" + UUID().uuidString)
-        defer { try? FileManager.default.removeItem(at: temporary) }
-        try data.write(to: temporary)
-        try await provider.upload(temporary, to: location)
     }
 
     private static func lastPathComponent(_ path: String) -> String {

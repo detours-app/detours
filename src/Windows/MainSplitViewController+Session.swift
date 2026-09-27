@@ -75,15 +75,13 @@ extension MainSplitViewController {
             SettingsManager.shared.folderExpansionEnabled = true
             leftPane.restoreTabs(from: [uiTestRoot], selectedIndex: 0, selections: nil, showHiddenFiles: nil, iCloudListingModes: nil)
             rightPane.restoreTabs(from: [uiTestRoot], selectedIndex: 0, selections: nil, showHiddenFiles: nil, iCloudListingModes: nil)
-            if let target = UITestEnvironment.realRemoteTarget {
-                let kind: RemoteHostKind = UITestEnvironment.realRemoteContext == "WINDOWS_TARGET"
-                    ? .windows
-                    : .unix
-                let host = RemoteHost(displayName: target, sshTarget: target, kind: kind)
-                connectRemoteHost(host)
-            } else if let mode = UITestEnvironment.remoteMode {
-                installUITestRemoteTab(root: uiTestRoot, mode: mode)
-            }
+            do {
+                if let host = try UITestEnvironment.persistedRemoteHost() {
+                    connectRemoteHost(host)
+                } else if let mode = UITestEnvironment.remoteMode {
+                    installUITestRemoteTab(root: uiTestRoot, mode: mode)
+                }
+            } catch { FileOperationQueue.shared.presentError(error) }
             return
         }
 

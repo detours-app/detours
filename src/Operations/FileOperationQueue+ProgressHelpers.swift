@@ -182,28 +182,6 @@ extension FileOperationQueue {
         try restoreFromTrashSync(items: items)
     }
 
-    func restoreRemoteTrashedItems(_ items: [TrashedItem]) async throws -> [Location] {
-        var groups: [UUID: [TrashedItem]] = [:]
-        for item in items {
-            let hostID: UUID
-            if case .remote(let trashHostID, _) = item.trashLocation {
-                hostID = trashHostID
-            } else if case .remote(let originalHostID, _) = item.originalLocation {
-                hostID = originalHostID
-            } else {
-                throw FileProviderError.unsupportedOperation("Local trash restore must use the local restore path")
-            }
-            groups[hostID, default: []].append(item)
-        }
-
-        var restored: [Location] = []
-        for (hostID, hostItems) in groups {
-            let provider = try remoteProvider(for: hostID)
-            restored.append(contentsOf: try await provider.restoreFromTrash(hostItems))
-        }
-        return restored
-    }
-
     func restoreFromTrashSync(items: [(original: URL, trash: URL)]) throws {
         let fileManager = FileManager.default
         var failures: [(URL, Error)] = []

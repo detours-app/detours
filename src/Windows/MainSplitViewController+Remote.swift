@@ -30,11 +30,6 @@ extension MainSplitViewController {
         }
     }
 
-    struct RemoteConnectionResources {
-        let provider: any FileProvider
-        let homePath: String
-    }
-
     func connectRemoteHost(_ host: RemoteHost) {
         let targetPane = activePane
         Task { @MainActor in
@@ -179,171 +174,12 @@ extension MainSplitViewController {
         }
     }
 
-    /// Returns the in-flight connect task for the host, or starts one.
-    /// Sharing the task means a sidebar click during session restore (or a
-    /// double click) never opens a second SSH connection to the same host.
     private func remoteConnectionTask(for host: RemoteHost) -> Task<RemoteConnectionResources, Error> {
-        if let resources = remoteConnectionResources[host.id] {
-            return Task { @MainActor in resources }
-        }
-
-        if let existing = remoteConnectTasks[host.id] {
-            return existing
-        }
-
-        let task = Task { @MainActor () -> RemoteConnectionResources in
-            defer { remoteConnectTasks[host.id] = nil }
-            Self.postRemoteConnectionState(.connecting, for: host.id)
-            do {
-                if let delay = UITestEnvironment.realRemoteConnectionDelay {
-                    try await Task.sleep(for: delay)
-                }
-                let kind = await RemoteHostKindProbe(
-                    client: SSHRemoteHostKindProbeClient(sshTarget: host.sshTarget)
-                ).resolve(cachedKind: host.kind)
-                if host.kind != kind {
-                    RemoteHostStore.shared.updateKind(id: host.id, kind: kind)
-                }
-
-                let route = RemoteConnectionRoute(kind: kind)
-                if route.usesWindowsProvider {
-                    let channel = PowerShellChannel(hostID: host.id, sshTarget: host.sshTarget)
-                    try await channel.forceReconnect()
-                    let provider = WindowsRemoteProvider(hostID: host.id, sshTarget: host.sshTarget, channel: channel)
-                    let initialPath = try await validateWindowsRemoteConnection(provider: provider, host: host)
-
-                    await RemoteConnectionRegistry.shared.register(
-                        channel,
-                        onDisconnect: { [provider] in await provider.stopWatching() },
-                        for: host.id
-                    )
-                    FileOperationQueue.shared.registerRemoteFileProvider(provider, for: host.id)
-                    RemoteHostStore.shared.markConnected(id: host.id)
-                    Self.postRemoteConnectionState(.connected, for: host.id)
-                    let resources = RemoteConnectionResources(provider: provider, homePath: initialPath)
-                    remoteConnectionResources[host.id] = resources
-                    return resources
-                }
-
-                guard route.deploysHelper else {
-                    throw RemoteFileProviderError.invalidResponse("Unsupported remote host kind.")
-                }
-                let bundledBinaryDirectory = Self.detoursServerBinaryDirectoryURL()
-                let deploymentClient = SSHServerDeploymentClient(sshTarget: host.sshTarget)
-                let deployer = ServerDeployer(client: deploymentClient, bundledBinaryDirectoryURL: bundledBinaryDirectory)
-                _ = try await deployer.deployIfNeeded()
-
-                let connection = SSHConnection(
-                    configuration: SSHConnectionConfiguration(hostID: host.id, sshTarget: host.sshTarget)
-                )
-                try await connection.connect()
-
-                let rpcClient = SSHRemoteRPCClient(connection: connection)
-                let watcherClient = RemoteWatcherClient(hostID: host.id, rpcClient: rpcClient)
-                await rpcClient.setEventHandler { envelope in
-                    Task {
-                        await watcherClient.receive(envelope)
-                    }
-                }
-                let transferChannel = RemoteTransferChannel(sshTarget: host.sshTarget)
-                let searchChannel = RemoteSearchChannel(sshTarget: host.sshTarget)
-                let provider = RemoteFileProvider(
-                    hostID: host.id,
-                    rpcClient: rpcClient,
-                    transferChannel: transferChannel,
-                    watcherClient: watcherClient,
-                    searchChannel: searchChannel
-                )
-                let initialPath = try await validateRemoteConnection(provider: provider, rpcClient: rpcClient, host: host)
-
-                await RemoteConnectionRegistry.shared.register(
-                    SSHConnectionHandle(connection: connection),
-                    rpcClient: rpcClient,
-                    for: host.id
-                )
-                FileOperationQueue.shared.registerRemoteFileProvider(provider, for: host.id)
-                RemoteHostStore.shared.markConnected(id: host.id)
-                let resources = RemoteConnectionResources(provider: provider, homePath: initialPath)
-                remoteConnectionResources[host.id] = resources
-                return resources
-            } catch {
-                remoteConnectionResources.removeValue(forKey: host.id)
-                Self.postRemoteConnectionState(.failed(reason: .transport(error.localizedDescription)), for: host.id)
-                throw error
+        Task {
+            try await RemoteConnectionRegistry.shared.resources(for: host.id) { owner in
+                try await Self.createRemoteSession(for: host, owner: owner)
             }
         }
-        remoteConnectTasks[host.id] = task
-        return task
-    }
-
-    /// SSHConnection only reports state once connect() runs; the deploy and
-    /// validation steps around it get sidebar feedback through these posts.
-    private static func postRemoteConnectionState(_ state: SSHConnectionState, for hostID: UUID) {
-        RemoteConnectionStateStore.shared.setState(state, for: hostID)
-    }
-
-    private func validateRemoteConnection(
-        provider: RemoteFileProvider,
-        rpcClient: SSHRemoteRPCClient,
-        host: RemoteHost
-    ) async throws -> String {
-        let response = try await rpcClient.send(.protocolVersion(1))
-        guard response.count == 1 else {
-            throw RemoteFileProviderError.invalidResponse("\(host.sshTarget) protocol version")
-        }
-        let initialPath = try await Self.remoteHomeDirectory(sshTarget: host.sshTarget)
-        _ = try await provider.list(.remote(hostID: host.id, path: initialPath), showHidden: false)
-        return initialPath
-    }
-
-    private func validateWindowsRemoteConnection(
-        provider: WindowsRemoteProvider,
-        host: RemoteHost
-    ) async throws -> String {
-        let initialPath = try await provider.homeDirectory()
-        _ = try await provider.list(.remote(hostID: host.id, path: initialPath), showHidden: false)
-        return initialPath
-    }
-
-    /// Asks the host where the user's home directory is.
-    ///
-    /// Waiting on the ssh process runs on a dispatch queue rather than a Swift
-    /// concurrency executor: every saved host is warmed at launch, so several of
-    /// these waits overlap, and a slow host must not spend the concurrency
-    /// pool's fixed thread budget.
-    private static func remoteHomeDirectory(sshTarget: String) async throws -> String {
-        try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                do {
-                    let probe = RemoteHomeDirectoryProbe(sshTarget: sshTarget)
-                    try probe.prepare()
-                    let process = Process()
-                    process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-                    process.arguments = probe.arguments()
-                    let outputPipe = Pipe()
-                    let errorPipe = Pipe()
-                    process.standardOutput = outputPipe
-                    process.standardError = errorPipe
-                    try process.run()
-                    process.waitUntilExit()
-                    continuation.resume(returning: try probe.parse(
-                        terminationStatus: process.terminationStatus,
-                        stdout: outputPipe.fileHandleForReading.readDataToEndOfFile(),
-                        stderr: errorPipe.fileHandleForReading.readDataToEndOfFile()
-                    ))
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
-        }
-    }
-
-    private static func detoursServerBinaryDirectoryURL() -> URL {
-        if let resourceURL = Bundle.main.resourceURL?.appendingPathComponent("Servers"),
-           FileManager.default.fileExists(atPath: resourceURL.path) {
-            return resourceURL
-        }
-        return URL(fileURLWithPath: "resources/Servers")
     }
 
     private func showRemoteConnectionError(_ error: Error, host: RemoteHost) {

@@ -1,5 +1,7 @@
 import AppKit
 import XCTest
+import RemoteOperationSupport
+@testable import detours_server
 @testable import Detours
 
 @MainActor
@@ -141,68 +143,62 @@ final class ClipboardManagerTests: XCTestCase {
     }
 
     func testRemoteCutLocationsRemainRetryableUntilSuccess() async throws {
-        let hostID = UUID()
-        let source = Location.remote(hostID: hostID, path: "/Source/file.txt")
-        let destination = Location.remote(hostID: hostID, path: "/Destination")
-        let moved = Location.remote(hostID: hostID, path: "/Destination/file.txt")
-        let provider = RetryableCutProvider(movedLocation: moved)
-        FileOperationQueue.shared.registerRemoteFileProvider(provider, for: hostID)
-        defer { FileOperationQueue.shared.unregisterRemoteFileProvider(for: hostID) }
+        let fixture = try await CoordinatorFixture()
+        let queue = FileOperationQueue.shared
+        queue.resetRemoteQueueStateForTesting()
+        defer { queue.resetRemoteQueueStateForTesting(); fixture.cleanup() }
+        let output = fixture.root.appendingPathComponent("output")
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: false)
+        let source = Location.remote(hostID: fixture.hostID, path: fixture.source.path)
+        let destination = Location.remote(hostID: fixture.hostID, path: output.path)
+        let moved = destination.appendingPathComponent("source")
+        let boundary = CutLookupBoundary(service: fixture.boundary.service, path: output.appendingPathComponent("source"))
+        let endpoint = RemoteOperationCoordinator.Endpoint(session: fixture.session,
+            request: { try await boundary.send($0) }, upload: { _, _ in throw OperationContractError.invalidReceipt })
+        let provider = RemoteFileProvider(hostID: fixture.hostID, rpcClient: AcceptedProviderRPC(service: fixture.boundary.service),
+            transferChannel: RemoteTransferChannel(sshTarget: "unused"))
+        queue.registerRemoteFileProvider(provider, for: fixture.hostID, operationEndpoint: endpoint)
+        queue.acceptedCoordinator = RemoteOperationCoordinator(store: fixture.store) { _ in endpoint }
         ClipboardManager.shared.cut(items: [source])
 
         do {
             _ = try await ClipboardManager.shared.paste(to: destination)
-            XCTFail("The first controlled move should fail")
+            XCTFail("Denied destination inspection must prevent the move")
         } catch {
-            XCTAssertEqual(error.localizedDescription, "Controlled move failure")
+            XCTAssertEqual(try Data(contentsOf: fixture.source), fixture.bytes)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: output.appendingPathComponent("source").path))
         }
-
         XCTAssertTrue(ClipboardManager.shared.isCut)
         XCTAssertEqual(ClipboardManager.shared.locations, [source])
         XCTAssertEqual(ClipboardManager.shared.cutItemLocations, Set([source]))
+        XCTAssertFalse(queue.remoteOperationResults.values.contains { $0.items.contains { $0.outcome == .committed } })
 
         let result = try await ClipboardManager.shared.paste(to: destination)
-
         XCTAssertEqual(result, [moved])
+        XCTAssertEqual(try Data(contentsOf: output.appendingPathComponent("source")), fixture.bytes)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.source.path))
         XCTAssertFalse(ClipboardManager.shared.isCut)
         XCTAssertTrue(ClipboardManager.shared.locations.isEmpty)
         XCTAssertTrue(ClipboardManager.shared.cutItemLocations.isEmpty)
-        let moveCallCount = await provider.moveCallCount()
-        XCTAssertEqual(moveCallCount, 2)
+        XCTAssertTrue(queue.remoteOperationResults.values.contains { $0.items.contains { $0.outcome == .committed } })
     }
 }
 
-private actor RetryableCutProvider: FileProvider {
-    private let movedLocation: Location
-    private var moveCalls = 0
+private actor CutLookupBoundary {
+    let service: ServerOperationService
+    let path: OperationLocation.Path
+    private var denied = false
 
-    init(movedLocation: Location) {
-        self.movedLocation = movedLocation
+    init(service: ServerOperationService, path: URL) {
+        self.service = service
+        self.path = .unix(Data(path.path.utf8))
     }
 
-    func moveCallCount() -> Int { moveCalls }
-    func list(_ location: Location, showHidden: Bool) async throws -> [LoadedFileEntry] { [] }
-    func stat(_ location: Location) async throws -> LoadedFileEntry { throw FileProviderError.unsupportedOperation("stat") }
-    func copy(_ sources: [Location], to destination: Location) async throws -> [Location] { [] }
-    func move(_ sources: [Location], to destination: Location) async throws -> [Location] {
-        moveCalls += 1
-        if moveCalls == 1 {
-            throw FileProviderError.unsupportedOperation("Controlled move failure")
+    func send(_ request: OperationRequest) async throws -> OperationReply {
+        if !denied, case .lookup(let location) = request, location.path == path {
+            denied = true
+            return .lookup(.denied)
         }
-        return [movedLocation]
+        return try await service.reply(to: request)
     }
-    func delete(_ items: [Location]) async throws {}
-    func trash(_ items: [Location]) async throws -> [TrashedItem] { [] }
-    func restoreFromTrash(_ items: [TrashedItem]) async throws -> [Location] { [] }
-    func rename(_ item: Location, to newName: String) async throws -> Location { item }
-    func archiveCreate(_ items: [Location], format: ArchiveFormat, archiveName: String, password: String?) async throws -> Location { items[0] }
-    func archiveExtract(_ archive: Location, password: String?) async throws -> Location { archive }
-    func watch(_ location: Location, onChange: @escaping @Sendable (Location) -> Void) async throws -> FileProviderWatch {
-        FileProviderWatch(id: UUID(), location: location)
-    }
-    func unwatch(_ watch: FileProviderWatch) async {}
-    func gitStatus(for directory: Location) async -> [Location: GitStatus] { [:] }
-    func folderSize(for location: Location) async throws -> Int64 { 0 }
-    func readSymlink(_ location: Location) async throws -> Location { location }
-    func openForQuickLook(_ location: Location) async throws -> URL { URL(fileURLWithPath: "/tmp/unused") }
 }

@@ -140,7 +140,7 @@ if [ -d Server ]; then
     if [ "$SERVER_HASH" != "$CACHED_LINUX_SERVER_HASH" ] || [ ! -f "$LINUX_SERVER_BINARY" ]; then
         log_info "Rebuild Linux helper"
         if ! resources/scripts/build-server-linux.sh; then
-            log_error "dockerhost is unreachable or the Linux helper rebuild failed"
+            log_error "devtest is unreachable or the Linux helper rebuild failed"
             log_error "Cannot ship without $LINUX_SERVER_BINARY"
             exit 1
         fi
@@ -231,6 +231,8 @@ cp resources/icons/AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
 cp "$LINUX_SERVER_BINARY" "$APP_DIR/Contents/Resources/Servers/"
 cp "$DARWIN_SERVER_BINARY" "$APP_DIR/Contents/Resources/Servers/"
 cp -R "$PREVIEW_ASSETS_DIR" "$APP_DIR/Contents/Resources/PreviewAssets"
+mkdir -p "$APP_DIR/Contents/Resources/SevenZip"
+cp SevenZip/README.md SevenZip/License.txt SevenZip/copying.txt SevenZip/unRarLicense.txt "$APP_DIR/Contents/Resources/SevenZip/"
 echo -n "APPL????" > "$APP_DIR/Contents/PkgInfo"
 
 cat > "$APP_DIR/Contents/Info.plist" << EOF

@@ -261,7 +261,6 @@ extension FileOperationQueue {
 
     func enqueue<T: Sendable>(
         remoteHosts hostIDs: Set<UUID>,
-        retryAfterInterruption: Bool = false,
         _ work: @escaping () async throws -> T
     ) async throws -> T {
         try await withCheckedThrowingContinuation { continuation in
@@ -269,7 +268,6 @@ extension FileOperationQueue {
                 do {
                     let result = try await self.performQueuedRemoteAwareWork(
                         hostIDs: hostIDs,
-                        retryAfterInterruption: retryAfterInterruption,
                         work
                     )
                     self.onOperationFinish?(self.lastFinishedOperation, nil)
@@ -306,35 +304,21 @@ extension FileOperationQueue {
 
     private func performQueuedRemoteAwareWork<T: Sendable>(
         hostIDs: Set<UUID>,
-        retryAfterInterruption: Bool,
         _ work: @escaping () async throws -> T
     ) async throws -> T {
+        currentRemoteResultID = nil
         guard !hostIDs.isEmpty else {
             return try await work()
         }
 
-        while true {
-            try await waitForRemoteHosts(hostIDs)
-            currentRemoteOperationHosts = hostIDs
+        try await waitForRemoteHosts(hostIDs)
+        currentRemoteOperationHosts = hostIDs
+        currentRemoteOperationInterruptedHosts = []
+        defer {
+            currentRemoteOperationHosts = []
             currentRemoteOperationInterruptedHosts = []
-            defer {
-                currentRemoteOperationHosts = []
-                currentRemoteOperationInterruptedHosts = []
-            }
-
-            do {
-                return try await work()
-            } catch {
-                let interruptedHosts = currentRemoteOperationInterruptedHosts.intersection(hostIDs)
-                if !interruptedHosts.isEmpty || !pausedRemoteHosts.isDisjoint(with: hostIDs) {
-                    try await waitForRemoteHosts(hostIDs)
-                    if retryAfterInterruption {
-                        continue
-                    }
-                }
-                throw error
-            }
         }
+        return try await work()
     }
 
     private func waitForRemoteHosts(_ hostIDs: Set<UUID>) async throws {
@@ -347,10 +331,12 @@ extension FileOperationQueue {
     }
 
     private func firstPausedHost(in hostIDs: Set<UUID>) -> UUID? {
-        hostIDs.first { pausedRemoteHosts.contains($0) }
+        hostIDs.first { remoteOperationEndpoints[$0] == nil && pausedRemoteHosts.contains($0) }
     }
 
     func handleSSHConnectionStateChange(_ change: SSHConnectionStateChange) {
+        // Verified sessions own recovery and distinguish transport loss from user cancellation.
+        guard remoteOperationEndpoints[change.hostID] == nil else { return }
         switch change.newState {
         case .failed:
             // Windows hosts use a per-request oneShot model that reconnects transparently, so a
@@ -414,6 +400,15 @@ extension FileOperationQueue {
         operationPauseMessage = nil
         remoteHostNames = [:]
         remoteFileProviders = [:]
+        remoteOperationEndpoints = [:]
+        acceptedCoordinator = nil
+        remoteOperationResults = [:]
+        activeRemoteResultIDs = []
+        currentRemoteResultID = nil
+        onRemoteResultUpdate = nil
+        didRestoreRemoteResults = false
+        checkingRemoteResults = false
+        remoteRecoveryMessage = nil
         currentOperation = nil
         lastFinishedOperation = nil
         lastReceivedProgress = nil
@@ -421,7 +416,6 @@ extension FileOperationQueue {
         copyProgressCancellationProbeForTesting = nil
         moveReplacementCancellationProbeForTesting = nil
         forceLocalDisplacementFallbackForTesting = false
-        windowsReplacementFailureProbeForTesting = nil
     }
     #endif
 }

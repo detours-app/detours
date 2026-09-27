@@ -2,6 +2,52 @@ import XCTest
 @testable import Detours
 
 final class PowerShellChannelTests: XCTestCase {
+    func testIndependentControlRepliesWhileMainRequestIsBlocked() async throws {
+        let transport = BlockingPowerShellTransport()
+        let control = ScriptedPowerShellTransport()
+        let channel = PowerShellChannel(transport: transport, independentTransportFactory: { control })
+        let first = Task { try await channel.run(PowerShellScript(source: "1"), operation: "Mutation") }
+        try await waitUntil { await transport.isWaitingForRead() }
+        let replied = expectation(description: "Independent control returns before mutation finishes")
+        let request = Task {
+            do {
+                let data = try await channel.runIndependent(PowerShellScript(source: "2"), operation: "Status")
+                XCTAssertEqual(String(data: data, encoding: .utf8), #"{"ok":true}"#)
+                replied.fulfill()
+            } catch { XCTFail("Independent control failed: \(error)") }
+        }
+        await fulfillment(of: [replied], timeout: 1)
+        let stillWaiting = await transport.isWaitingForRead()
+        XCTAssertTrue(stillWaiting)
+        await transport.releaseRead()
+        _ = try await first.value
+        await request.value
+        let sent = await control.sentRequests()
+        XCTAssertEqual(sent.map(\.operation), ["Status"])
+        await channel.disconnect()
+    }
+
+    func testQueuedRequestCancelsWithoutWaitingForActiveRequest() async throws {
+        let transport = BlockingPowerShellTransport()
+        let channel = PowerShellChannel(transport: transport)
+        let first = Task { try await channel.run(PowerShellScript(source: "1"), operation: "First") }
+        try await waitUntil { await channel.inFlightOperationCountForTesting() == 1 }
+        let cancelled = expectation(description: "Queued request cancelled")
+        let second = Task {
+            do {
+                _ = try await channel.run(PowerShellScript(source: "2"), operation: "Second")
+                XCTFail("Cancelled queued request ran")
+            } catch is CancellationError { cancelled.fulfill() } catch { XCTFail("Unexpected error: \(error)") }
+        }
+        try await waitUntil { await channel.pendingRequestCountForTesting() == 1 }
+        second.cancel()
+        await fulfillment(of: [cancelled], timeout: 0.5)
+        await transport.releaseRead()
+        _ = try await first.value
+        await second.value
+        await channel.disconnect()
+    }
+
     func testFramesRequestsAndCorrelatesReplies() async throws {
         let transport = ScriptedPowerShellTransport()
         let channel = PowerShellChannel(transport: transport)
@@ -21,7 +67,7 @@ final class PowerShellChannelTests: XCTestCase {
     }
 
     func testMalformedFrameRestartsSessionAndFailsRequest() async throws {
-        let transport = ScriptedPowerShellTransport(malformedResponseCount: 2)
+        let transport = ScriptedPowerShellTransport(malformedResponseCount: 1)
         let channel = PowerShellChannel(transport: transport)
         await channel.setActivePaneCount(1)
 
@@ -32,6 +78,8 @@ final class PowerShellChannelTests: XCTestCase {
             XCTAssertTrue(error is DecodingError)
         }
 
+        let failedRequests = await transport.sentRequests()
+        XCTAssertEqual(failedRequests.count, 1, "A failed request must not be replayed by the transport")
         let payload = try await channel.run(PowerShellScript(source: "2"), operation: "Second")
         let starts = await transport.startCount
 
@@ -83,7 +131,7 @@ final class PowerShellChannelTests: XCTestCase {
         RemoteConnectionStateStore.shared.clearForTesting()
         defer { RemoteConnectionStateStore.shared.clearForTesting() }
         let hostID = UUID()
-        let transport = ScriptedPowerShellTransport(malformedResponseCount: 2)
+        let transport = ScriptedPowerShellTransport(malformedResponseCount: 1)
         let channel = PowerShellChannel(transport: transport, hostID: hostID)
         await channel.setActivePaneCount(1)
 
@@ -190,6 +238,8 @@ private actor BlockingPowerShellTransport: PowerShellChannelTransport {
         readContinuation?.resume()
         readContinuation = nil
     }
+
+    func isWaitingForRead() -> Bool { readContinuation != nil }
 
     func stop() async {
         stopCount += 1

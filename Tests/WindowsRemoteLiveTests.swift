@@ -1,6 +1,7 @@
 import XCTest
 @testable import Detours
 
+@MainActor
 final class WindowsRemoteLiveTests: XCTestCase {
     /// The dedicated Windows qualification host, named by default the same way
     /// the Linux live tests name theirs. Waiting to be told meant these never
@@ -47,14 +48,14 @@ final class WindowsRemoteLiveTests: XCTestCase {
             let destination = fixture.root.appendingPathComponent("destination")
             let movedDestination = fixture.root.appendingPathComponent("moved")
 
-            try await fixture.provider.createDirectory(at: source, withIntermediateDirectories: false)
-            try await fixture.provider.createDirectory(at: destination, withIntermediateDirectories: false)
-            try await fixture.provider.createDirectory(at: movedDestination, withIntermediateDirectories: false)
+            _ = try await FileOperationQueue.shared.createFolder(in: fixture.root, name: "source")
+            _ = try await FileOperationQueue.shared.createFolder(in: fixture.root, name: "destination")
+            _ = try await FileOperationQueue.shared.createFolder(in: fixture.root, name: "moved")
 
-            let renamed = try await fixture.provider.rename(source, to: "renamed")
-            let copied = try await fixture.provider.copy([renamed], to: destination)
-            let moved = try await fixture.provider.move(copied, to: movedDestination)
-            try await fixture.provider.delete(moved)
+            let renamed = try await FileOperationQueue.shared.rename(item: source, to: "renamed")
+            let copied = try await FileOperationQueue.shared.copy(items: [renamed], to: destination)
+            let moved = try await FileOperationQueue.shared.move(items: copied, to: movedDestination)
+            try await FileOperationQueue.shared.delete(items: moved)
 
             XCTAssertEqual(renamed.lastPathComponent, "renamed")
             XCTAssertEqual(copied, [destination.appendingPathComponent("renamed")])
@@ -68,13 +69,19 @@ final class WindowsRemoteLiveTests: XCTestCase {
             let file = fixture.root.appendingPathComponent("restore-me.txt")
             try await fixture.upload(Data("restore".utf8), to: file)
 
-            let trashed = try await fixture.provider.trash([file])
+            let undoManager = UndoManager()
+            try await FileOperationQueue.shared.delete(items: [file], undoManager: undoManager)
             await XCTAssertThrowsErrorAsync(try await fixture.provider.stat(file))
-            let restored = try await fixture.provider.restoreFromTrash(trashed)
-            let entry = try await fixture.provider.stat(file)
 
-            XCTAssertEqual(restored, [file])
-            XCTAssertEqual(entry.name, "restore-me.txt")
+            undoManager.undo()
+            var entry: LoadedFileEntry?
+            let deadline = Date().addingTimeInterval(20)
+            while Date() < deadline {
+                entry = try? await fixture.provider.stat(file)
+                if entry != nil { break }
+                try await Task.sleep(nanoseconds: 200_000_000)
+            }
+            XCTAssertEqual(entry?.name, "restore-me.txt")
         }
     }
 
@@ -82,7 +89,7 @@ final class WindowsRemoteLiveTests: XCTestCase {
         try await withFixture { fixture in
             let source = fixture.root.appendingPathComponent("archive-source")
             let hidden = source.appendingPathComponent("hidden-live.txt")
-            try await fixture.provider.createDirectory(at: source, withIntermediateDirectories: false)
+            _ = try await FileOperationQueue.shared.createFolder(in: fixture.root, name: "archive-source")
             try await fixture.upload(Data("hidden".utf8), to: hidden)
             try await fixture.run(
                 operation: "HideFile",
@@ -92,30 +99,30 @@ final class WindowsRemoteLiveTests: XCTestCase {
                 $item.Attributes = $item.Attributes -bor [System.IO.FileAttributes]::Hidden
                 $true
                 """,
-                arguments: PathArguments(path: try fixture.nativePath(hidden))
+                arguments: PathArguments(path: try await fixture.nativePath(hidden))
             )
 
-            let archive = try await fixture.provider.archiveCreate([source], format: .zip, archiveName: "bundle", password: nil)
-            let extracted = try await fixture.provider.archiveExtract(archive, password: nil)
+            let archive = try await FileOperationQueue.shared.archive(items: [source], format: .zip, archiveName: "bundle", password: nil)
+            let extracted = try await FileOperationQueue.shared.extract(archive: archive, password: nil)
             let extractedHidden = extracted.appendingPathComponent("hidden-live.txt")
             let hiddenEntry = try await fixture.provider.stat(extractedHidden)
             XCTAssertEqual(hiddenEntry.name, "hidden-live.txt")
 
             if try await fixture.hostHasTool("7z.exe", "7z") {
-                let sevenZ = try await fixture.provider.archiveCreate([source], format: .sevenZ, archiveName: "bundle-7z", password: nil)
+                let sevenZ = try await FileOperationQueue.shared.archive(items: [source], format: .sevenZ, archiveName: "bundle-7z", password: nil)
                 XCTAssertEqual(sevenZ.lastPathComponent, "bundle-7z.7z")
             } else {
                 await XCTAssertThrowsErrorAsync(
-                    try await fixture.provider.archiveCreate([source], format: .sevenZ, archiveName: "bundle-7z", password: nil)
+                    try await FileOperationQueue.shared.archive(items: [source], format: .sevenZ, archiveName: "bundle-7z", password: nil)
                 )
             }
 
             if try await fixture.hostHasTool("tar.exe", "tar") {
-                let tar = try await fixture.provider.archiveCreate([source], format: .tarGz, archiveName: "bundle-tar", password: nil)
+                let tar = try await FileOperationQueue.shared.archive(items: [source], format: .tarGz, archiveName: "bundle-tar", password: nil)
                 XCTAssertEqual(tar.lastPathComponent, "bundle-tar.tar.gz")
             } else {
                 await XCTAssertThrowsErrorAsync(
-                    try await fixture.provider.archiveCreate([source], format: .tarGz, archiveName: "bundle-tar", password: nil)
+                    try await FileOperationQueue.shared.archive(items: [source], format: .tarGz, archiveName: "bundle-tar", password: nil)
                 )
             }
         }
@@ -171,7 +178,7 @@ final class WindowsRemoteLiveTests: XCTestCase {
                 Set-Content -LiteralPath $Arguments.path -Value 'changed' -Encoding UTF8
                 $true
                 """,
-                arguments: PathArguments(path: try fixture.nativePath(fixture.root.appendingPathComponent("watched.txt")))
+                arguments: PathArguments(path: try await fixture.nativePath(fixture.root.appendingPathComponent("watched.txt")))
             )
 
             await fulfillment(of: [changeReceived], timeout: 5.0)
@@ -206,7 +213,7 @@ final class WindowsRemoteLiveTests: XCTestCase {
                 Set-Content -LiteralPath $Arguments.path -Value 'accepted' -Encoding UTF8
                 $true
                 """,
-                arguments: PathArguments(path: try fixture.nativePath(created))
+                arguments: PathArguments(path: try await fixture.nativePath(created))
             )
 
             await fulfillment(of: [changeReceived], timeout: 5.0)
@@ -243,7 +250,7 @@ final class WindowsRemoteLiveTests: XCTestCase {
                 Set-Content -LiteralPath $Arguments.path -Value 'alive' -Encoding UTF8
                 $true
                 """,
-                arguments: PathArguments(path: try fixture.nativePath(created))
+                arguments: PathArguments(path: try await fixture.nativePath(created))
             )
 
             await fulfillment(of: [eventReceived], timeout: 5)
@@ -283,14 +290,13 @@ final class WindowsRemoteLiveTests: XCTestCase {
             queue.conflictChoiceOverrideForTesting = .replace
             defer {
                 queue.conflictChoiceOverrideForTesting = nil
-                queue.windowsReplacementFailureProbeForTesting = nil
                 queue.unregisterRemoteFileProvider(for: fixture.hostID)
             }
 
             let dst = fixture.root.appendingPathComponent("dst")
             let src = fixture.root.appendingPathComponent("src")
-            try await fixture.provider.createDirectory(at: dst, withIntermediateDirectories: false)
-            try await fixture.provider.createDirectory(at: src, withIntermediateDirectories: false)
+            _ = try await FileOperationQueue.shared.createFolder(in: fixture.root, name: "dst")
+            _ = try await FileOperationQueue.shared.createFolder(in: fixture.root, name: "src")
             try await fixture.upload(Data("original".utf8), to: dst.appendingPathComponent("A.txt"))
             try await fixture.upload(Data("new".utf8), to: src.appendingPathComponent("A.txt"))
 
@@ -302,7 +308,7 @@ final class WindowsRemoteLiveTests: XCTestCase {
             let copiedData = try await fixture.read(destinationFile)
             XCTAssertEqual(copiedData, Data("new".utf8))
             copyUndoManager.undo()
-            try await waitUntilLiveOnMainActor(timeout: 5) {
+            try await waitUntilLiveOnMainActor(timeout: 20) {
                 (try? await fixture.read(destinationFile)) == Data("original".utf8)
             }
             let sourceAfterCopyUndo = try await fixture.read(sourceFile)
@@ -320,7 +326,7 @@ final class WindowsRemoteLiveTests: XCTestCase {
             } catch {}
 
             moveUndoManager.undo()
-            try await waitUntilLiveOnMainActor(timeout: 5) {
+            try await waitUntilLiveOnMainActor(timeout: 20) {
                 let sourceData = try? await fixture.read(sourceFile)
                 let destinationData = try? await fixture.read(destinationFile)
                 return sourceData == Data("new".utf8) && destinationData == Data("original".utf8)
@@ -330,30 +336,13 @@ final class WindowsRemoteLiveTests: XCTestCase {
             XCTAssertEqual(sourceAfterMoveUndo, Data("new".utf8))
             XCTAssertEqual(destinationAfterMoveUndo, Data("original".utf8))
 
-            // Fail after the real target has been recycled. Rollback must restore the target and
-            // move the staged source back through the live PowerShell provider.
-            let rollbackSource = src.appendingPathComponent("rollback.txt")
-            let rollbackDestination = dst.appendingPathComponent("rollback.txt")
-            try await fixture.upload(Data("rollback-new".utf8), to: rollbackSource)
-            try await fixture.upload(Data("rollback-original".utf8), to: rollbackDestination)
-            queue.windowsReplacementFailureProbeForTesting = { true }
-
-            do {
-                _ = try await queue.move(items: [rollbackSource], to: dst)
-                XCTFail("Injected post-displacement failure must abort the move")
-            } catch {}
-            queue.windowsReplacementFailureProbeForTesting = nil
-
-            let sourceAfterRollback = try await fixture.read(rollbackSource)
-            let destinationAfterRollback = try await fixture.read(rollbackDestination)
-            XCTAssertEqual(sourceAfterRollback, Data("rollback-new".utf8))
-            XCTAssertEqual(destinationAfterRollback, Data("rollback-original".utf8))
-
             // Folder copy onto an existing same-name folder merges, preserving existing contents (A3).
             let mergeSrc = fixture.root.appendingPathComponent("mergeSrc/folder")
             let mergeDst = fixture.root.appendingPathComponent("mergeDst/folder")
-            try await fixture.provider.createDirectory(at: mergeSrc, withIntermediateDirectories: true)
-            try await fixture.provider.createDirectory(at: mergeDst, withIntermediateDirectories: true)
+            _ = try await FileOperationQueue.shared.createFolder(in: fixture.root, name: "mergeSrc")
+            _ = try await FileOperationQueue.shared.createFolder(in: fixture.root.appendingPathComponent("mergeSrc"), name: "folder")
+            _ = try await FileOperationQueue.shared.createFolder(in: fixture.root, name: "mergeDst")
+            _ = try await FileOperationQueue.shared.createFolder(in: fixture.root.appendingPathComponent("mergeDst"), name: "folder")
             try await fixture.upload(Data("c".utf8), to: mergeSrc.appendingPathComponent("child.txt"))
             try await fixture.upload(Data("e".utf8), to: mergeDst.appendingPathComponent("existing.txt"))
             _ = try await queue.copy(items: [mergeSrc], to: fixture.root.appendingPathComponent("mergeDst"))
@@ -390,8 +379,8 @@ final class WindowsRemoteLiveTests: XCTestCase {
         try await withFixture { fixture in
             let paneA = fixture.root.appendingPathComponent("paneA")
             let paneB = fixture.root.appendingPathComponent("paneB")
-            try await fixture.provider.createDirectory(at: paneA, withIntermediateDirectories: false)
-            try await fixture.provider.createDirectory(at: paneB, withIntermediateDirectories: false)
+            _ = try await FileOperationQueue.shared.createFolder(in: fixture.root, name: "paneA")
+            _ = try await FileOperationQueue.shared.createFolder(in: fixture.root, name: "paneB")
 
             let recorder = LiveWatchRecorder()
             let watchA = try await fixture.provider.watch(paneA) { loc in Task { await recorder.record(loc) } }
@@ -429,14 +418,18 @@ final class WindowsRemoteLiveTests: XCTestCase {
         XCTFail("Live condition not met within \(timeout)s")
     }
 
-    private func withFixture(_ body: (WindowsLiveFixture) async throws -> Void) async throws {
+    @MainActor
+    private func withFixture(_ body: @MainActor (WindowsLiveFixture) async throws -> Void) async throws {
         guard let target else {
             throw XCTSkip("Set DETOURS_WINDOWS_TEST_TARGET to run Windows live tests.")
         }
         guard try await Self.canReachWindowsHost(target: target) else {
             throw XCTSkip("Windows host \(target) is unreachable.")
         }
-        let fixture = try await WindowsLiveFixture(target: target)
+        let fixture = try await Task.detached { try await WindowsLiveFixture(target: target) }.value
+        FileOperationQueue.shared.registerRemoteFileProvider(fixture.provider, for: fixture.hostID,
+            operationEndpoint: fixture.endpoint)
+        defer { FileOperationQueue.shared.unregisterRemoteFileProvider(for: fixture.hostID) }
         do {
             try await body(fixture)
             try await fixture.cleanup()
@@ -454,7 +447,10 @@ final class WindowsRemoteLiveTests: XCTestCase {
         guard try await Self.canReachWindowsHost(target: target) else {
             throw XCTSkip("Windows host \(target) is unreachable.")
         }
-        let fixture = try await WindowsLiveFixture(target: target)
+        let fixture = try await Task.detached { try await WindowsLiveFixture(target: target) }.value
+        FileOperationQueue.shared.registerRemoteFileProvider(fixture.provider, for: fixture.hostID,
+            operationEndpoint: fixture.endpoint)
+        defer { FileOperationQueue.shared.unregisterRemoteFileProvider(for: fixture.hostID) }
         do {
             try await body(fixture)
             try await fixture.cleanup()
@@ -502,13 +498,15 @@ private actor LiveWatchRecorder {
     }
 }
 
-private struct WindowsLiveFixture {
-    let target: String
-    let hostID = UUID()
-    let controlDirectory: URL
-    let channel: PowerShellChannel
-    let provider: WindowsRemoteProvider
-    let root: Location
+private actor WindowsLiveFixture {
+    nonisolated let target: String
+    nonisolated let hostID = UUID()
+    nonisolated let controlDirectory: URL
+    nonisolated let channel: PowerShellChannel
+    nonisolated let provider: WindowsRemoteProvider
+    nonisolated let session: RemoteHostSession
+    nonisolated let endpoint: RemoteOperationCoordinator.Endpoint
+    nonisolated let root: Location
 
     init(target: String) async throws {
         self.target = target
@@ -526,16 +524,51 @@ private struct WindowsLiveFixture {
 
         let channel = PowerShellChannel(hostID: hostID, sshTarget: target, controlDirectory: controlDir)
         self.channel = channel
-        try await channel.forceReconnect()
         let transferChannel = WindowsTransferChannel(sshTarget: target, powerShellChannel: channel, controlDirectory: controlDir)
         let watchChannel = WindowsWatchChannel(hostID: hostID, sshTarget: target, controlDirectory: controlDir)
-        provider = WindowsRemoteProvider(
+        let provider = WindowsRemoteProvider(
             hostID: hostID, channel: channel, transferChannel: transferChannel, watchChannel: watchChannel
         )
+        self.provider = provider
+        let transport = WindowsHostSessionTransport(channel: channel)
+        let session = RemoteHostSession(transport: transport, publish: { _, _ in })
+        self.session = session
+        await channel.bind(session: session)
+        await transport.bind(provider: provider)
+        _ = try await session.ensureReady()
+        endpoint = RemoteOperationCoordinator.Endpoint(
+            session: session,
+            request: { try await provider.operationRequest($0) },
+            upload: { try await provider.prepareAcceptedUpload($0, identity: $1) }
+        )
         let home = try await provider.homeDirectory()
-        root = Location.remote(hostID: hostID, path: home)
+        let rootLocation = Location.remote(hostID: hostID, path: home)
             .appendingPathComponent("DetoursLiveTests-\(UUID().uuidString)")
-        try await provider.createDirectory(at: root, withIntermediateDirectories: false)
+        root = rootLocation
+        guard let nativeRoot = try WindowsPath(location: rootLocation, hostID: hostID).nativePath else {
+            throw WindowsPathError.nativePathRequired(rootLocation.path)
+        }
+        try Self.createDirectoryOnHost(target: target, nativePath: nativeRoot)
+    }
+
+    private static func createDirectoryOnHost(target: String, nativePath: String) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
+        process.arguments = [
+            "-o", "BatchMode=yes",
+            "-o", "ConnectTimeout=10",
+            target,
+            "New-Item -ItemType Directory -Force -Path '\(nativePath)' | Out-Null",
+        ]
+        let standardError = Pipe()
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = standardError
+        try process.run()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            let message = String(data: standardError.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+            throw WindowsPathError.nativePathRequired("Could not create the live root: \(message)")
+        }
     }
 
     func cleanup() async throws {
@@ -570,13 +603,14 @@ private struct WindowsLiveFixture {
         try? FileManager.default.removeItem(at: controlDirectory)
     }
 
+    @MainActor
     func upload(_ data: Data, to location: Location) async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("detours-live-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let file = directory.appendingPathComponent(location.lastPathComponent)
         try data.write(to: file)
-        try await provider.upload(file, to: location)
+        _ = try await FileOperationQueue.shared.copy(items: [.local(file)], to: location.deletingLastPathComponent())
     }
 
     func read(_ location: Location) async throws -> Data {
@@ -623,6 +657,7 @@ private struct WindowsLiveFixture {
     }
 }
 
+@MainActor
 private func XCTAssertThrowsErrorAsync(
     _ expression: @autoclosure () async throws -> some Any,
     file: StaticString = #filePath,

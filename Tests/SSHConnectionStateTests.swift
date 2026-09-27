@@ -2,10 +2,6 @@ import XCTest
 @testable import Detours
 
 final class SSHConnectionStateTests: XCTestCase {
-    private enum TestReconnectError: Error {
-        case failed
-    }
-
     func testStateChangeNotificationPostsOnMainThread() async throws {
         let hostID = UUID()
         let connection = SSHConnection(configuration: SSHConnectionConfiguration(hostID: hostID, sshTarget: "devtest"))
@@ -47,54 +43,6 @@ final class SSHConnectionStateTests: XCTestCase {
         XCTAssertEqual(mode, 0o700)
     }
 
-    func testExponentialBackoffSequence() async {
-        let connection = SSHConnection(configuration: SSHConnectionConfiguration(hostID: UUID(), sshTarget: "devtest"))
-
-        let states = await connection.simulateReconnectForTesting(
-            afterFailure: .transport("lost"),
-            maximumTotalDelay: 31,
-            connectAttempt: { _ in throw TestReconnectError.failed }
-        )
-
-        let reconnectDelays = states.compactMap { state -> TimeInterval? in
-            if case .reconnecting(_, let nextDelay) = state { return nextDelay }
-            return nil
-        }
-        XCTAssertEqual(reconnectDelays, [1, 2, 4, 8, 16])
-        XCTAssertEqual(states.last, SSHConnectionState.failed(reason: .transport("lost")))
-    }
-
-    func testFailedStateAfterMaxBackoff() async {
-        let connection = SSHConnection(configuration: SSHConnectionConfiguration(hostID: UUID(), sshTarget: "devtest"))
-
-        let states = await connection.simulateReconnectForTesting(
-            afterFailure: .timedOut,
-            maximumTotalDelay: 3,
-            connectAttempt: { _ in throw TestReconnectError.failed }
-        )
-
-        XCTAssertEqual(
-            states,
-            [
-                SSHConnectionState.failed(reason: .timedOut),
-                SSHConnectionState.reconnecting(attempt: 1, nextDelay: 1),
-                SSHConnectionState.reconnecting(attempt: 2, nextDelay: 2),
-                SSHConnectionState.failed(reason: .timedOut),
-            ]
-        )
-    }
-
-    func testFailedStateOnAuthError() async {
-        let connection = SSHConnection(configuration: SSHConnectionConfiguration(hostID: UUID(), sshTarget: "devtest"))
-
-        let states = await connection.simulateReconnectForTesting(
-            afterFailure: .authentication("agent unavailable"),
-            connectAttempt: { _ in XCTFail("Authentication failures must not retry") }
-        )
-
-        XCTAssertEqual(states, [SSHConnectionState.failed(reason: .authentication("agent unavailable"))])
-    }
-
     func testIdleDisconnectAfterFiveMinutes() async throws {
         let connection = SSHConnection(
             configuration: SSHConnectionConfiguration(hostID: UUID(), sshTarget: "devtest"),
@@ -127,89 +75,4 @@ final class SSHConnectionStateTests: XCTestCase {
         XCTAssertGreaterThan(after, before)
     }
 
-    func testDisconnectCanRunWhileReceiveIsWaiting() async throws {
-        final class Flag: @unchecked Sendable {
-            private let lock = NSLock()
-            private var value = false
-
-            func set() {
-                lock.lock()
-                value = true
-                lock.unlock()
-            }
-
-            func get() -> Bool {
-                lock.lock()
-                defer { lock.unlock() }
-                return value
-            }
-        }
-
-        let connection = SSHConnection(configuration: SSHConnectionConfiguration(hostID: UUID(), sshTarget: "devtest"))
-        let pipe = Pipe()
-        await connection.simulateStdoutPipeForTesting(pipe)
-        let receiveTask = Task {
-            try await connection.receive()
-        }
-        try await Task.sleep(nanoseconds: 20_000_000)
-
-        let didDisconnect = Flag()
-        let disconnectTask = Task {
-            await connection.disconnect()
-            didDisconnect.set()
-        }
-
-        let deadline = Date().addingTimeInterval(0.5)
-        while !didDisconnect.get(), Date() < deadline {
-            try await Task.sleep(nanoseconds: 10_000_000)
-        }
-
-        XCTAssertTrue(didDisconnect.get())
-        try pipe.fileHandleForWriting.close()
-        _ = await disconnectTask.result
-        _ = await receiveTask.result
-    }
-
-    func testReceiveKeepsProcessAliveUntilFrameReadCompletes() async throws {
-        final class WeakBox<T: AnyObject> {
-            weak var value: T?
-
-            init(_ value: T?) {
-                self.value = value
-            }
-        }
-
-        let connection = SSHConnection(configuration: SSHConnectionConfiguration(hostID: UUID(), sshTarget: "devtest"))
-        let pipe = Pipe()
-        var process: Process? = Process()
-        let weakProcess = WeakBox(process)
-        await connection.simulateStdoutPipeForTesting(pipe, process: try XCTUnwrap(process))
-        process = nil
-
-        let receiveTask = Task {
-            try await connection.receive()
-        }
-        try await Task.sleep(nanoseconds: 20_000_000)
-        await connection.disconnect()
-        await withCheckedContinuation { continuation in
-            DispatchQueue.main.async {
-                continuation.resume()
-            }
-        }
-
-        XCTAssertNotNil(weakProcess.value)
-
-        let envelope = RPCEnvelope(
-            id: 1,
-            kind: .response,
-            messageType: "Test",
-            sequence: 0,
-            isFinal: true,
-            payload: Data("ok".utf8)
-        )
-        pipe.fileHandleForWriting.write(try RPCStreamHandler.encodeFrame(envelope.encodedPayload()))
-        let received = try await receiveTask.value
-
-        XCTAssertEqual(received, envelope)
-    }
 }

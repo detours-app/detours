@@ -46,11 +46,12 @@ final class PaneViewController: NSViewController {
 
     let reconnectBanner = NSView()
     let reconnectBannerLabel = NSTextField(labelWithString: "")
-    private let reconnectButton = NSButton(title: "Reconnect", target: nil, action: nil)
+    let reconnectButton = NSButton(title: "Reconnect", target: nil, action: nil)
     private let reconnectDismissButton = NSButton(title: "", target: nil, action: nil)
     let tabContainer = NSView()
     let statusBar = StatusBarView()
     var detailPopover: OperationDetailPopover?
+    var remoteResultPresentation: RemoteOperationPresentation?
     var operationStatusBarForceShown = false
 
     var tabs: [PaneTab] = []

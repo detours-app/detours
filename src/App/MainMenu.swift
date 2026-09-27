@@ -356,6 +356,11 @@ func setupMainMenu(target: AppDelegate) {
     zoomItem.image = NSImage(systemSymbolName: "arrow.up.left.and.arrow.down.right", accessibilityDescription: nil)
     windowMenu.addItem(zoomItem)
 
+    windowMenu.addItem(.separator())
+    let operationsItem = NSMenuItem(title: "Remote Operations...", action: #selector(AppDelegate.showRemoteOperations(_:)), keyEquivalent: "")
+    operationsItem.target = target
+    windowMenu.addItem(operationsItem)
+
     application.windowsMenu = windowMenu
 
     // Remove "Enter Full Screen" that macOS adds automatically

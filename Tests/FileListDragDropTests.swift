@@ -1,9 +1,46 @@
 import AppKit
 import XCTest
+import RemoteOperationSupport
 @testable import Detours
+@testable import detours_server
 
 @MainActor
 final class FileListDragDropTests: XCTestCase {
+    func testControllerDropCommitsCopyAndMoveThroughAcceptedQueue() async throws {
+        let fixture = try await CoordinatorFixture()
+        let queue = FileOperationQueue.shared
+        queue.resetRemoteQueueStateForTesting()
+        defer { queue.resetRemoteQueueStateForTesting(); fixture.cleanup() }
+        let service = fixture.boundary.service
+        let endpoint = RemoteOperationCoordinator.Endpoint(session: fixture.session,
+            request: { try await service.reply(to: $0) }, upload: { _, _ in throw OperationContractError.invalidReceipt })
+        let provider = RemoteFileProvider(hostID: fixture.hostID, rpcClient: AcceptedProviderRPC(service: service),
+            transferChannel: RemoteTransferChannel(sshTarget: "unused"))
+        queue.registerRemoteFileProvider(provider, for: fixture.hostID, operationEndpoint: endpoint)
+        queue.acceptedCoordinator = RemoteOperationCoordinator(store: fixture.store) { _ in endpoint }
+        let output = fixture.root.appendingPathComponent("output")
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: false)
+        let destination = Location.remote(hostID: fixture.hostID, path: output.path)
+        let source = Location.remote(hostID: fixture.hostID, path: fixture.source.path)
+        let controller = FileListViewController()
+        controller.loadViewIfNeeded()
+        controller.currentRemoteLocation = destination
+        controller.currentRemoteProvider = provider
+        controller.dataSource.currentRemoteDirectoryForGit = destination
+        controller.dataSource.currentRemoteProvider = provider
+        for (index, operation) in [FileDropOperation.copy, .move].enumerated() {
+            controller.handleDrop(locations: [source], to: destination, operation: operation)
+            let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+            while queue.remoteOperationResults.count != index + 1 || queue.isRunning {
+                guard ContinuousClock.now < deadline else { throw OperationContractError.invalidReceipt }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            XCTAssertTrue(queue.remoteOperationResults.values.allSatisfy { $0.items.allSatisfy { $0.outcome == .committed } })
+            XCTAssertEqual(try Data(contentsOf: output.appendingPathComponent(index == 0 ? "source" : "source 2")), fixture.bytes)
+            XCTAssertEqual(FileManager.default.fileExists(atPath: fixture.source.path), index == 0)
+        }
+    }
+
     func testRemoteFolderAndPaneBackgroundAreValidTargets() {
         let hostID = UUID()
         let root = Location.remote(hostID: hostID, path: "/")

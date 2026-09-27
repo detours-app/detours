@@ -196,23 +196,9 @@ enum FileOpenHelper {
     static func finishRemoteOpenWith(
         _ session: RemoteOpenWithSession,
         provider: any FileProvider,
-        conflictResolver: @MainActor (RemoteOpenConflictKind) async -> RemoteOpenConflictChoice
+        conflictResolver: @escaping @MainActor (RemoteOpenConflictKind) async -> RemoteOpenConflictChoice
     ) async throws -> RemoteOpenConflictChoice? {
-        let currentVersion = try await provider.version(of: session.remoteLocation)
-        let conflict = conflictKind(original: session.originalVersion, current: currentVersion)
-        if let conflict {
-            let choice = await conflictResolver(conflict)
-            switch choice {
-            case .keepMine:
-                try await provider.upload(session.localURL, to: session.remoteLocation)
-            case .keepRemote, .cancel:
-                break
-            }
-            return choice
-        }
-
-        try await provider.upload(session.localURL, to: session.remoteLocation)
-        return nil
+        try await FileOperationQueue.shared.saveRemoteEditor(session, provider: provider, conflictResolver: conflictResolver)
     }
 
     static func conflictKind(original: RemoteFileVersion, current: RemoteFileVersion) -> RemoteOpenConflictKind? {

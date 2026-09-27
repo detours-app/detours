@@ -122,11 +122,13 @@ final class RemoteWatcherClientTests: XCTestCase {
         _ = try await watcherClient.watch(.remote(hostID: hostID, path: "/home/marco")) { _ in }
         let token = try await remoteWatchToken(from: rpcClient)
 
-        await watcherClient.reregisterWatchesAfterReconnect()
+        try await watcherClient.reregisterWatchesAfterReconnect()
 
         let messages = await rpcClient.sentMessages()
         XCTAssertEqual(messages.count, 2)
-        XCTAssertEqual(messages[1], .watch(path: RemotePath("/home/marco"), token: token))
+        guard case .watch(let path, let renewed) = messages[1] else { return XCTFail("Expected renewed watch") }
+        XCTAssertEqual(path, RemotePath("/home/marco"))
+        XCTAssertNotEqual(renewed, token)
     }
 
     private func remoteWatchToken(from client: RecordingRPCClient) async throws -> UUID {

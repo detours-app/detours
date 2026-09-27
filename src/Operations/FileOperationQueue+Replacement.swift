@@ -11,11 +11,6 @@ struct LocalDisplacedItem: Sendable {
     let storage: Storage
 }
 
-enum ProviderMoveSourceRestore: Sendable {
-    case local(LocalDisplacedItem)
-    case remote(TrashedItem)
-}
-
 @MainActor
 final class ExtractionReplacementLedger {
     var displacedItems: [LocalDisplacedItem] = []

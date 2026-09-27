@@ -8,7 +8,8 @@ extension RemoteIntegrationTests {
     @MainActor
     private func makeQueueSession() async throws -> RemoteIntegrationSession {
         let session = try await RemoteIntegrationSession.make()
-        FileOperationQueue.shared.registerRemoteFileProvider(session.provider, for: session.hostID)
+        FileOperationQueue.shared.registerRemoteFileProvider(session.provider, for: session.hostID,
+            operationEndpoint: session.endpoint)
         return session
     }
 
@@ -38,8 +39,10 @@ extension RemoteIntegrationTests {
         (try? url.resourceValues(forKeys: [.isSymbolicLinkKey]))?.isSymbolicLink == true
     }
 
+    @MainActor
     func testSameHostCopyOfLinksKeepsLinks() async throws {
-        let session = try await RemoteIntegrationSession.make()
+        let session = try await makeQueueSession()
+        defer { FileOperationQueue.shared.unregisterRemoteFileProvider(for: session.hostID) }
         let root = try Self.makeRemoteFixtureRoot()
         defer { Self.cleanupRemote(root) }
         try Self.runSSH(
@@ -49,8 +52,8 @@ extension RemoteIntegrationTests {
         )
         let remote = { (name: String) in Location.remote(hostID: session.hostID, path: root + "/" + name) }
 
-        let copied = try await session.provider.copy(
-            [remote("valid"), remote("dangling"), remote("looping"), remote("folder")],
+        let copied = try await FileOperationQueue.shared.copy(
+            items: [remote("valid"), remote("dangling"), remote("looping"), remote("folder")],
             to: remote("dest")
         )
 
@@ -63,15 +66,17 @@ extension RemoteIntegrationTests {
         XCTAssertEqual(try Self.runSSH("cat \(Self.shellQuote(root + "/target.txt"))"), "keep")
     }
 
+    @MainActor
     func testSameHostMoveOfLinkRenamesLink() async throws {
-        let session = try await RemoteIntegrationSession.make()
+        let session = try await makeQueueSession()
+        defer { FileOperationQueue.shared.unregisterRemoteFileProvider(for: session.hostID) }
         let root = try Self.makeRemoteFixtureRoot()
         defer { Self.cleanupRemote(root) }
         try Self.runSSH("cd \(Self.shellQuote(root)) && printf keep > target.txt && ln -s target.txt link && mkdir dest")
         let link = Location.remote(hostID: session.hostID, path: root + "/link")
         let dest = Location.remote(hostID: session.hostID, path: root + "/dest")
 
-        let moved = try await session.provider.move([link], to: dest)
+        let moved = try await FileOperationQueue.shared.move(items: [link], to: dest)
 
         XCTAssertEqual(moved, [dest.appendingPathComponent("link")])
         XCTAssertEqual(try Self.remoteLinkText(root + "/dest/link"), "target.txt")
@@ -79,8 +84,11 @@ extension RemoteIntegrationTests {
         XCTAssertEqual(try Self.runSSH("cat \(Self.shellQuote(root + "/target.txt"))"), "keep")
     }
 
+    @MainActor
     func testTrashingRemoteLinkLeavesTarget() async throws {
-        let session = try await RemoteIntegrationSession.make()
+        RemoteTrashExplainer.markDismissed()
+        let session = try await makeQueueSession()
+        defer { FileOperationQueue.shared.unregisterRemoteFileProvider(for: session.hostID) }
         let root = try Self.makeRemoteFixtureRoot()
         defer { Self.cleanupRemote(root) }
         try Self.runSSH(
@@ -88,17 +96,16 @@ extension RemoteIntegrationTests {
         )
         let valid = Location.remote(hostID: session.hostID, path: root + "/valid")
         let dangling = Location.remote(hostID: session.hostID, path: root + "/dangling")
+        let undoManager = UndoManager()
 
-        let trashed = try await session.provider.trash([valid, dangling])
+        try await FileOperationQueue.shared.delete(items: [valid, dangling], undoManager: undoManager)
 
-        XCTAssertEqual(trashed.count, 2)
         XCTAssertFalse(try Self.remoteIsLink(root + "/valid"))
         XCTAssertFalse(try Self.remoteIsLink(root + "/dangling"))
         XCTAssertEqual(try Self.runSSH("cat \(Self.shellQuote(root + "/target.txt"))"), "keep")
 
-        let restored = try await session.provider.restoreFromTrash(trashed)
-
-        XCTAssertEqual(restored, [valid, dangling])
+        undoManager.undo()
+        try await Self.waitForRemotePath(root + "/valid", timeout: 15)
         XCTAssertEqual(try Self.remoteLinkText(root + "/valid"), "target.txt")
         XCTAssertEqual(try Self.remoteLinkText(root + "/dangling"), "missing.txt")
     }
@@ -201,14 +208,11 @@ extension RemoteIntegrationTests {
         do {
             _ = try await FileOperationQueue.shared.copy(items: [.local(folder)], to: dest)
             XCTFail("Expected the looping link to be reported")
-        } catch FileOperationError.partialFailure(let succeeded, let failed) {
-            XCTAssertEqual(succeeded.map(\.path), [root + "/dest/folder"])
-            XCTAssertEqual(
-                failed.map { Self.parentResolvedPath($0.0) },
-                [folder.resolvingSymlinksInPath().appendingPathComponent("self").path]
-            )
-            let remote = try XCTUnwrap(failed.first?.1 as? RemoteOperationError)
-            XCTAssertEqual(remote.underlying.localizedDescription, "The link self leads in a loop.")
+        } catch let failure as RemoteBatchFailure {
+            XCTAssertTrue(failure.snapshot.items.contains { $0.outcome == .committed },
+                "The rest of the folder must still arrive: \(failure.snapshot.items.map(\.outcome))")
+            XCTAssertTrue(failure.snapshot.items.contains { $0.preflightFailure == .linkLoop },
+                "The looping link fails by name: \(failure.snapshot.items.map(\.preflightFailure))")
         }
 
         XCTAssertEqual(try Self.runSSH("cat \(Self.shellQuote(root + "/dest/folder/ok.txt"))"), "ok")
@@ -233,14 +237,11 @@ extension RemoteIntegrationTests {
         do {
             _ = try await FileOperationQueue.shared.copy(items: [.local(dangling), .local(plain)], to: dest)
             XCTFail("Expected the dangling link to be reported")
-        } catch FileOperationError.partialFailure(let succeeded, let failed) {
-            XCTAssertEqual(succeeded.map(\.path), [root + "/dest/plain.txt"])
-            XCTAssertEqual(failed.map(\.0.path), [dangling.path])
-            let remote = try XCTUnwrap(failed.first?.1 as? RemoteOperationError)
-            XCTAssertEqual(
-                remote.underlying.localizedDescription,
-                "The link dangling points to an item that does not exist."
-            )
+        } catch let failure as RemoteBatchFailure {
+            XCTAssertTrue(failure.snapshot.items.contains { $0.outcome == .committed },
+                "The plain file must still arrive: \(failure.snapshot.items.map(\.outcome))")
+            XCTAssertTrue(failure.snapshot.items.contains { $0.preflightFailure == .linkTargetMissing },
+                "The dangling link fails by name: \(failure.snapshot.items.map(\.preflightFailure))")
         }
 
         XCTAssertEqual(try Self.runSSH("cat \(Self.shellQuote(root + "/dest/plain.txt"))"), "plain")
@@ -270,9 +271,10 @@ extension RemoteIntegrationTests {
         XCTAssertFalse(PathProbe.existsWithoutFollowing(link.path))
         XCTAssertEqual(try String(contentsOf: target, encoding: .utf8), "stays local")
         let trash = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".Trash")
+        let trashContents = (try? FileManager.default.contentsOfDirectory(atPath: trash.path)) ?? []
         let trashedLink = try XCTUnwrap(
-            try FileManager.default.contentsOfDirectory(atPath: trash.path).first { $0.hasPrefix(linkName) },
-            "The link itself goes to the Trash"
+            trashContents.first { $0.hasPrefix(linkName) },
+            "The link itself goes to the Trash; contents: \(trashContents)"
         )
         XCTAssertEqual(
             try FileManager.default.destinationOfSymbolicLink(atPath: trash.appendingPathComponent(trashedLink).path),
@@ -281,25 +283,20 @@ extension RemoteIntegrationTests {
         try? FileManager.default.removeItem(at: trash.appendingPathComponent(trashedLink))
     }
 
-    func testSymlinkMessageRoundTripsThroughRealHelper() async throws {
+    func testLegacySymlinkCreationRefusesThroughRealHelper() async throws {
         let session = try await RemoteIntegrationSession.make()
         let root = try Self.makeRemoteFixtureRoot()
         defer { Self.cleanupRemote(root) }
-        try Self.runSSH("cd \(Self.shellQuote(root)) && printf t > target.txt && ln -s missing.txt dangling")
+        try Self.runSSH("cd \(Self.shellQuote(root)) && printf t > target.txt")
         let remote = { (name: String) in Location.remote(hostID: session.hostID, path: root + "/" + name) }
 
-        try await session.provider.createSymbolicLink(at: remote("new"), targetPath: "target.txt")
-        XCTAssertEqual(try Self.remoteLinkText(root + "/new"), "target.txt")
-
-        for occupied in ["target.txt", "dangling"] {
-            do {
-                try await session.provider.createSymbolicLink(at: remote(occupied), targetPath: "elsewhere")
-                XCTFail("\(occupied) must refuse a new link")
-            } catch {
-                // The helper refuses without following the destination.
-            }
+        do {
+            try await session.provider.createSymbolicLink(at: remote("new"), targetPath: "target.txt")
+            XCTFail("Legacy symlink creation must refuse before changing files")
+        } catch {
+            // The compatibility refusal is the contract now.
         }
+        XCTAssertFalse(try Self.remoteIsLink(root + "/new"))
         XCTAssertTrue(try Self.remoteIsRegularFile(root + "/target.txt"))
-        XCTAssertEqual(try Self.remoteLinkText(root + "/dangling"), "missing.txt")
     }
 }

@@ -1,5 +1,6 @@
 import DetoursProcess
 import Foundation
+import RemoteOperationSupport
 
 enum TransferModeError: Error, Equatable {
     case byteCountMismatch(expected: Int64, actual: Int64)
@@ -38,28 +39,33 @@ private struct TransferHandshake {
 struct TransferMode {
     private let input: FileHandle
     private let output: FileHandle
-    private let fileManager: FileManager
-    private let trashOperations: TrashOperations
+    private let operationService: ServerOperationService?
 
     init(
         input: FileHandle = .standardInput,
         output: FileHandle = .standardOutput,
-        fileManager: FileManager = .default,
-        trashOperations: TrashOperations = TrashOperations()
+        operationService: ServerOperationService? = nil
     ) {
         self.input = input
         self.output = output
-        self.fileManager = fileManager
-        self.trashOperations = trashOperations
+        self.operationService = operationService
     }
 
     func run() throws {
-        let handshake = try TransferHandshake(binaryEncoded: readFrame())
+        let frame = try readFrame()
+        if frame.first == 3 {
+            let handshake = try OperationStreamHandshake.decode(Data(frame.dropFirst()))
+            let reply = try ServerOperationReplyBridge.stream(handshake.identity, input: input, service: operationService).encoded()
+            var length = UInt32(reply.count).bigEndian
+            try output.write(contentsOf: Data(bytes: &length, count: MemoryLayout<UInt32>.size) + reply)
+            return
+        }
+        let handshake = try TransferHandshake(binaryEncoded: frame)
         switch handshake.direction {
         case .download:
             try streamDownload(handshake)
         case .upload:
-            try receiveUpload(handshake)
+            throw ServerRPCError.acceptedOperationRequired
         }
     }
 
@@ -82,42 +88,6 @@ struct TransferMode {
         }
         guard streamed == handshake.byteCount else {
             throw TransferModeError.byteCountMismatch(expected: handshake.byteCount, actual: streamed)
-        }
-    }
-
-    private func receiveUpload(_ handshake: TransferHandshake) throws {
-        let destination = URL(fileURLWithPath: handshake.destination.string)
-        let partial = destination.deletingLastPathComponent()
-            .appendingPathComponent(destination.lastPathComponent + ".detours-partial")
-        var displacedTrashInfoPath: String?
-        try? fileManager.removeItem(at: partial)
-        if fileManager.fileExists(atPath: destination.path) {
-            displacedTrashInfoPath = try trashOperations.trash(paths: [destination.path]).first
-        }
-
-        var received: Int64 = 0
-        do {
-            let handle = try SafeFileWriter.createHandle(at: partial)
-            defer { try? handle.close() }
-
-            while received < handshake.byteCount {
-                let chunk = input.readData(ofLength: min(64 * 1024, Int(handshake.byteCount - received)))
-                guard !chunk.isEmpty else { break }
-                try handle.write(contentsOf: chunk)
-                received += Int64(chunk.count)
-            }
-
-            guard received == handshake.byteCount else {
-                throw TransferModeError.byteCountMismatch(expected: handshake.byteCount, actual: received)
-            }
-            try fileManager.moveItem(at: partial, to: destination)
-        } catch {
-            let uploadError = error
-            try? fileManager.removeItem(at: partial)
-            if let displacedTrashInfoPath {
-                _ = try trashOperations.restore(trashInfoPaths: [displacedTrashInfoPath])
-            }
-            throw uploadError
         }
     }
 

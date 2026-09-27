@@ -32,7 +32,19 @@ let package = Package(
     ],
     targets: [
         .target(
+            name: "SevenZip", path: "SevenZip",
+            exclude: ["README.md", "License.txt", "copying.txt", "unRarLicense.txt"]
+        ),
+        .target(name: "ArchiveStreamBridge", dependencies: ["SevenZip"], path: "ArchiveStreamBridge"),
+        .target(name: "FilesystemPrimitives", path: "FilesystemPrimitives"),
+        .target(
+            name: "RemoteOperationSupport",
+            dependencies: ["FilesystemPrimitives"],
+            path: "RemoteOperationSupport"
+        ),
+        .target(
             name: "DetoursProcess",
+            dependencies: ["ArchiveStreamBridge"],
             path: "Shared",
             linkerSettings: [
                 .linkedLibrary("util", .when(platforms: [.linux]))
@@ -53,18 +65,18 @@ let package = Package(
         ),
         .executableTarget(
             name: "Detours",
-            dependencies: ["DetoursProcess"],
+            dependencies: ["DetoursProcess", "RemoteOperationSupport"],
             path: "src",
             swiftSettings: detoursSwiftSettings
         ),
         .executableTarget(
             name: "detours-server",
-            dependencies: ["DetoursProcess"],
+            dependencies: ["DetoursProcess", "RemoteOperationSupport"],
             path: "Server"
         ),
         .testTarget(
             name: "DetoursTests",
-            dependencies: ["Detours", "DetoursProcess", "QualificationSupport", "detours-server"],
+            dependencies: ["Detours", "DetoursProcess", "RemoteOperationSupport", "QualificationSupport", "detours-server"],
             path: "Tests",
             exclude: ["TEST_LOG.md", "UITests", "DetoursProcessTests"]
         ),
@@ -73,5 +85,6 @@ let package = Package(
             dependencies: ["DetoursProcess"],
             path: "Tests/DetoursProcessTests"
         ),
-    ]
+    ],
+    cxxLanguageStandard: .cxx17
 )

@@ -54,11 +54,8 @@ struct RemoteOperationError: LocalizedError {
         return primary
     }
 
-    /// The actionable next step, from the underlying error or a sensible remote default.
+    /// A transport failure cannot establish whether a file change completed.
     static func suggestion(for error: Error) -> String {
-        if let localized = error as? LocalizedError, let suggestion = localized.recoverySuggestion {
-            return suggestion
-        }
-        return "Check that the host is still connected, then try again."
+        return "Open operation details and check the result before making another change."
     }
 }

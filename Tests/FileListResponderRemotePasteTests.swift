@@ -1,6 +1,8 @@
 import AppKit
 import XCTest
+import RemoteOperationSupport
 @testable import Detours
+@testable import detours_server
 
 extension FileListResponderTests {
     func testRemotePasteUsesExplicitFolderFileParentOrCurrentDirectory() {
@@ -50,36 +52,43 @@ extension FileListResponderTests {
     }
 
     func testRemoteCopyAndCutPasteRouteCorrectOperations() async throws {
-        let hostID = UUID()
-        let root = Location.remote(hostID: hostID, path: "/Root")
-        let source = Location.remote(hostID: hostID, path: "/Source/file.txt")
-        let provider = PasteRoutingProvider(hostID: hostID)
-        FileOperationQueue.shared.registerRemoteFileProvider(provider, for: hostID)
+        let fixture = try await CoordinatorFixture()
+        let queue = FileOperationQueue.shared
+        queue.resetRemoteQueueStateForTesting()
         defer {
-            FileOperationQueue.shared.unregisterRemoteFileProvider(for: hostID)
+            queue.resetRemoteQueueStateForTesting()
             ClipboardManager.shared.clear()
+            fixture.cleanup()
         }
+        let service = fixture.boundary.service
+        let endpoint = RemoteOperationCoordinator.Endpoint(session: fixture.session,
+            request: { try await service.reply(to: $0) }, upload: { _, _ in throw OperationContractError.invalidReceipt })
+        let provider = RemoteFileProvider(hostID: fixture.hostID, rpcClient: AcceptedProviderRPC(service: service),
+            transferChannel: RemoteTransferChannel(sshTarget: "unused"))
+        queue.registerRemoteFileProvider(provider, for: fixture.hostID, operationEndpoint: endpoint)
+        queue.acceptedCoordinator = RemoteOperationCoordinator(store: fixture.store) { _ in endpoint }
+        let output = fixture.root.appendingPathComponent("output")
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: false)
+        let root = Location.remote(hostID: fixture.hostID, path: output.path)
+        let source = Location.remote(hostID: fixture.hostID, path: fixture.source.path)
         let controller = remotePasteController(root: root, items: [], provider: provider)
 
         ClipboardManager.shared.copy(items: [source])
         controller.paste(nil)
-        try await waitForPasteRoute { await provider.copyCalls().count == 1 }
-
-        let copyCalls = await provider.copyCalls()
-        let movesAfterCopy = await provider.moveCalls()
-        XCTAssertEqual(copyCalls, [[source]])
-        XCTAssertTrue(movesAfterCopy.isEmpty)
+        try await waitForPasteRoute { queue.remoteOperationResults.count == 1 && !queue.isRunning }
+        XCTAssertEqual(try Data(contentsOf: output.appendingPathComponent("source")), fixture.bytes)
+        XCTAssertEqual(try Data(contentsOf: fixture.source), fixture.bytes)
+        XCTAssertEqual(queue.remoteOperationResults.values.first?.items.first?.result.intent.action, .copy)
         XCTAssertEqual(ClipboardManager.shared.locations, [source])
         XCTAssertFalse(ClipboardManager.shared.isCut)
 
         ClipboardManager.shared.cut(items: [source])
         controller.paste(nil)
-        try await waitForPasteRoute { await provider.moveCalls().count == 1 }
-
-        let moveCalls = await provider.moveCalls()
-        let destinations = await provider.destinations()
-        XCTAssertEqual(moveCalls, [[source]])
-        XCTAssertEqual(destinations, [root, root])
+        try await waitForPasteRoute { queue.remoteOperationResults.count == 2 && !queue.isRunning }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.source.path))
+        XCTAssertEqual(try Data(contentsOf: output.appendingPathComponent("source 2")), fixture.bytes)
+        XCTAssertTrue(queue.remoteOperationResults.values.contains { $0.items.first?.result.intent.action == .move })
+        XCTAssertTrue(queue.remoteOperationResults.values.allSatisfy { $0.items.allSatisfy { $0.outcome == .committed } })
         XCTAssertTrue(ClipboardManager.shared.locations.isEmpty)
         XCTAssertFalse(ClipboardManager.shared.isCut)
     }

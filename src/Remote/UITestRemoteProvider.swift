@@ -1,6 +1,7 @@
 import CryptoKit
 import DetoursProcess
 import Foundation
+import RemoteOperationSupport
 
 enum UITestRemoteCallPhase: String, Codable, Sendable {
     case started
@@ -471,6 +472,49 @@ actor UITestRemoteProvider: FileProvider {
     }
 
     func gitStatus(for directory: Location) async -> [Location: GitStatus] { [:] }
+
+    // MARK: - Accepted operations
+
+    private var operationRequestHandler: (@Sendable (OperationRequest) async throws -> OperationReply)?
+    private var uploadHandler: (@Sendable (URL, OperationRequestIdentity) async throws -> OperationReceipt)?
+
+    /// Binds the accepted-operation handlers whose journal and commit rules the coordinator uses,
+    /// with operation paths mapped into this provider's confined root.
+    func bindOperationService(
+        request: @escaping @Sendable (OperationRequest) async throws -> OperationReply,
+        upload: @escaping @Sendable (URL, OperationRequestIdentity) async throws -> OperationReceipt
+    ) {
+        operationRequestHandler = request
+        uploadHandler = upload
+    }
+
+    func operationRequest(_ request: OperationRequest) async throws -> OperationReply {
+        guard let operationRequestHandler else {
+            throw FileProviderError.unsupportedOperation("UI-test remote host has no operation service.")
+        }
+        return try await operationRequestHandler(request)
+    }
+
+    func prepareAcceptedUpload(_ localURL: URL, identity: OperationRequestIdentity) async throws -> OperationReceipt {
+        guard let uploadHandler else {
+            throw FileProviderError.unsupportedOperation("UI-test remote host has no operation service.")
+        }
+        return try await uploadHandler(localURL, identity)
+    }
+
+    func operationPath(_ location: Location) async throws -> OperationLocation.Path {
+        let path = try remotePath(from: location)
+        let trimmed = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let url = trimmed.isEmpty ? base : base.appendingPathComponent(trimmed)
+        return .unix(Data(url.standardizedFileURL.path.utf8))
+    }
+
+    func displayLocation(_ path: OperationLocation.Path) async throws -> Location {
+        guard case .unix(let bytes) = path, let string = String(data: bytes, encoding: .utf8) else {
+            throw FileProviderError.unsupportedOperation("UI-test remote host cannot display a non-Unix operation path.")
+        }
+        return remoteLocation(for: URL(fileURLWithPath: string))
+    }
 
     func archiveCreate(
         _ items: [Location],

@@ -1,5 +1,5 @@
-import DetoursProcess
 import Foundation
+import os.log
 
 enum SSHConnectionError: Error, Equatable, LocalizedError {
     case notConnected
@@ -39,18 +39,17 @@ actor SSHConnection {
     private let idleTimeout: TimeInterval
 
     private var process: Process?
-    private var stdinPipe: Pipe?
-    private var stdoutPipe: Pipe?
-    private var stderrPipe: Pipe?
+    private var worker: RemoteProcessWorker?
+    private var retiredDiagnostics: RemoteProcessWorker?
+    private var retirementFailure: String?
+    private static let logger = Logger(subsystem: "com.detours", category: "remote-worker")
     private var lastStderr = ""
-    private var frameReader = RPCStreamHandler()
     private var streamGeneration: UInt64 = 0
     private var activePaneCount = 0
-    private var inFlightOperationCount = 0
-    private var activeWatchCount = 0
     private var disconnectedForIdle = false
+    private var sessionManaged = false
+    private var sessionFailure: (@Sendable (SSHConnectionFailureReason) async -> Void)?
     private var idleDisconnectTask: Task<Void, Never>?
-    private let readQueue = DispatchQueue(label: "com.detours.ssh.frame-read", qos: .userInitiated)
 
     private(set) var state: SSHConnectionState = .disconnected {
         didSet {
@@ -79,13 +78,12 @@ actor SSHConnection {
     deinit {
         let runningProcess = process
         runningProcess?.terminationHandler = nil
-        if runningProcess?.isRunning == true {
-            runningProcess?.terminate()
-        }
+        worker?.requestStop()
         ProcessRetirement.retireOnMain(runningProcess)
     }
 
     func connect() async throws {
+        if let retirementFailure { throw SSHProcessFailure(message: retirementFailure) }
         guard process == nil else { return }
         cancelIdleDisconnect()
         disconnectedForIdle = false
@@ -94,15 +92,10 @@ actor SSHConnection {
         try prepareControlDirectory()
         try hostTrust.prepareKnownHostsFile()
 
-        let stdinPipe = Pipe()
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
         let process = processFactory()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
         process.arguments = sshArguments()
-        process.standardInput = stdinPipe
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
+        let current = RemoteProcessWorker(process: process)
         if !askPassBridge.environment().isEmpty {
             process.environment = ProcessInfo.processInfo.environment.merging(askPassBridge.environment()) { _, new in new }
         }
@@ -113,50 +106,58 @@ actor SSHConnection {
             }
         }
 
+        self.process = process
+        worker = current
+        retiredDiagnostics = nil
         do {
-            try process.run()
+            try await current.perform { try $0.start() }
+            guard worker === current else { throw SSHConnectionError.notConnected }
         } catch {
-            ProcessRetirement.retireOnMain(process)
+            if worker === current { _ = retireCurrentProcess(terminate: true) }
             throw error
         }
-
-        self.process = process
-        self.stdinPipe = stdinPipe
-        self.stdoutPipe = stdoutPipe
-        self.stderrPipe = stderrPipe
         streamGeneration += 1
         transition(to: .connected)
         scheduleIdleDisconnectIfNeeded()
     }
 
     func forceReconnect() async throws {
-        disconnect()
+        await disconnect()
         try await connect()
     }
 
-    func disconnect() {
+    func manageBySession(onFailure: @escaping @Sendable (SSHConnectionFailureReason) async -> Void) {
+        sessionManaged = true
+        sessionFailure = onFailure
+        cancelIdleDisconnect()
+    }
+
+    func failureReason(for error: Error) async -> SSHConnectionFailureReason {
+        let message = await (worker ?? retiredDiagnostics)?.collectedDiagnostics() ?? lastStderr
+        if !message.isEmpty { return RemoteHostSession.reason(for: SSHProcessFailure(message: message)) }
+        if case .failed(let reason) = state { return reason }
+        return RemoteHostSession.reason(for: error)
+    }
+
+    func disconnect() async {
         cancelIdleDisconnect()
         disconnectedForIdle = false
-        retireCurrentProcess(terminate: true)
-        stdinPipe = nil
-        stdoutPipe = nil
-        stderrPipe = nil
-        frameReader = RPCStreamHandler()
+        let previous = retireCurrentProcess(terminate: true)
         streamGeneration += 1
         transition(to: .disconnected)
+        await finishRetirement(previous)
     }
 
     func send(_ envelope: RPCEnvelope) async throws {
-        if disconnectedForIdle || state == .disconnected {
+        if !sessionManaged && (disconnectedForIdle || state == .disconnected) {
             try await connect()
         }
 
-        guard let stdinPipe else {
-            throw SSHConnectionError.notConnected
-        }
-
+        guard let worker else { throw SSHConnectionError.notConnected }
+        let generation = streamGeneration
         let frame = try RPCStreamHandler.encodeFrame(envelope.encodedPayload())
-        try stdinPipe.fileHandleForWriting.write(contentsOf: frame)
+        try await worker.perform { try $0.write(frame) }
+        guard streamGeneration == generation else { throw RemoteHostSessionError.obsoleteGeneration }
     }
 
     func setActivePaneCount(_ count: Int) {
@@ -164,58 +165,16 @@ actor SSHConnection {
         scheduleIdleDisconnectIfNeeded()
     }
 
-    func beginInFlightOperation() {
-        inFlightOperationCount += 1
-        scheduleIdleDisconnectIfNeeded()
-    }
-
-    func endInFlightOperation() {
-        inFlightOperationCount = max(0, inFlightOperationCount - 1)
-        scheduleIdleDisconnectIfNeeded()
-    }
-
-    func registerActiveWatch() {
-        activeWatchCount += 1
-        scheduleIdleDisconnectIfNeeded()
-    }
-
-    func unregisterActiveWatch() {
-        activeWatchCount = max(0, activeWatchCount - 1)
-        scheduleIdleDisconnectIfNeeded()
-    }
-
-    /// Waits for the next frame from the helper.
-    ///
-    /// The wait is a blocking pipe read, and it is outstanding for as long as
-    /// the connection is idle. Parked on a Swift concurrency executor it would
-    /// hold one of the pool's fixed number of threads for the life of the
-    /// connection, and enough connected hosts would leave the pool with nothing
-    /// left to run anything else. A dispatch queue grows threads when they
-    /// block, so the wait costs a thread rather than the app's ability to make
-    /// progress.
     func receive() async throws -> RPCEnvelope {
-        guard let process, let stdoutPipe else {
-            throw SSHConnectionError.notConnected
-        }
-
-        let output = stdoutPipe.fileHandleForReading
-        let queue = readQueue
-        let frame: Data = try await withCheckedThrowingContinuation { continuation in
-            queue.async {
-                withExtendedLifetime((process, stdoutPipe)) {
-                    do {
-                        continuation.resume(returning: try Self.readFrame(from: output))
-                    } catch {
-                        continuation.resume(throwing: error)
-                    }
-                }
-            }
-        }
+        guard let worker else { throw SSHConnectionError.notConnected }
+        let generation = streamGeneration
+        let frame = try await worker.perform { try $0.readFrame(timeout: nil) }
+        guard streamGeneration == generation else { throw RemoteHostSessionError.obsoleteGeneration }
         return try RPCEnvelope(encodedPayload: frame)
     }
 
     func reconnect(afterFailure reason: SSHConnectionFailureReason) async {
-        disconnectAfterFailure(reason)
+        await disconnectAfterFailure(reason)
         guard SSHReconnectPolicy.isRetryable(reason) else { return }
 
         var elapsed: TimeInterval = 0
@@ -238,20 +197,24 @@ actor SSHConnection {
         transition(to: .failed(reason: reason))
     }
 
-    private func processExited(_ exitedProcess: Process, status: Int32) {
+    private func processExited(_ exitedProcess: Process, status: Int32) async {
+        guard process === exitedProcess else { return }
+        let message = await worker?.collectedDiagnostics() ?? ""
         guard process === exitedProcess else { return }
         cancelIdleDisconnect()
-        lastStderr = stderrPipe.flatMap {
-            String(data: $0.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
-        } ?? ""
-        retireCurrentProcess(terminate: false)
-        stdinPipe = nil
-        stdoutPipe = nil
-        stderrPipe = nil
+        lastStderr = message
+        _ = retireCurrentProcess(terminate: false)
 
         guard state != .disconnected else { return }
         streamGeneration += 1
         let reason = SSHConnectionFailureReason.processExited(status)
+        if sessionManaged {
+            let failure = lastStderr.isEmpty ? reason : RemoteHostSession.reason(for: SSHProcessFailure(message: lastStderr))
+            transition(to: .failed(reason: failure))
+            let callback = sessionFailure
+            Task { await callback?(failure) }
+            return
+        }
         if hasIdleBlockers, SSHReconnectPolicy.isRetryable(reason) {
             Task { [weak self] in
                 await self?.reconnect(afterFailure: reason)
@@ -261,16 +224,13 @@ actor SSHConnection {
         transition(to: .failed(reason: reason))
     }
 
-    private func disconnectAfterFailure(_ reason: SSHConnectionFailureReason) {
+    private func disconnectAfterFailure(_ reason: SSHConnectionFailureReason) async {
         cancelIdleDisconnect()
         disconnectedForIdle = false
-        retireCurrentProcess(terminate: true)
-        stdinPipe = nil
-        stdoutPipe = nil
-        stderrPipe = nil
-        frameReader = RPCStreamHandler()
+        let previous = retireCurrentProcess(terminate: true)
         streamGeneration += 1
         transition(to: .failed(reason: reason))
+        await finishRetirement(previous)
     }
 
     private func transition(to newState: SSHConnectionState) {
@@ -279,12 +239,12 @@ actor SSHConnection {
     }
 
     private var hasIdleBlockers: Bool {
-        activePaneCount > 0 || inFlightOperationCount > 0 || activeWatchCount > 0
+        activePaneCount > 0
     }
 
     private func scheduleIdleDisconnectIfNeeded() {
         cancelIdleDisconnect()
-        guard state == .connected, !hasIdleBlockers else { return }
+        guard !sessionManaged, state == .connected, !hasIdleBlockers else { return }
 
         let timeout = idleTimeout
         idleDisconnectTask = Task { [weak self] in
@@ -302,30 +262,40 @@ actor SSHConnection {
         idleDisconnectTask = nil
     }
 
-    private func disconnectForIdleIfStillInactive() {
+    private func disconnectForIdleIfStillInactive() async {
         guard state == .connected, !hasIdleBlockers else { return }
         idleDisconnectTask = nil
         disconnectedForIdle = true
         transition(to: .disconnected)
-        retireCurrentProcess(terminate: true)
-        stdinPipe = nil
-        stdoutPipe = nil
-        stderrPipe = nil
-        frameReader = RPCStreamHandler()
+        let previous = retireCurrentProcess(terminate: true)
         streamGeneration += 1
+        await finishRetirement(previous)
     }
 
-    private func retireCurrentProcess(terminate: Bool) {
+    private func retireCurrentProcess(terminate: Bool) -> RemoteProcessWorker? {
+        let previous = worker
         let runningProcess = process
         runningProcess?.terminationHandler = nil
-        if terminate, runningProcess?.isRunning == true {
-            runningProcess?.terminate()
-        }
+        if terminate { previous?.requestStop() }
+        retiredDiagnostics = previous
+        worker = nil
         process = nil
         ProcessRetirement.retireOnMain(runningProcess)
+        return previous
+    }
+
+    private func finishRetirement(_ previous: RemoteProcessWorker?) async {
+        do { try await previous?.stop() } catch {
+            let message = error.localizedDescription
+            retirementFailure = message
+            transition(to: .failed(reason: .transport(message)))
+            Self.logger.error("SSH worker shutdown failed: \(message, privacy: .public)")
+        }
     }
 
     #if DEBUG
+    func hasPendingReaderForTesting() -> Bool { worker?.isReading == true }
+
     func streamGenerationForTesting() -> UInt64 {
         streamGeneration
     }
@@ -350,50 +320,10 @@ actor SSHConnection {
     func simulateProcessForTesting() {
         process = Process()
     }
-
-    func simulateStdoutPipeForTesting(_ pipe: Pipe, process: Process = Process()) {
-        self.process = process
-        stdoutPipe = pipe
-        streamGeneration += 1
-        transition(to: .connected)
-    }
-
-    func simulateReconnectForTesting(
-        afterFailure reason: SSHConnectionFailureReason,
-        maximumTotalDelay: TimeInterval = SSHReconnectPolicy.maximumTotalDelay,
-        connectAttempt: @Sendable (Int) async throws -> Void
-    ) async -> [SSHConnectionState] {
-        var observed: [SSHConnectionState] = []
-        func record(_ state: SSHConnectionState) {
-            transition(to: state)
-            observed.append(state)
-        }
-
-        disconnectAfterFailure(reason)
-        observed.append(state)
-        guard SSHReconnectPolicy.isRetryable(reason) else { return observed }
-
-        var elapsed: TimeInterval = 0
-        var attempt = 1
-        while let delay = SSHReconnectPolicy.delay(forAttempt: attempt),
-              elapsed + delay <= maximumTotalDelay {
-            record(.reconnecting(attempt: attempt, nextDelay: delay))
-            elapsed += delay
-            do {
-                try await connectAttempt(attempt)
-                record(.connected)
-                return observed
-            } catch {
-                attempt += 1
-            }
-        }
-
-        record(.failed(reason: reason))
-        return observed
-    }
     #endif
 
     private func publishStateChange(from oldState: SSHConnectionState, to newState: SSHConnectionState) {
+        guard !sessionManaged else { return }
         Task { @MainActor in
             RemoteConnectionStateStore.shared.setState(newState, for: configuration.hostID, oldState: oldState)
         }
@@ -426,26 +356,21 @@ actor SSHConnection {
         ]
     }
 
+    func auxiliaryWorker() throws -> RemoteProcessWorker {
+        try prepareControlDirectory()
+        try hostTrust.prepareKnownHostsFile()
+        let process = processFactory()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
+        process.arguments = sshArguments()
+        return RemoteProcessWorker(process: process)
+    }
+
     func currentStreamGeneration() -> UInt64 {
         streamGeneration
     }
+}
 
-    private static func readFrame(from output: FileHandle) throws -> Data {
-        let lengthBytes = ExactFileHandleReader.read(4, from: output)
-        guard lengthBytes.count == 4 else {
-            throw SSHConnectionError.unexpectedEOF
-        }
-        let length = Int(lengthBytes.reduce(UInt32(0)) { ($0 << 8) | UInt32($1) })
-        // A malicious or malfunctioning server could declare a multi-gigabyte frame; cap it at the
-        // same 16 MB ceiling the encoder enforces so a bad length field can't force a huge allocation.
-        guard length <= RPCStreamHandler.defaultMaxFrameSize else {
-            throw RPCProtocolError.frameTooLarge(length)
-        }
-        let payload = ExactFileHandleReader.read(length, from: output)
-        guard payload.count == length else {
-            throw SSHConnectionError.unexpectedEOF
-        }
-        return payload
-    }
-
+private struct SSHProcessFailure: LocalizedError {
+    let message: String
+    var errorDescription: String? { message }
 }

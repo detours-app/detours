@@ -4,6 +4,31 @@ import XCTest
 struct RemoteIntegrationSession {
     let hostID: UUID
     let provider: RemoteFileProvider
+    let session: RemoteHostSession
+    let endpoint: RemoteOperationCoordinator.Endpoint
+
+    nonisolated(unsafe) private static var openSessions: [RemoteHostSession] = []
+    private static let registryLock = NSLock()
+
+    private static func register(_ session: RemoteHostSession) {
+        registryLock.lock()
+        defer { registryLock.unlock() }
+        openSessions.append(session)
+    }
+
+    private static func takeOpenSessions() -> [RemoteHostSession] {
+        registryLock.lock()
+        defer { registryLock.unlock() }
+        let sessions = openSessions
+        openSessions = []
+        return sessions
+    }
+
+    /// Retires every session a test opened. Without this each live test leaves an SSH control
+    /// master and helper process behind, and a class run exhausts them and stalls.
+    static func closeAll() async {
+        for session in takeOpenSessions() { await session.disconnect() }
+    }
 
     static func make() async throws -> RemoteIntegrationSession {
         try RemoteIntegrationTests.runSSH("test -x ~/.detours-server/detours-server")
@@ -12,24 +37,43 @@ struct RemoteIntegrationSession {
             bundledBinaryDirectoryURL: URL(fileURLWithPath: "resources/Servers")
         )
         _ = try await deployer.deployIfNeeded()
-        return try make(sshTarget: RemoteIntegrationTests.linuxTestTarget)
+        return try await make(sshTarget: RemoteIntegrationTests.linuxTestTarget)
     }
 
-    static func make(sshTarget: String) throws -> RemoteIntegrationSession {
+    static func make(sshTarget: String) async throws -> RemoteIntegrationSession {
         try RemoteIntegrationTests.prepareDefaultSSHControlDirectory()
         let hostID = UUID()
-        let client = ProcessRemoteRPCClient(sshTarget: sshTarget)
+        let connection = SSHConnection(
+            configuration: SSHConnectionConfiguration(hostID: hostID, sshTarget: sshTarget)
+        )
+        let rawClient = SSHRemoteRPCClient(connection: connection)
+        let client = RemoteSessionRPCClient(connection: connection, client: rawClient)
+        let session = RemoteHostSession(transport: client, publish: { _, _ in })
+        let watcher = RemoteWatcherClient(hostID: hostID, rpcClient: client, session: session)
+        await client.bind(session: session, watcher: watcher)
+        await rawClient.setEventHandler { [weak watcher] envelope in
+            Task { await watcher?.receive(envelope) }
+        }
         let provider = RemoteFileProvider(
             hostID: hostID,
             rpcClient: client,
-            transferChannel: RemoteTransferChannel(sshTarget: sshTarget)
+            transferChannel: RemoteTransferChannel(sshTarget: sshTarget, session: session),
+            watcherClient: watcher,
+            searchChannel: RemoteSearchChannel(sshTarget: sshTarget, session: session)
         )
-        return RemoteIntegrationSession(hostID: hostID, provider: provider)
+        _ = try await session.ensureReady()
+        let endpoint = RemoteOperationCoordinator.Endpoint(
+            session: session,
+            request: { try await provider.operationRequest($0) },
+            upload: { try await provider.prepareAcceptedUpload($0, identity: $1) }
+        )
+        register(session)
+        return RemoteIntegrationSession(hostID: hostID, provider: provider, session: session, endpoint: endpoint)
     }
 
     static func makeIntelMac() async throws -> RemoteIntegrationSession {
         try await deployIntelMacHelper()
-        return try make(sshTarget: RemoteIntegrationTests.intelMacTestTarget)
+        return try await make(sshTarget: RemoteIntegrationTests.intelMacTestTarget)
     }
 
     static func deployIntelMacHelper() async throws {

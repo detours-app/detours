@@ -20,6 +20,10 @@ final class SmokeTests: XCTestCase {
     func testAppLaunchesWithWindow() throws {
         let window = app.windows.firstMatch
         XCTAssertTrue(window.waitForExistence(timeout: 5), "App window should exist")
+        let attachment = XCTAttachment(screenshot: window.screenshot())
+        attachment.name = "Installed app launch"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     /// Verify home button exists and is clickable

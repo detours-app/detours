@@ -270,11 +270,7 @@ extension FileListViewController {
         hideRemoteRefreshError()
 
         let normalizedURL = url.standardizedFileURL
-        if let previousRemoteHost = currentRemoteHost {
-            Task {
-                await RemoteConnectionRegistry.shared.paneStoppedViewing(hostID: previousRemoteHost.id)
-            }
-        }
+        remotePaneObservation.view(nil)
         currentRemoteHost = nil
         currentRemoteLocation = nil
         currentRemoteProvider = nil
@@ -410,7 +406,6 @@ extension FileListViewController {
         preserveExpansion: Bool = false,
         showSpinner: Bool = true
     ) {
-        let previousRemoteHost = currentRemoteHost
         loadRemoteDirectory(
             .remote(hostID: host.id, path: path),
             provider: provider,
@@ -419,14 +414,7 @@ extension FileListViewController {
         )
         currentRemoteHost = host
         currentRemoteProvider = provider
-        if previousRemoteHost?.id != host.id {
-            Task {
-                if let previousRemoteHost {
-                    await RemoteConnectionRegistry.shared.paneStoppedViewing(hostID: previousRemoteHost.id)
-                }
-                await RemoteConnectionRegistry.shared.paneStartedViewing(hostID: host.id)
-            }
-        }
+        remotePaneObservation.view(host.id)
     }
 
     /// Load a remote directory and, after the load completes, select the item at `selectingItemPath`.

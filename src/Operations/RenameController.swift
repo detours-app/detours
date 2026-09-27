@@ -188,22 +188,31 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         // If name unchanged for existing item, just cancel
         if newName == item.name {
             if wasNewItem, let undoManager = currentUndoManager {
-                // Register undo for "New Folder" with original name
-                let createdLocation = item.location
-                undoManager.registerUndo(withTarget: FileOperationQueue.shared) { target in
+                if case .remote = item.location {
+                    let location = item.location
                     Task { @MainActor in
-                        do {
-                            try await PaneFileOperationCoordinator.shared.perform(
-                                affecting: [createdLocation.deletingLastPathComponent()]
-                            ) {
-                                try await target.delete(items: [createdLocation], undoManager: nil)
-                            }
-                        } catch {
-                            target.presentError(error)
+                        do { try await FileOperationQueue.shared.registerCreatedRemoteUndo(location, with: undoManager) } catch {
+                            FileOperationQueue.shared.presentError(error)
                         }
                     }
+                } else {
+                    // Register undo for "New Folder" with original name
+                    let createdLocation = item.location
+                    undoManager.registerUndo(withTarget: FileOperationQueue.shared) { target in
+                        Task { @MainActor in
+                            do {
+                                try await PaneFileOperationCoordinator.shared.perform(
+                                    affecting: [createdLocation.deletingLastPathComponent()]
+                                ) {
+                                    try await target.delete(items: [createdLocation], undoManager: nil)
+                                }
+                            } catch {
+                                target.presentError(error)
+                            }
+                        }
+                    }
+                    undoManager.setActionName("New Folder")
                 }
-                undoManager.setActionName("New Folder")
             }
             isNewItem = false
             cancelRename()
@@ -231,11 +240,13 @@ final class RenameController: NSObject, NSTextFieldDelegate {
                 let newLocation = try await PaneFileOperationCoordinator.shared.perform(
                     affecting: [oldLocation.deletingLastPathComponent()]
                 ) {
-                    try await FileOperationQueue.shared.rename(item: oldLocation, to: newName)
+                    try await FileOperationQueue.shared.rename(item: oldLocation, to: newName, undoManager: wasNewItem ? nil : undoManager)
                 }
                 let newURL = URL(fileURLWithPath: newLocation.path)
 
-                if wasNewItem {
+                if case .remote = newLocation {
+                    if wasNewItem { try await FileOperationQueue.shared.registerCreatedRemoteUndo(newLocation, with: undoManager) }
+                } else if wasNewItem {
                     // For new folders: undo trashes the folder (synchronous)
                     let createdLocation = newLocation
                     undoManager?.registerUndo(withTarget: FileOperationQueue.shared) { target in
@@ -262,9 +273,7 @@ final class RenameController: NSObject, NSTextFieldDelegate {
                                 try await PaneFileOperationCoordinator.shared.perform(
                                     affecting: [newLocation.deletingLastPathComponent()]
                                 ) {
-                                    if case .remote = newLocation {
-                                        _ = try await target.rename(item: newLocation, to: oldLocation.lastPathComponent)
-                                    } else if let oldURL {
+                                    if let oldURL {
                                         try FileManager.default.moveItem(at: newURL, to: oldURL)
                                     }
                                 }

@@ -37,6 +37,105 @@ final class QualificationConnectionUITests: BaseUITest {
         }
     }
 
+    func testRemoteFolderResultShowsRecordedDestinationAndUndo() throws {
+        try runRemoteFolderResult(restoringAfterRestart: false)
+    }
+
+    func testSavedRemoteResultSurvivesRestartAndLocalNavigation() throws {
+        try runRemoteFolderResult(restoringAfterRestart: true)
+    }
+
+    private func runRemoteFolderResult(restoringAfterRestart: Bool) throws {
+        guard qualificationRemoteTarget != nil else {
+            throw QualificationConnectionFailure.timedOut("Live target is required", nil)
+        }
+        let ready = try waitForPaneState(pane: "left", description: "remote result fixture") {
+            $0.connectionStates.values.contains("connected") && $0.displayedLocation != nil && self.isQuiescent($0)
+        }
+        let home = try XCTUnwrap(ready.displayedLocation)
+        let scenario = "QualificationRefresh-" + UUID().uuidString.lowercased()
+        let sentinel = UUID().uuidString
+        let before = try performRemoteFixtureMutation(action: "snapshot", homePath: home, scenarioName: scenario)
+        try performRemoteFixtureMutation(action: "createScenario", homePath: home, scenarioName: scenario, sentinelID: sentinel)
+        defer {
+            do {
+                app.typeKey(.escape, modifierFlags: [])
+                let state = try requestRemotePaneState(pane: "left")
+                if state.displayedLocation != home {
+                    app.leftPaneOutlineView.click()
+                    pressKey(.upArrow, modifiers: .command)
+                    _ = try waitForPaneState(pane: "left", description: "return before cleanup") { $0.displayedLocation == home }
+                }
+                try performRemoteFixtureMutation(action: "cleanup", homePath: home, scenarioName: scenario, sentinelID: sentinel)
+                XCTAssertEqual(try performRemoteFixtureMutation(action: "snapshot", homePath: home, scenarioName: scenario), before)
+            } catch { XCTFail("Remote result fixture cleanup failed: \(error)") }
+        }
+        let row = app.leftPaneOutlineView.outlineRow(withStaticText: scenario)
+        XCTAssertTrue(row.waitForExistence(timeout: 8))
+        row.staticTexts[scenario].doubleClick()
+        _ = try waitForPaneState(pane: "left", description: "enter remote result fixture") {
+            $0.displayedLocation == home + "/" + scenario && self.isQuiescent($0)
+        }
+        let rightBefore = try requestRemotePaneState(pane: "right").displayedLocation
+        pressF7Key()
+        _ = try waitForPaneState(pane: "left", description: "new folder editor") { $0.firstResponderDescription == "NSTextView" }
+        app.typeKey(.return, modifierFlags: [])
+        _ = try waitForPaneState(pane: "left", description: "recorded folder creation") {
+            $0.visibleLocations.contains(home + "/" + scenario + "/Folder") && $0.focus == "fileList" && self.isQuiescent($0)
+        }
+        if restoringAfterRestart {
+            try relaunchQualificationApp()
+            _ = try waitForPaneState(pane: "left", description: "restored remote connection") {
+                $0.displayedLocation == home && $0.connectionStates.values.contains("connected") && self.isQuiescent($0)
+            }
+            app.buttons.matching(identifier: "paneBackButton").element(boundBy: 0).click()
+            _ = try waitForPaneState(pane: "left", description: "local navigation before saved result") {
+                $0.displayedLocation == self.uiTestRootURL.path && self.isQuiescent($0)
+            }
+            app.menuBars.firstMatch.menuBarItems["Window"].click()
+            app.menuItems["Remote Operations..."].click()
+            let record = app.windows["Remote Operations"].buttons["Folder"]
+            XCTAssertTrue(record.waitForExistence(timeout: 5))
+            record.click()
+        } else {
+            let status = app.staticTexts.matching(identifier: "operationStatus").element(boundBy: 0)
+            XCTAssertTrue(status.waitForExistence(timeout: 3))
+            status.click()
+        }
+        let summary = app.staticTexts["remoteOperationSummary"]
+        XCTAssertTrue(summary.waitForExistence(timeout: 3))
+        XCTAssertEqual(summary.value as? String ?? summary.label, "1 item completed.")
+        let host = app.staticTexts["remoteOperationHost"]
+        XCTAssertEqual(host.value as? String ?? host.label, qualificationRemoteTarget)
+        XCTAssertTrue(app.staticTexts["Destination: " + home + "/" + scenario + "/Folder"].exists)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = restoringAfterRestart
+            ? "Saved result after restart and local navigation" : "Recorded remote folder result and available undo"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        let undo = app.buttons["undoRemoteResult"]
+        XCTAssertTrue(undo.isEnabled)
+        undo.click()
+        if restoringAfterRestart {
+            XCTAssertTrue(undo.waitForNonExistence(timeout: 10))
+            app.windows["Remote Operations"].buttons["closeRemoteOperations"].click()
+            app.buttons.matching(identifier: "paneForwardButton").element(boundBy: 0).click()
+            _ = try waitForPaneState(pane: "left", description: "remote history after saved undo") {
+                $0.displayedLocation == home && self.isQuiescent($0)
+            }
+            let restoredRow = app.leftPaneOutlineView.outlineRow(withStaticText: scenario)
+            XCTAssertTrue(restoredRow.waitForExistence(timeout: 5))
+            restoredRow.staticTexts[scenario].doubleClick()
+            _ = try waitForPaneState(pane: "left", description: "inspect saved undo destination") {
+                $0.displayedLocation == home + "/" + scenario && self.isQuiescent($0)
+            }
+        }
+        _ = try waitForPaneState(pane: "left", description: "confirmed folder undo") {
+            !$0.visibleLocations.contains(home + "/" + scenario + "/Folder") && self.isQuiescent($0)
+        }
+        XCTAssertEqual(try requestRemotePaneState(pane: "right").displayedLocation, rightBefore)
+    }
+
     func testBackReturnsToLocalAfterSameTabRemoteConnection() throws {
         guard qualificationRemoteTarget != nil else {
             throw XCTSkip("This regression requires a live remote qualification target.")
@@ -113,6 +212,10 @@ final class QualificationConnectionUITests: BaseUITest {
             connected.connectionStates.values.contains("connected"),
             "Remote target did not connect: \(qualificationRemoteTarget)"
         )
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "Connected remote pane and preserved local pane"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     private func relaunchQualificationApp() throws {

@@ -247,7 +247,8 @@ extension FileListViewController {
                             items: locations,
                             format: model.format,
                             archiveName: model.archiveName,
-                            password: password
+                            password: password,
+                            undoManager: self.undoManager
                         )
                     }
                     self.reloadCurrentListing(selecting: archiveLocation)

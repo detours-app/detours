@@ -54,6 +54,22 @@ Current remote exceptions:
 - Password-protected ZIP and 7Z work through the bundled helper on supported macOS and Linux hosts. Windows remote hosts support unencrypted archives only.
 - Helper deployment accepts only x86_64 Linux and Intel macOS. Apple Silicon macOS, ARM Linux, BSD, and embedded sshd remotes are unsupported.
 
+## Connection Readiness and Operation Results
+
+A remote host is shown as connected only after Detours completes the helper or PowerShell handshake and confirms the version, required capabilities, account identity and journal epoch, so the pane waits rather than loading against a host that cannot answer. During reconnection the last listing stays visible and is marked as possibly out of date, and the banner names the host ("Reconnecting to {host}...").
+
+Recovery uses one bounded sequence per host: attempts wait 1, 2, 4, 8 and 16 seconds and stop at a 60-second deadline measured from the first failure, including handshake time. An authentication rejection, a changed host key or an incompatible helper stops automatic recovery. When the budget is exhausted Detours reports "Couldn't reconnect to {host}." and offers Reconnect; reconnecting establishes readiness and checks unfinished work, and never repeats a file change.
+
+Every remote-aware change (copy, move, rename, Trash, restore, new folder, archive, editor save and the explicitly confirmed permanent delete) runs as one accepted operation with per-item results. Details are available from the status bar while the operation is current and afterwards from Window > Remote Operations, which lists saved results independently of tabs and later operations. Confirmed items, skipped items, known failures and unknown items are counted separately, and each confirmed item keeps its own Undo even when another item failed.
+
+- **Cancel** asks the host to stop, keeps confirming what already finished, and reports "Cancelled. No files changed." only once the files and any required cleanup are known to be unchanged.
+- **Unknown results** read "Couldn't confirm whether '{item}' was {action} on {host}." and offer Check Result and Show Details, never Retry.
+- **Check Result** performs status and read-only filesystem checks. It never copies, renames, trashes or resumes work.
+- **Restore Original** returns a retained original to a free name; if the name is already occupied it reports the conflict without overwriting it.
+- **A source retained after a move copy** reports "{item} was copied to {destination}. The original is still at {source}." rather than a completed move.
+
+When Detours starts with unfinished remote work it runs one bounded status pass and lists the saved results, marking an unreachable host as unresolved ("Some remote results remain unconfirmed. Open Remote Operations to inspect or check them."). Closing a tab, navigating to a local folder or completing a later operation does not discard unresolved results, and Detours never repeats a change to resolve one.
+
 ## Automatic Remote Updates
 
 On supported macOS and Linux hosts, the helper watches the pane's root and expanded folders. It also compares directory identity and immediate-child metadata once per second on the remote host, catching in-place edits and missed native notifications without sending unchanged listings across SSH. Replacing a watched folder reattaches its native watch. Two panes watching the same folder keep independent subscriptions, so closing one does not stop updates in the other.
@@ -62,7 +78,7 @@ Open remote tabs keep their connection active, including tabs restored from a sa
 
 Native events are collected on a 20 ms loop, then watcher-only refreshes wait for a 100 ms quiet period before requesting a listing. A missed event can add about one second before detection. These are scheduling intervals, not an end-to-end guarantee: listing time, network latency, ongoing operations, and continuing changes can add delay.
 
-Files that disappear during enumeration are skipped. If an expanded folder disappears, its parent is refreshed and the stale branch is removed. When a connection returns, loaded tabs for that host restore their watches and reload their visible directories. Transient listing failures retry automatically after 0.5, 1, and 2 seconds; navigation or a successful refresh cancels outstanding retries. An error that remains appears as a short, single-line banner above the listing, with Retry available. If the pane's root no longer exists, the banner directs the user to its parent; recreating the watched root can trigger recovery.
+Files that disappear during enumeration are skipped. If an expanded folder disappears, its parent is refreshed and the stale branch is removed. When a connection returns, loaded tabs for that host restore their watches and reload their visible directories. Transient listing failures retry automatically after 0.5, 1, and 2 seconds; navigation or a successful refresh cancels outstanding retries. Reads may retry while the connection generation is current; a sent file change is never retried automatically. An error that remains appears as a short, single-line banner above the listing, with Retry available. If the pane's root no longer exists, the banner directs the user to its parent; recreating the watched root can trigger recovery.
 
 Windows uses its separate PowerShell watcher. The helper's one-second metadata check applies only to successfully registered Unix watches. If the host refuses watch allocation, such as when Linux reaches its inotify limit, automatic updates for that directory are unavailable until a watch can be restored. A ten-second client polling implementation exists but is not connected to production watch setup.
 
@@ -91,7 +107,7 @@ Bundled helper names:
 
 Apple Silicon macOS hosts (`Darwin arm64`) are not supported in this release.
 
-Windows hosts do not receive a helper binary. Detours detects Windows automatically, runs one-shot PowerShell operations over the shared SSH connection, uses a dedicated PowerShell watcher for live updates, and uses SFTP for large transfers when the host exposes it.
+Windows hosts do not receive a helper binary. Detours detects Windows automatically, runs one-shot PowerShell operations over the shared SSH connection, uses a dedicated PowerShell watcher for live updates, and checks SFTP availability once per connection. A large transfer uses SFTP; a transfer up to 1 MiB uses the bounded PowerShell fallback only when that check reports SFTP unavailable, never after a transfer error.
 
 ## Password-Protected Archives
 
@@ -129,7 +145,7 @@ Its restore metadata is stored below:
 ~/.local/share/Trash/info/
 ```
 
-Undo in Detours restores remote items by reading the `.trashinfo` metadata.
+Undo in Detours restores remote items from the recorded operation receipt and the `.trashinfo` metadata, and never overwrites a name that is already occupied.
 
 Windows hosts use a Detours-managed `.detours-trash` folder below the signed-in user's profile. Restore tokens remain inside Detours; Undo moves the item back to its original Windows path.
 
@@ -145,7 +161,7 @@ Run that command only when you are sure you no longer need anything in the remot
 
 Unix helper deployment supports x86_64 Linux and x86_64 macOS. Windows OpenSSH hosts are supported separately when their default shell is Windows PowerShell; Detours detects them before Unix helper deployment. Unsupported Unix architectures and Windows hosts with a Unix-style default shell are refused.
 
-Large transfers use a second SSH channel so directory listings, git status, and watch events can continue on the metadata channel. Temporary paths keep incomplete files away from final destinations, and interrupted multi-item remote copies resume with the items that did not arrive. A transfer the host refuses fails with the host's own message, leaves nothing at the destination, and is not counted as copied.
+Large transfers use a second SSH channel so directory listings, git status, and watch events can continue on the metadata channel. Temporary paths keep incomplete files away from final destinations, and each item of a multi-item copy reports its own confirmed, failed or unknown outcome; an interrupted item is never resent automatically. A transfer the host refuses fails with the host's own message, leaves nothing at the destination, and is not counted as copied.
 
 Remote mutation refreshes reconcile the affected folder in place. Expanded branches, selection, scrolling, keyboard focus, sorting, and active filters stay stable, while a completed transfer into a selected closed folder expands it and reveals the result.
 

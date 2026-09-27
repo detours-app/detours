@@ -1,8 +1,18 @@
 import DetoursProcess
 import Foundation
+import RemoteOperationSupport
 
-enum ServerRPCError: Error, Equatable {
+enum ServerRPCError: Error, Equatable, CustomStringConvertible {
     case unsupportedCommand(String)
+    case acceptedOperationRequired
+
+    var description: String {
+        switch self {
+        case .unsupportedCommand(let command): return "unsupportedCommand(\(String(reflecting: command)))"
+        case .acceptedOperationRequired:
+            return "Remote helper compatibility error: changes require an accepted operation using protocol version 2."
+        }
+    }
 }
 
 /// Safe to serve from several queues at once: the file operations hold no
@@ -10,6 +20,11 @@ enum ServerRPCError: Error, Equatable {
 struct RPCHandler: @unchecked Sendable {
     private let fileOperations = FileOperations()
     private let watcher = Watcher()
+    private let operationService: ServerOperationService?
+
+    init(operationService: ServerOperationService? = nil) {
+        self.operationService = operationService
+    }
 
     func run() throws {
         let outputLock = NSLock()
@@ -44,7 +59,9 @@ struct RPCHandler: @unchecked Sendable {
         // barrier so it still observes, and is observed by, the requests around
         // it in the order the client sent them.
         let workQueue = DispatchQueue(label: "com.detours.server.rpc", attributes: .concurrent)
+        let operationQueue = DispatchQueue(label: "com.detours.server.operations", attributes: .concurrent)
         defer { workQueue.sync(flags: .barrier) {} }
+        defer { operationQueue.sync(flags: .barrier) {} }
 
         while true {
             guard let frame = try Self.readFrame(from: .standardInput) else { return }
@@ -62,7 +79,9 @@ struct RPCHandler: @unchecked Sendable {
             let work: @Sendable () -> Void = {
                 self.serve(message: message, request: request, outputLock: outputLock)
             }
-            if Self.mutatesRemoteState(message) {
+            if case .operation = message {
+                operationQueue.async(execute: work)
+            } else if Self.mutatesRemoteState(message) {
                 workQueue.async(flags: .barrier, execute: work)
             } else {
                 workQueue.async(execute: work)
@@ -74,6 +93,8 @@ struct RPCHandler: @unchecked Sendable {
     /// requests before or after it.
     private static func mutatesRemoteState(_ message: ServerRPCMessage) -> Bool {
         switch message {
+        case .operation:
+            return false
         case .protocolVersion, .list, .stat, .readSymlink, .folderSize, .gitStatus, .fileVersion, .download, .find:
             return false
         case .copy, .move, .rename, .delete, .trash, .restoreFromTrash, .mkDir, .symlink,
@@ -137,6 +158,8 @@ struct RPCHandler: @unchecked Sendable {
 
     func handleChunks(message: ServerRPCMessage) throws -> [Data] {
         switch message {
+        case .operation(let request):
+            return [try ServerOperationReplyBridge.reply(to: request, service: operationService).encoded()]
         case .protocolVersion:
             var writer = ServerRPCBinaryWriter()
             writer.writeInt64(1)
@@ -145,42 +168,11 @@ struct RPCHandler: @unchecked Sendable {
             return try fileOperations.listChunks(path: path, showHidden: showHidden)
         case .stat(let path):
             return [try fileOperations.stat(path: path)]
-        case .copy(let sources, let destination, let maximumRPCBytes):
-            return [try fileOperations.copy(sources: sources, destination: destination, maximumRPCBytes: maximumRPCBytes)]
-        case .move(let sources, let destination):
-            return [try fileOperations.move(sources: sources, destination: destination)]
-        case .rename(let item, let newName):
-            return [try fileOperations.rename(item: item, newName: newName)]
-        case .delete(let items):
-            try fileOperations.delete(items: items)
-            return [Data()]
-        case .trash(let items):
-            return [try fileOperations.trash(items: items)]
-        case .restoreFromTrash(let items):
-            return [try fileOperations.restoreFromTrash(items: items)]
-        case .mkDir(let path):
-            return [try fileOperations.mkDir(path: path)]
-        case .symlink(let path, let targetPath):
-            return [try fileOperations.symlink(path: path, targetPath: targetPath)]
-        case .archiveCreate(let items, let format, let archiveName, let password):
-            return [try fileOperations.archiveCreate(
-                items: items,
-                format: format,
-                archiveName: archiveName,
-                password: password
-            )]
-        case .archiveExtract(let archive, let password):
-            return [try fileOperations.archiveExtract(archive: archive, password: password)]
+        case .copy, .move, .rename, .delete, .trash, .restoreFromTrash, .mkDir, .symlink,
+             .archiveCreate, .archiveExtract, .upload:
+            throw ServerRPCError.acceptedOperationRequired
         case .download(let path, let maximumRPCBytes):
             return [try fileOperations.download(path: path, maximumRPCBytes: maximumRPCBytes)]
-        case .upload(let path, let contents, let expectedByteCount, let maximumRPCBytes):
-            try fileOperations.upload(
-                path: path,
-                contents: contents,
-                expectedByteCount: expectedByteCount,
-                maximumRPCBytes: maximumRPCBytes
-            )
-            return [Data()]
         case .fileVersion(let path):
             return [try fileOperations.fileVersion(path: path)]
         case .readSymlink(let path):

@@ -1,5 +1,17 @@
 import Foundation
 
+struct RemoteConnectionResources: Sendable {
+    let provider: any FileProvider
+    let homePath: String
+    let session: RemoteHostSession
+
+    var operationEndpoint: RemoteOperationCoordinator.Endpoint {
+        RemoteOperationCoordinator.Endpoint(session: session,
+            request: { try await provider.operationRequest($0) },
+            upload: { try await provider.prepareAcceptedUpload($0, identity: $1) })
+    }
+}
+
 protocol RemoteConnectionHandle: Sendable {
     func setActivePaneCount(_ count: Int) async
     func forceReconnect() async throws
@@ -31,19 +43,93 @@ actor RemoteConnectionRegistry {
         let connection: any RemoteConnectionHandle
         let rpcClient: SSHRemoteRPCClient?
         let onDisconnect: (@Sendable () async -> Void)?
+        let windowsChannel: PowerShellChannel?
     }
 
     private var connections: [UUID: RegisteredConnection] = [:]
     private var activePaneCounts: [UUID: Int] = [:]
+    private var resources: [UUID: RemoteConnectionResources] = [:]
+    private var loading: [UUID: Task<RemoteConnectionResources, Error>] = [:]
+    private var owners: [UUID: UUID] = [:]
+    private var paneObservers: [UUID: UUID] = [:]
+    private var paneLifetimes: [UUID: RemoteSessionLifetime] = [:]
+
+    func setPaneObservation(_ id: UUID, hostID: UUID?) async {
+        paneLifetimes.removeValue(forKey: id)?.release()
+        paneObservers[id] = hostID
+        guard let hostID, let session = connections[hostID]?.connection as? RemoteHostSession else { return }
+        await attachPaneLifetime(id, hostID: hostID, session: session)
+    }
+
+    private func attachPaneLifetime(_ id: UUID, hostID: UUID, session: RemoteHostSession) async {
+        guard let lifetime = try? await session.acquireLifetime(.pane) else { return }
+        guard paneObservers[id] == hostID,
+              let current = connections[hostID]?.connection as? RemoteHostSession, current === session else {
+            lifetime.release()
+            return
+        }
+        paneLifetimes[id] = lifetime
+    }
+
+    func resources(for hostID: UUID, create: @escaping @Sendable (UUID) async throws -> RemoteConnectionResources) async throws -> RemoteConnectionResources {
+        if let task = loading[hostID] { return try await RemoteReadinessWaiter<RemoteConnectionResources>().wait(for: task) }
+        let existing = resources[hostID]
+        let owner = existing == nil ? UUID() : (owners[hostID] ?? UUID())
+        owners[hostID] = owner
+        let task = Task {
+            do {
+                let result: RemoteConnectionResources
+                if let existing {
+                    if case .failed = await existing.session.state { try await existing.session.forceReconnect() }
+                    _ = try await existing.session.ensureReady()
+                    result = existing
+                } else {
+                    await RemoteConnectionStateStore.shared.claim(hostID: hostID, owner: owner)
+                    try Task.checkCancellation()
+                    result = try await create(owner)
+                }
+                try Task.checkCancellation()
+                guard owners[hostID] == owner else {
+                    await result.session.disconnect()
+                    throw RemoteHostSessionError.retired
+                }
+                resources[hostID] = result
+                loading[hostID] = nil
+                return result
+            } catch {
+                if owners[hostID] == owner { loading[hostID] = nil }
+                throw error
+            }
+        }
+        loading[hostID] = task
+        return try await RemoteReadinessWaiter<RemoteConnectionResources>().wait(for: task)
+    }
+
+    func registerSession(_ session: RemoteHostSession, owner: UUID, windowsChannel: PowerShellChannel? = nil,
+                         onDisconnect: (@Sendable () async -> Void)? = nil, for hostID: UUID) async throws {
+        guard owners[hostID] == owner else {
+            await session.disconnect()
+            throw RemoteHostSessionError.retired
+        }
+        await register(session, onDisconnect: onDisconnect, windowsChannel: windowsChannel, for: hostID)
+        for (id, observedHost) in paneObservers where observedHost == hostID {
+            await attachPaneLifetime(id, hostID: hostID, session: session)
+        }
+        guard owners[hostID] == owner else {
+            await session.disconnect()
+            throw RemoteHostSessionError.retired
+        }
+    }
 
     func register(
         _ connection: any RemoteConnectionHandle,
         rpcClient: SSHRemoteRPCClient? = nil,
         onDisconnect: (@Sendable () async -> Void)? = nil,
+        windowsChannel: PowerShellChannel? = nil,
         for hostID: UUID
     ) async {
         let replacement = connections.updateValue(RegisteredConnection(
-            connection: connection, rpcClient: rpcClient, onDisconnect: onDisconnect
+            connection: connection, rpcClient: rpcClient, onDisconnect: onDisconnect, windowsChannel: windowsChannel
         ), forKey: hostID)
         if let replacement {
             await replacement.connection.disconnect()
@@ -52,11 +138,21 @@ actor RemoteConnectionRegistry {
         await connection.setActivePaneCount(activePaneCounts[hostID] ?? 0)
     }
 
-    func unregister(hostID: UUID) {
-        connections.removeValue(forKey: hostID)
+    func unregister(hostID: UUID) async {
+        loading.removeValue(forKey: hostID)?.cancel()
+        resources.removeValue(forKey: hostID)
+        let owner = owners.removeValue(forKey: hostID)
+        let removed = connections.removeValue(forKey: hostID)
         activePaneCounts.removeValue(forKey: hostID)
-        Task { @MainActor in
-            RemoteConnectionStateStore.shared.setState(.disconnected, for: hostID)
+        for (id, observedHost) in paneObservers where observedHost == hostID {
+            paneLifetimes.removeValue(forKey: id)?.release()
+        }
+        await removed?.connection.disconnect()
+        await removed?.onDisconnect?()
+        if let owner {
+            await RemoteConnectionStateStore.shared.release(hostID: hostID, owner: owner)
+        } else {
+            await RemoteConnectionStateStore.shared.setState(.disconnected, for: hostID)
         }
     }
 
@@ -84,7 +180,7 @@ actor RemoteConnectionRegistry {
         let registered = Array(connections.values)
         var handled = false
         for entry in registered {
-            guard let channel = entry.connection as? PowerShellChannel else { continue }
+            guard let channel = entry.windowsChannel ?? (entry.connection as? PowerShellChannel) else { continue }
             await entry.onDisconnect?()
             await channel.interruptForUITest()
             handled = true
@@ -97,8 +193,15 @@ actor RemoteConnectionRegistry {
     /// lingering (Windows masters persist for minutes via ControlPersist otherwise).
     func disconnectAll() async {
         let registered = Array(connections.values)
+        let retiredOwners = owners
+        for task in loading.values { task.cancel() }
+        loading.removeAll()
+        resources.removeAll()
+        owners.removeAll()
         connections.removeAll()
         activePaneCounts.removeAll()
+        paneObservers.removeAll()
+        paneLifetimes.removeAll()
         await withTaskGroup(of: Void.self) { group in
             for entry in registered {
                 group.addTask {
@@ -106,6 +209,9 @@ actor RemoteConnectionRegistry {
                     await entry.onDisconnect?()
                 }
             }
+        }
+        for (hostID, owner) in retiredOwners {
+            await RemoteConnectionStateStore.shared.release(hostID: hostID, owner: owner)
         }
     }
 }

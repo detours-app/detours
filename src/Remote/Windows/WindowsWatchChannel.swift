@@ -1,4 +1,5 @@
 import Foundation
+import os.log
 
 enum WindowsWatchChannelError: Error, Equatable, LocalizedError {
     case missingChannel
@@ -37,11 +38,18 @@ actor WindowsWatchChannel {
     }
 
     private struct WatchEntry {
+        let generation: UUID
         let transport: any PowerShellChannelTransport
         let readTask: Task<Void, Never>
         let onChange: @Sendable (Location) -> Void
         let location: Location
         let watcherPID: Int?
+    }
+
+    private struct Registration {
+        let location: Location
+        let nativePath: String
+        let onChange: @Sendable (Location) -> Void
     }
 
     private let hostID: UUID
@@ -51,6 +59,9 @@ actor WindowsWatchChannel {
     /// ever fires), so the only reliable teardown is an explicit kill over a fresh command.
     private let watcherKiller: (@Sendable (Int) async -> Void)?
     private var watchers: [UUID: WatchEntry] = [:]
+    private var registrations: [UUID: Registration] = [:]
+    private var workerEpoch = UUID()
+    private var pendingWorkers: [UUID: (generation: UUID, transport: any PowerShellChannelTransport)] = [:]
     private var recentEventTimestamps: [String: Date] = [:]
     private static let dedupWindow: TimeInterval = 0.5
 
@@ -67,7 +78,8 @@ actor WindowsWatchChannel {
                 sshTarget: sshTarget,
                 controlDirectory: controlDirectory,
                 hostTrust: hostTrust,
-                executionMode: .persistent
+                executionMode: .persistent,
+                responseTimeout: nil
             )
         }
         self.watcherKiller = { pid in
@@ -89,25 +101,44 @@ actor WindowsWatchChannel {
         onChange: @escaping @Sendable (Location) -> Void
     ) async throws -> FileProviderWatch {
         let id = UUID()
+        registrations[id] = Registration(location: location, nativePath: nativePath, onChange: onChange)
+        do {
+            try await startWatch(id: id)
+            return FileProviderWatch(id: id, location: location)
+        } catch {
+            registrations.removeValue(forKey: id)
+            throw error
+        }
+    }
+
+    private func startWatch(id: UUID) async throws {
+        guard let registration = registrations[id] else { throw CancellationError() }
+        let generation = UUID()
+        let epoch = workerEpoch
         let transport = transportFactory()
+        pendingWorkers[id] = (generation, transport)
+        defer {
+            if pendingWorkers[id]?.generation == generation { pendingWorkers.removeValue(forKey: id) }
+        }
         do {
             try await transport.start(dispatcherBase64: Self.dispatcherBase64)
-            let request = Request(id: 1, command: "watch", watchID: id, path: nativePath)
+            let request = Request(id: 1, command: "watch", watchID: id, path: registration.nativePath)
             try await transport.sendFrame(try RPCStreamHandler.encodeFrame(JSONEncoder.detoursWindows.encode(request)))
             let ackFrame = try await transport.readFrame()
             let ack = try JSONDecoder.detoursWindows.decode(Response.self, from: ackFrame)
             guard ack.type == "ack" else {
                 throw WindowsWatchChannelError.remoteError(ack.error ?? "Windows watch was not acknowledged.")
             }
+            try Task.checkCancellation()
+            guard registrations[id] != nil, workerEpoch == epoch else { throw CancellationError() }
             let readTask = Task { [weak self] in
                 guard let self else { return }
-                await self.eventLoop(watchID: id, transport: transport)
+                await self.eventLoop(watchID: id, generation: generation, transport: transport)
             }
             watchers[id] = WatchEntry(
-                transport: transport, readTask: readTask, onChange: onChange,
-                location: location, watcherPID: ack.pid
+                generation: generation, transport: transport, readTask: readTask, onChange: registration.onChange,
+                location: registration.location, watcherPID: ack.pid
             )
-            return FileProviderWatch(id: id, location: location)
         } catch {
             await transport.stop()
             throw error
@@ -115,6 +146,7 @@ actor WindowsWatchChannel {
     }
 
     func unwatch(_ watch: FileProviderWatch) async {
+        registrations.removeValue(forKey: watch.id)
         guard let entry = watchers.removeValue(forKey: watch.id) else { return }
         forgetEvents(for: watch.id)
         entry.readTask.cancel()
@@ -123,9 +155,26 @@ actor WindowsWatchChannel {
     }
 
     func stop() async {
+        registrations.removeAll()
+        await invalidateWorkers()
+    }
+
+    func reregisterAfterReconnect() async throws {
+        await invalidateWorkers()
+        for id in Array(registrations.keys) {
+            guard registrations[id] != nil else { continue }
+            try await startWatch(id: id)
+        }
+    }
+
+    func invalidateWorkers() async {
+        workerEpoch = UUID()
+        let pending = Array(pendingWorkers.values)
+        pendingWorkers.removeAll()
         let current = watchers
         watchers.removeAll()
         recentEventTimestamps.removeAll()
+        for entry in pending { await entry.transport.stop() }
         for (_, entry) in current {
             entry.readTask.cancel()
             await entry.transport.stop()
@@ -133,10 +182,11 @@ actor WindowsWatchChannel {
         }
     }
 
-    private func eventLoop(watchID: UUID, transport: any PowerShellChannelTransport) async {
+    private func eventLoop(watchID: UUID, generation: UUID, transport: any PowerShellChannelTransport) async {
         while !Task.isCancelled {
             do {
                 let frame = try await transport.readFrame()
+                guard watchers[watchID]?.generation == generation else { return }
                 let response = try JSONDecoder.detoursWindows.decode(Response.self, from: frame)
                 switch response.type {
                 case "event":
@@ -152,6 +202,7 @@ actor WindowsWatchChannel {
                     continue
                 }
             } catch {
+                guard watchers[watchID]?.generation == generation else { return }
                 handleWatchDropped(watchID)
                 return
             }
@@ -192,26 +243,33 @@ actor WindowsWatchChannel {
         controlDirectory: URL,
         hostTrust: SSHHostTrust
     ) async {
-        await Task.detached(priority: .utility) {
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-            process.arguments = [
-                "-o", "ControlMaster=auto",
-                "-o", "ControlPath=\(controlDirectory.path)/%C",
-                "-o", "ControlPersist=300",
-            ] + hostTrust.sshArguments + [
-                sshTarget,
-                "powershell.exe",
-                "-NoProfile",
-                "-NonInteractive",
-                "-Command",
-                "Stop-Process -Id \(pid) -Force -ErrorAction SilentlyContinue",
-            ]
-            process.standardOutput = FileHandle.nullDevice
-            process.standardError = FileHandle.nullDevice
-            try? process.run()
-            process.waitUntilExit()
-        }.value
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
+        process.arguments = [
+            "-o", "ControlMaster=auto",
+            "-o", "ControlPath=\(controlDirectory.path)/%C",
+            "-o", "ControlPersist=300",
+        ] + hostTrust.sshArguments + [
+            sshTarget, "powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+            "Stop-Process -Id \(pid) -Force -ErrorAction SilentlyContinue",
+        ]
+        let worker = RemoteProcessWorker(process: process)
+        do {
+            try await worker.perform { worker in
+                try hostTrust.prepareKnownHostsFile()
+                try worker.start()
+                worker.closeInput()
+                let deadline = ContinuousClock.now.advanced(by: .seconds(10))
+                while !(try worker.read(maximumBytes: 4096, timeout: ContinuousClock.now.duration(to: deadline))).isEmpty {}
+                guard try worker.waitForExit(timeout: ContinuousClock.now.duration(to: deadline)) == 0 else {
+                    worker.finishDiagnostics()
+                    throw RemoteTransferError.processFailed(worker.diagnostics)
+                }
+            }
+        } catch {
+            Logger(subsystem: "com.detours", category: "remote-watch")
+                .error("Remote watcher retirement failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     private func forgetEvents(for watchID: UUID) {

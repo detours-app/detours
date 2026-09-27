@@ -35,10 +35,25 @@ extension FileListViewController {
               let root = currentRemoteLocation, let provider = currentRemoteProvider else { return }
         cancelRemoteRefreshRecovery()
         let directories = materializedListingDirectories()
-        startWatching(root, provider: provider)
-        for directory in directories {
-            if directory != root { watchExpandedDirectory(directory) }
-            refreshScheduler.submitListingRefresh(directory: directory, cause: .watcher)
+        let epoch = refreshScheduler.epoch
+        remoteRefreshRecoveryTasks[root] = Task { @MainActor [weak self] in
+            guard let self else { return }
+            startWatching(root, provider: provider)
+            await directoryWatchTask?.value
+            for directory in directories {
+                guard !Task.isCancelled, !isShutDown, refreshScheduler.epoch == epoch else { return }
+                if directory != root {
+                    watchExpandedDirectory(directory)
+                    await providerWatchSetupTasks[directory]?.value
+                }
+                guard !Task.isCancelled, !isShutDown, refreshScheduler.epoch == epoch else { return }
+                guard providerWatches[directory] != nil else {
+                    dataSource.markRemoteDirectoryStale(directory)
+                    continue
+                }
+                refreshScheduler.submitListingRefresh(directory: directory, cause: .watcher)
+            }
+            if refreshScheduler.epoch == epoch { remoteRefreshRecoveryTasks.removeValue(forKey: root) }
         }
     }
 }
