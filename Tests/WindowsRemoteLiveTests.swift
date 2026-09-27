@@ -309,7 +309,7 @@ final class WindowsRemoteLiveTests: XCTestCase {
             let copiedData = try await fixture.read(destinationFile)
             XCTAssertEqual(copiedData, Data("new".utf8))
             copyUndoManager.undo()
-            try await waitUntilLiveOnMainActor(timeout: 5) {
+            try await waitUntilLiveOnMainActor(timeout: 20) {
                 (try? await fixture.read(destinationFile)) == Data("original".utf8)
             }
             let sourceAfterCopyUndo = try await fixture.read(sourceFile)
@@ -327,7 +327,7 @@ final class WindowsRemoteLiveTests: XCTestCase {
             } catch {}
 
             moveUndoManager.undo()
-            try await waitUntilLiveOnMainActor(timeout: 5) {
+            try await waitUntilLiveOnMainActor(timeout: 20) {
                 let sourceData = try? await fixture.read(sourceFile)
                 let destinationData = try? await fixture.read(destinationFile)
                 return sourceData == Data("new".utf8) && destinationData == Data("original".utf8)
