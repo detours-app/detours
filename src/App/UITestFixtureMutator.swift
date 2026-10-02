@@ -56,6 +56,8 @@ enum UITestFixtureMutator {
                 "-c", "user.email=qualification@detours.invalid",
                 "commit", "-q", "-m", "initial fixture",
             ], in: source)
+        case "gitStage":
+            try runGit(["add", source.lastPathComponent], in: source.deletingLastPathComponent())
         default:
             throw MutationError.unknownAction(command.action)
         }

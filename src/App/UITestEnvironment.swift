@@ -221,6 +221,10 @@ enum UITestEnvironment {
         let selectionFill: String
         let dockIcon: String?
         let dockImageIsDeepSea: Bool
+        let increaseContrast: Bool
+        let differentiateWithoutColor: Bool
+        let reduceMotion: Bool
+        let keyboardNavigation: Bool
 
         @MainActor
         static func current() -> AppAppearanceState {
@@ -240,7 +244,11 @@ enum UITestEnvironment {
                     Int((fill.blueComponent * 255).rounded())
                 ),
                 dockIcon: DockIconManager.shared.appliedChoice?.rawValue,
-                dockImageIsDeepSea: DockIconManager.shared.showsDeepSeaImage
+                dockImageIsDeepSea: DockIconManager.shared.showsDeepSeaImage,
+                increaseContrast: theme.increaseContrast,
+                differentiateWithoutColor: NSWorkspace.shared.accessibilityDisplayShouldDifferentiateWithoutColor,
+                reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
+                keyboardNavigation: NSApplication.shared.isFullKeyboardAccessEnabled
             )
         }
 

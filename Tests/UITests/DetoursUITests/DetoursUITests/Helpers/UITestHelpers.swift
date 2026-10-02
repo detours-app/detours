@@ -134,6 +134,10 @@ extension BaseUITest {
         let selectionFill: String
         let dockIcon: String?
         let dockImageIsDeepSea: Bool
+        let increaseContrast: Bool
+        let differentiateWithoutColor: Bool
+        let reduceMotion: Bool
+        let keyboardNavigation: Bool
     }
 
     struct RemoteProviderCall: Decodable {

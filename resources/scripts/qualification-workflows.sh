@@ -559,6 +559,62 @@ seed_geometry_defaults() {
     printf 'qualification: seeded %s window frame %s\n' "$scenario" "$seeded"
 }
 
+# The accessibility capture needs macOS display options in place before the app starts, and
+# the XCUI runner cannot change them. They are set here, unsandboxed, recorded first, and put
+# back after the run whatever its result; run_cleanup restores them again if a run stops early.
+accessibility_seed_scenario() {
+    case "$1" in
+        *testCaptureAccessibilityScenes*) printf 'accessibility-on\n' ;;
+        *) printf '\n' ;;
+    esac
+}
+
+seed_accessibility_settings() {
+    local scenario="$1"
+    local restore_file key
+    [[ -n "$scenario" ]] || return 0
+    restore_file="$(run_dir)/accessibility-restore.env"
+    [[ ! -e "$restore_file" ]] || fail "accessibility settings are already seeded: $restore_file"
+    {
+        for key in increaseContrast differentiateWithoutColor reduceMotion; do
+            printf '%s=%s\n' "$key" "$(defaults read com.apple.universalaccess "$key" 2>/dev/null || printf absent)"
+        done
+        printf 'AppleKeyboardUIMode=%s\n' "$(defaults read -g AppleKeyboardUIMode 2>/dev/null || printf absent)"
+    } > "$restore_file"
+    for key in increaseContrast differentiateWithoutColor reduceMotion; do
+        defaults write com.apple.universalaccess "$key" -bool true
+    done
+    defaults write -g AppleKeyboardUIMode -int 2
+    printf 'qualification: seeded %s (Increase Contrast, Differentiate Without Color, Reduce Motion, keyboard navigation)\n' "$scenario"
+}
+
+restore_accessibility_settings() {
+    local restore_file key value
+    restore_file="$(run_dir)/accessibility-restore.env"
+    [[ -f "$restore_file" ]] || return 0
+    while IFS='=' read -r key value; do
+        case "$key" in
+            increaseContrast|differentiateWithoutColor|reduceMotion)
+                if [[ "$value" == absent ]]; then
+                    defaults delete com.apple.universalaccess "$key" >/dev/null 2>&1 || true
+                else
+                    defaults write com.apple.universalaccess "$key" -bool "$value"
+                fi
+                ;;
+            AppleKeyboardUIMode)
+                if [[ "$value" == absent ]]; then
+                    defaults delete -g AppleKeyboardUIMode >/dev/null 2>&1 || true
+                else
+                    defaults write -g AppleKeyboardUIMode -int "$value"
+                fi
+                ;;
+            *) fail "unexpected accessibility restore entry: $key" ;;
+        esac
+    done < "$restore_file"
+    rm -f -- "$restore_file"
+    printf 'qualification: restored accessibility settings\n'
+}
+
 run_installed_once() {
     local selected_group="$1"
     local root_name="$2"
@@ -584,6 +640,7 @@ run_installed_once() {
     printf 'qualification: installed %s %s repetitions 1-%d\n' \
         "$selected_group" "$context_name" "$repetitions" | tee -a "$log_path.log"
     seed_geometry_defaults "$(geometry_seed_scenario "$test_filter")" | tee -a "$log_path.log"
+    seed_accessibility_settings "$(accessibility_seed_scenario "$test_filter")" | tee -a "$log_path.log"
     started_at="$(date +%s)"
     set +e
     QUALIFICATION_GUI_RESULT_BUNDLE="$result_bundle" \
@@ -608,6 +665,7 @@ run_installed_once() {
     set -e
     cat "$command_output" >> "$log_path.log"
     stop_installed_app
+    restore_accessibility_settings | tee -a "$log_path.log"
     if (( status == 0 )); then
         verify_quiet_xcode_command "$log_path.raw.log"
         verify_installed_result_bundle "$result_bundle"
