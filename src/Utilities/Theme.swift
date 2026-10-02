@@ -91,9 +91,11 @@ extension Theme {
         case let .system(systemAccent, fill, text):
             accentColor = systemAccent
             selectionFill = fill
+            // AppKit draws white on every accent, which misses 4.5:1 on the orange, green, pink
+            // and graphite fills; black reaches it on all of them.
             selectionText = ChromeContrast.readableTextColor(
                 preferred: text,
-                fallback: NSColor(hex: "#1C1B1A"),
+                fallback: .black,
                 on: fill
             )
         }

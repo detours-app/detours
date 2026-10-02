@@ -91,6 +91,60 @@ final class FileListDataSourceTests: XCTestCase {
         }
     }
 
+    func testSelectionInsetAndRadiusPerDensity() throws {
+        let originalDensity = SettingsManager.shared.fileListRowDensity
+        defer { SettingsManager.shared.fileListRowDensity = originalDensity }
+
+        let expected: [(density: FileListRowDensity, height: CGFloat, radius: CGFloat)] = [
+            (.compact, 24, 5),
+            (.comfortable, 28, 6),
+            (.spacious, 32, 7),
+        ]
+        for (density, height, radius) in expected {
+            SettingsManager.shared.fileListRowDensity = density
+            XCTAssertEqual(density.rowHeight, height)
+            XCTAssertEqual(density.selectionRadius, radius)
+
+            let bounds = NSRect(x: 0, y: 0, width: 400, height: height)
+            let inset = FileListRowMetrics.horizontalInset
+            XCTAssertEqual(inset, 10)
+            XCTAssertEqual(InactiveHidingRowView.highlightRect(in: bounds), NSRect(x: inset, y: 0, width: 400 - inset * 2, height: height))
+
+            // Drawn: clear gutters, a filled selection between them, and corners on the density radius.
+            let row = InactiveHidingRowView(frame: bounds)
+            row.isSelected = true
+            let alpha = try renderedAlpha(of: row)
+            XCTAssertLessThan(alpha(inset / 2, height / 2), 0.05, "\(density) leading gutter is clear")
+            XCTAssertLessThan(alpha(400 - inset / 2, height / 2), 0.05, "\(density) trailing gutter is clear")
+            XCTAssertGreaterThan(alpha(inset + radius, height / 2), 0.95, "\(density) selection is filled")
+            XCTAssertGreaterThan(alpha(200, 0.5), 0.95, "\(density) selection reaches the row's top and bottom")
+            let cornerCenter = inset + radius
+            let diagonal = 1 / CGFloat(2).squareRoot()
+            let justInside = (radius - 0.7) * diagonal
+            let justOutside = (radius + 0.7) * diagonal
+            XCTAssertGreaterThan(alpha(cornerCenter - justInside, radius - justInside), 0.6, "\(density) corner radius is not smaller than \(radius)")
+            XCTAssertLessThan(alpha(cornerCenter - justOutside, radius - justOutside), 0.4, "\(density) corner radius is not larger than \(radius)")
+        }
+    }
+
+    /// Renders a view at 4x and returns its alpha at a point measured from the view's top-left.
+    private func renderedAlpha(of view: NSView) throws -> (CGFloat, CGFloat) -> CGFloat {
+        let scale: CGFloat = 4
+        let width = Int(view.bounds.width * scale)
+        let height = Int(view.bounds.height * scale)
+        let rep = try XCTUnwrap(NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: width, pixelsHigh: height, bitsPerSample: 8, samplesPerPixel: 4,
+            hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+        ))
+        rep.size = view.bounds.size
+        view.cacheDisplay(in: view.bounds, to: rep)
+        return { x, y in
+            let column = min(width - 1, Int(x * scale))
+            let row = min(height - 1, Int(y * scale))
+            return rep.colorAt(x: column, y: row)?.alphaComponent ?? 0
+        }
+    }
+
     // MARK: - Bug Fix Verification Tests
 
     /// Tests that nested folder structure is correctly traversable.

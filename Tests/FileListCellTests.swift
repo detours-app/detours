@@ -113,6 +113,161 @@ final class FileListCellTests: XCTestCase {
         XCTAssertNil(cell.accessibilityHelp())
     }
 
+    func testGitMarkShapesAndLabels() throws {
+        let box = NSRect(x: 0, y: 0, width: GitMarkView.markSize, height: GitMarkView.markSize)
+        let center = NSPoint(x: box.midX, y: box.midY)
+        let nearCorner = NSPoint(x: 0.9, y: 1.3) // inside the rounded square only
+        let offDiagonal = NSPoint(x: 1.6, y: 1.6) // inside the circle and square, outside the diamond
+        let nearTop = NSPoint(x: box.midX, y: 7.4)
+
+        let modified = try XCTUnwrap(GitMarkView.path(for: .modified, in: box))
+        XCTAssertTrue(modified.contains(center))
+        XCTAssertTrue(modified.contains(offDiagonal))
+        XCTAssertFalse(modified.contains(nearCorner), "Modified is a circle")
+        let staged = try XCTUnwrap(GitMarkView.path(for: .staged, in: box))
+        XCTAssertTrue(staged.contains(center))
+        XCTAssertTrue(staged.contains(nearCorner), "Staged is a rounded square")
+        let conflict = try XCTUnwrap(GitMarkView.path(for: .conflict, in: box))
+        XCTAssertTrue(conflict.contains(center))
+        XCTAssertTrue(conflict.contains(nearTop))
+        XCTAssertFalse(conflict.contains(offDiagonal), "Conflict is a diamond")
+        XCTAssertNotNil(GitMarkView.path(for: .untracked, in: box))
+        XCTAssertNil(GitMarkView.path(for: .clean, in: box))
+
+        for status in [GitStatus.modified, .staged, .conflict] {
+            XCTAssertGreaterThan(try renderedMarkAlpha(status, at: center), 0.9, "\(status) mark is filled")
+        }
+        XCTAssertLessThan(try renderedMarkAlpha(.untracked, at: center), 0.1, "Untracked mark is a hollow ring")
+        XCTAssertGreaterThan(try renderedMarkAlpha(.untracked, at: NSPoint(x: box.midX, y: box.midY + 3.25)), 0.5, "Untracked ring is drawn")
+
+        let labels: [(GitStatus, String)] = [
+            (.modified, "Modified in git"),
+            (.staged, "Staged in git"),
+            (.untracked, "Untracked"),
+            (.conflict, "Conflict"),
+        ]
+        for (status, label) in labels {
+            let (cell, mark) = try makeGitCell(status)
+            XCTAssertFalse(mark.isHidden, label)
+            XCTAssertEqual(mark.toolTip, label)
+            XCTAssertEqual(mark.accessibilityLabel(), label)
+            XCTAssertEqual(cell.accessibilityLabel(), "Budget-2026.xlsx, \(label)")
+        }
+        let (cleanCell, cleanMark) = try makeGitCell(.clean)
+        XCTAssertTrue(cleanMark.isHidden, "Clean files have no mark")
+        XCTAssertNil(cleanMark.toolTip)
+        XCTAssertEqual(cleanCell.accessibilityLabel(), "Budget-2026.xlsx")
+
+        // Active teal selection: white marks
+        for theme in [Theme.light, Theme.dark] {
+            for (status, _) in labels {
+                XCTAssertEqual(FileListCell.gitMarkColor(for: status, theme: theme, selection: .active), .white)
+            }
+        }
+        // System accents: AppKit's own selection text, or black where white is unreadable
+        let blue = NSColor(hex: "#0064E1")
+        let blueTheme = Theme.resolve(isDark: false, increaseContrast: false, accent: .system(accent: blue, selectionFill: blue, selectionText: .white))
+        XCTAssertEqual(FileListCell.gitMarkColor(for: .staged, theme: blueTheme, selection: .active), .white)
+        let yellow = NSColor(hex: "#E1AC15")
+        let yellowTheme = Theme.resolve(isDark: false, increaseContrast: false, accent: .system(accent: yellow, selectionFill: yellow, selectionText: .white))
+        XCTAssertEqual(FileListCell.gitMarkColor(for: .staged, theme: yellowTheme, selection: .active), .black)
+        // Inactive selection: the git token where it reaches 3:1 on the grey fill, text primary where it does not
+        XCTAssertEqual(FileListCell.gitMarkColor(for: .modified, theme: Theme.light, selection: .inactive), Theme.light.gitModified)
+        XCTAssertEqual(FileListCell.gitMarkColor(for: .untracked, theme: Theme.light, selection: .inactive), Theme.light.textPrimary)
+
+        // A configured row recolours its mark with the selection
+        let (cell, mark) = try makeGitCell(.modified)
+        let currentTheme = ThemeManager.shared.currentTheme
+        for selection in [RowSelectionState.active, .inactive, .none] {
+            cell.rowSelectionState = selection
+            XCTAssertEqual(mark.color, FileListCell.gitMarkColor(for: .modified, theme: currentTheme, selection: selection), "selection \(selection)")
+        }
+    }
+
+    func testStockIconsUntinted() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("detours-stock-icons-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let folder = root.appendingPathComponent("Projects", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false)
+        let file = root.appendingPathComponent("notes.txt")
+        try "notes".write(to: file, atomically: true, encoding: .utf8)
+
+        for (url, isDirectory) in [(folder, true), (file, false)] {
+            let name = url.lastPathComponent
+            let workspaceIcon = try iconPixels(NSWorkspace.shared.icon(forFile: url.path))
+            let item = FileItem(url: url)
+            XCTAssertEqual(try iconPixels(item.icon), workspaceIcon, "\(name) row icon is the workspace icon")
+
+            let cell = FileListCell(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
+            cell.configure(with: item)
+            let iconView = try XCTUnwrap(cell.imageView)
+            for selection in [RowSelectionState.active, .inactive, .none] {
+                cell.rowSelectionState = selection
+                XCTAssertTrue(iconView.image === item.icon, "\(name) keeps its icon, selection \(selection)")
+                XCTAssertNil(iconView.contentTintColor, "\(name) icon is not tinted, selection \(selection)")
+            }
+
+            let result = QuickNavResult.local(url: url, score: 1, isDirectory: isDirectory)
+            for isSelected in [false, true] {
+                let row = QuickNavResultRow(result: result, isSelected: isSelected, isFrecent: false)
+                XCTAssertEqual(try iconPixels(row.icon), workspaceIcon, "\(name) Quick Nav icon, selected \(isSelected)")
+            }
+        }
+
+        let favorite = SidebarItemView(frame: NSRect(x: 0, y: 0, width: 220, height: 28))
+        favorite.configure(with: .favorite(folder), theme: Theme.light)
+        favorite.backgroundStyle = .emphasized
+        let favoriteIcon = try XCTUnwrap(favorite.subviews.compactMap { $0 as? NSImageView }.first { !$0.isHidden && $0.image != nil })
+        XCTAssertNil(favoriteIcon.contentTintColor, "Selected sidebar favourite keeps the stock icon")
+        XCTAssertEqual(try iconPixels(XCTUnwrap(favoriteIcon.image)), try iconPixels(NSWorkspace.shared.icon(forFile: folder.path)))
+    }
+
+    private func makeGitCell(_ status: GitStatus) throws -> (FileListCell, GitMarkView) {
+        let item = FileItem(
+            name: "Budget-2026.xlsx",
+            url: URL(fileURLWithPath: "/tmp/Budget-2026.xlsx"),
+            isDirectory: false,
+            size: 10,
+            dateModified: Date(),
+            icon: NSImage(size: NSSize(width: 16, height: 16)),
+            gitStatus: status
+        )
+        let cell = FileListCell(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
+        cell.configure(with: item)
+        let mark = try XCTUnwrap(cell.subviews.compactMap { $0 as? GitMarkView }.first)
+        return (cell, mark)
+    }
+
+    private func renderedMarkAlpha(_ status: GitStatus, at point: NSPoint) throws -> CGFloat {
+        let scale = 8
+        let side = Int(GitMarkView.markSize) * scale
+        let view = GitMarkView(frame: NSRect(x: 0, y: 0, width: GitMarkView.markSize, height: GitMarkView.markSize))
+        view.status = status
+        view.color = .black
+        let rep = try XCTUnwrap(NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: side, pixelsHigh: side, bitsPerSample: 8, samplesPerPixel: 4,
+            hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+        ))
+        rep.size = view.bounds.size
+        view.cacheDisplay(in: view.bounds, to: rep)
+        let color = try XCTUnwrap(rep.colorAt(x: Int(point.x * CGFloat(scale)), y: side - 1 - Int(point.y * CGFloat(scale))))
+        return color.alphaComponent
+    }
+
+    private func iconPixels(_ image: NSImage) throws -> Data {
+        let side = 32
+        let rep = try XCTUnwrap(NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: side, pixelsHigh: side, bitsPerSample: 8, samplesPerPixel: 4,
+            hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: side * 4, bitsPerPixel: 32
+        ))
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        image.draw(in: NSRect(x: 0, y: 0, width: side, height: side))
+        NSGraphicsContext.restoreGraphicsState()
+        return Data(bytes: try XCTUnwrap(rep.bitmapData), count: side * side * 4)
+    }
+
     private func makeAccessoryItem(
         name: String,
         iCloudStatus: ICloudStatus = .local,

@@ -539,6 +539,50 @@ final class DetoursPreviewGeneratorTests: XCTestCase {
         XCTAssertNotEqual(base, try previewGenerator.cacheKey(for: request(source, displayName: "main.swift"), kind: kind))
     }
 
+    func testPreviewVariablesFromTokens() throws {
+        let previewGenerator = generator()
+        for theme in [Theme.light, Theme.dark] {
+            let css = previewGenerator.themeVariablesCSS(for: theme, fontSize: 13)
+            let expectations: [(String, NSColor)] = [
+                ("--detours-background", theme.content),
+                ("--detours-surface", theme.header),
+                ("--detours-border", theme.hairline),
+                ("--detours-text-primary", theme.textPrimary),
+                ("--detours-text-secondary", theme.textSecondary),
+                ("--detours-line-number", theme.textSecondary),
+                ("--detours-accent", theme.accent),
+                ("--detours-selection", theme.textSelection),
+            ]
+            for (variable, token) in expectations {
+                XCTAssertTrue(css.contains("\(variable): \(previewGenerator.cssHex(token));"), "\(variable) should come from its token")
+            }
+            XCTAssertFalse(css.contains(previewGenerator.cssHex(theme.glyph)), "Preview text and line numbers never use the glyph token")
+            XCTAssertTrue(css.contains("--detours-font-family: ui-monospace, \"SF Mono\", Menlo, monospace;"))
+            XCTAssertTrue(css.contains("--detours-token-keyword: \(theme.isDark ? "#569CD6" : "#0000FF");"))
+        }
+
+        // Syntax colours follow the effective appearance
+        let inputs = Theme.Inputs(choice: .system, increaseContrast: false, usesDetoursAccent: true)
+        let darkSystem = Theme.resolve(inputs: inputs, appearance: try XCTUnwrap(NSAppearance(named: .darkAqua)))
+        XCTAssertTrue(previewGenerator.themeVariablesCSS(for: darkSystem, fontSize: 13).contains("--detours-token-keyword: #569CD6;"))
+        let lightSystem = Theme.resolve(inputs: inputs, appearance: try XCTUnwrap(NSAppearance(named: .aqua)))
+        XCTAssertTrue(previewGenerator.themeVariablesCSS(for: lightSystem, fontSize: 13).contains("--detours-token-keyword: #0000FF;"))
+
+        // The cached preview's identity changes with every token it uses and with the appearance
+        let identity = previewGenerator.themeIdentity(.light)
+        XCTAssertEqual(identity, previewGenerator.themeIdentity(Theme.resolve(isDark: false, increaseContrast: false, accent: .detours)))
+        XCTAssertNotEqual(identity, previewGenerator.themeIdentity(.dark))
+        XCTAssertNotEqual(identity, previewGenerator.themeIdentity(Theme.resolve(isDark: false, increaseContrast: true, accent: .detours)))
+        let graphite = NSColor(hex: "#808080")
+        let graphiteTheme = Theme.resolve(isDark: false, increaseContrast: false, accent: .system(accent: graphite, selectionFill: graphite, selectionText: .white))
+        XCTAssertNotEqual(identity, previewGenerator.themeIdentity(graphiteTheme))
+
+        // No font field survives from the retired themes
+        let fields = Mirror(reflecting: Theme.light).children.compactMap(\.label)
+        XCTAssertFalse(fields.contains("fontName"))
+        XCTAssertFalse(fields.contains("uiFontName"))
+    }
+
     func testGeneratedPreviewUsesRelativeSupportAssetsAndNoInlineScript() async throws {
         let source = try write("main.swift", "let value = 1")
         let previewURL = try await generator().previewURL(for: request(source, displayName: "main.swift"))

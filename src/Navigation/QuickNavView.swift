@@ -74,7 +74,7 @@ struct QuickNavView: View {
                         LazyVStack(spacing: 0) {
                             ForEach(results.indices, id: \.self) { index in
                                 let result = results[index]
-                                ResultRow(
+                                QuickNavResultRow(
                                     result: result,
                                     isSelected: index == selectedIndex,
                                     isFrecent: FrecencyStore.shared.isFrecent(result.location)
@@ -565,7 +565,7 @@ struct QuickNavView: View {
 
 // MARK: - Result Row
 
-private struct ResultRow: View {
+struct QuickNavResultRow: View {
     let result: QuickNavResult
     let isSelected: Bool
     let isFrecent: Bool

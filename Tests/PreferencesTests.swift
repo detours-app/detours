@@ -135,6 +135,61 @@ final class PreferencesTests: XCTestCase {
         XCTAssertEqual(invalidDensity.fontSize, 15)
     }
 
+    func testRetiredThemesMigrate() throws {
+        var original = Settings()
+        original.restoreSession = false
+        original.showHiddenByDefault = true
+        original.fontSize = 15
+        original.fileListRowDensity = .spacious
+        original.dateFormatCurrentYear = "yyyy-MM-dd"
+        original.showStatusBar = false
+        original.foldersOnTop = false
+        original.favorites = ["/Applications", "/tmp"]
+        original.recentServers = ["smb://nas.local"]
+        original.gitStatusEnabled = false
+        original.shortcuts = [.refresh: KeyCombo(keyCode: 15, modifiers: [.command, .shift])]
+
+        for (saved, expected) in [("foolscap", ThemeChoice.light), ("drafting", .light), ("custom", .system)] {
+            var json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(original)) as? [String: Any])
+            json["theme"] = saved
+            // The retired custom theme was saved alongside the settings.
+            json["customTheme"] = ["background": "#FFFFFF", "accent": "#FF0000", "fontName": "Menlo"]
+
+            let decoded = try JSONDecoder().decode(Settings.self, from: JSONSerialization.data(withJSONObject: json))
+
+            XCTAssertEqual(decoded.theme, expected, "\(saved) should load as \(expected)")
+            var otherSettings = decoded
+            otherSettings.theme = original.theme
+            XCTAssertEqual(otherSettings, original, "\(saved) migration should leave every other setting unchanged")
+        }
+    }
+
+    func testBandingAndDockIconDefaults() async throws {
+        XCTAssertFalse(Settings().fileListBanding, "Row stripes should default to off")
+        XCTAssertEqual(Settings().dockIcon, .standard, "The Dock icon should default to the default icon")
+        XCTAssertFalse(SettingsManager.shared.fileListBanding)
+        XCTAssertEqual(SettingsManager.shared.dockIcon, .standard)
+
+        SettingsManager.shared.fileListBanding = true
+        SettingsManager.shared.dockIcon = .deepSea
+        let data = try XCTUnwrap(UserDefaults.standard.data(forKey: "Detours.Settings"))
+        let saved = try JSONDecoder().decode(Settings.self, from: data)
+        XCTAssertTrue(saved.fileListBanding)
+        XCTAssertEqual(saved.dockIcon, .deepSea)
+
+        let invalidJSON = """
+        {
+          "fontSize": 14,
+          "fileListBanding": "yes",
+          "dockIcon": "neon"
+        }
+        """
+        let invalid = try JSONDecoder().decode(Settings.self, from: Data(invalidJSON.utf8))
+        XCTAssertFalse(invalid.fileListBanding, "Invalid stripes data should fall back to off")
+        XCTAssertEqual(invalid.dockIcon, .standard, "An unknown Dock icon should fall back to the default icon")
+        XCTAssertEqual(invalid.fontSize, 14)
+    }
+
     // MARK: - KeyCombo Tests
 
     func testKeyComboDisplayString() throws {
