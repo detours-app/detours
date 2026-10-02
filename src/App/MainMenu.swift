@@ -378,8 +378,6 @@ func setupMainMenu(target: AppDelegate) {
     application.helpMenu = helpMenu
 
     application.mainMenu = mainMenu
-    // The theme may have set the app's appearance before this menu existed.
-    ThemeManager.applyMenuAppearance(application.appearance, to: mainMenu)
 
     // Observe shortcut changes to update menu key equivalents
     NotificationCenter.default.addObserver(

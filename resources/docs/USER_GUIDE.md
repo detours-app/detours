@@ -416,7 +416,7 @@ Detours uses calm warm-grey surfaces and keeps colour for meaning: the selection
 
 ### Appearance
 
-Preferences → Appearance offers **System**, **Light** and **Dark**. System follows macOS dark and light mode. The choice applies to the whole app at once, including menus, alerts, Preferences and Quick Look.
+Preferences → Appearance offers **System**, **Light** and **Dark**. System follows macOS dark and light mode. The choice applies to the whole app at once, including right-click menus, alerts, Preferences and Quick Look. The menus in the menu bar follow macOS's own light or dark mode.
 
 Earlier versions offered Foolscap, Drafting and a custom theme editor. Those are gone: Foolscap and Drafting open as Light, a custom theme opens as System, and every other preference is kept.
 

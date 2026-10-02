@@ -74,7 +74,8 @@ final class QuietProUITests: BaseUITest {
 
     // MARK: - Appearance checks
 
-    /// Preferences is still open from the choice; then the main window, a menu, an alert and a preview.
+    /// Preferences is still open from the choice; then the main window, a right-click menu, an alert and a preview.
+    /// Menu-bar menus are not checked: macOS draws them in its own appearance whatever the app chooses.
     private func assertWholeAppAppearance(dark: Bool, choice: String) throws {
         let expected = dark ? darkName : lightName
         let preferences = app.windows["Preferences"]
@@ -85,12 +86,18 @@ final class QuietProUITests: BaseUITest {
 
         try assertMainWindowAppearance(dark: dark, appAppearance: expected, label: choice)
 
+        let row = outlineRow(named: previewFileName)
+        XCTAssertTrue(row.waitForExistence(timeout: 3), "\(previewFileName) should be listed")
+        row.staticTexts[previewFileName].rightClick()
+        // Open With is only in the right-click menu, never in the menu bar.
+        let contextMenu = app.menus.containing(NSPredicate(format: "title == %@", "Open With")).firstMatch
+        XCTAssertTrue(contextMenu.waitForExistence(timeout: 2), "The right-click menu should open")
+        assertLooks(contextMenu, dark: dark, "\(choice) right-click menu")
+        pressKey(.escape)
+        XCTAssertTrue(contextMenu.doesNotExistOrWait(timeout: 2), "The right-click menu should close")
+
         let fileMenu = app.menuBars.firstMatch.menuBarItems["File"]
         fileMenu.click()
-        let menu = fileMenu.menus.firstMatch
-        XCTAssertTrue(menu.waitForExistence(timeout: 2), "File menu should open")
-        assertLooks(menu, dark: dark, "\(choice) File menu")
-
         fileMenu.menuItems["New File"].hover()
         let emptyFile = app.menuItems["Empty File..."]
         XCTAssertTrue(emptyFile.waitForExistence(timeout: 2), "Empty File should be in the New File menu")
