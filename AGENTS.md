@@ -99,40 +99,12 @@ Bounded single-case and blocking XCUI commands on Foundry do not need a separate
 
 ### App Icon
 
-macOS icons require specific sizing and effects (NOT auto-applied by system):
+`resources/icons/Detours.icon` is an Icon Composer document: `icon.json` and two SVG pane layers on a charcoal fill, with a dark specialisation and a tinted one that turns the panes white. Layers are 1024×1024 unmasked squares with no baked shadow; macOS adds the shape, margin, glass and shadow, and derives the clear style from the tinted specialisation.
 
-- **Canvas**: 1024×1024 with transparency
-- **Icon fills canvas**: The icon shape must fill the full 1024×1024 (no padding)
-- **Corner radius**: 185px (applied via mask)
-- **Drop shadow**: 28px blur, 12px Y-offset, black 50%
-
-Source files in `resources/icons/`:
-
-- `icon_base.png` - 1024×1024 master with shadow and transparency
-- `AppIcon.icns` - compiled iconset
-
-To regenerate from a new source image:
-
-```bash
-cd resources/icons
-
-# 1. Trim whitespace and scale to fill 1024x1024
-magick "source.png" -fuzz 1% -trim +repage -resize 1024x1024! temp.png
-
-# 2. Apply rounded corner mask
-magick -size 1024x1024 xc:none -fill white -draw "roundrectangle 0,0 1023,1023 185,185" mask.png
-magick temp.png mask.png -alpha off -compose CopyOpacity -composite temp2.png
-
-# 3. Add drop shadow
-magick temp2.png \
-  \( +clone -background "rgba(0,0,0,0.5)" -shadow 28x28+0+12 \) \
-  +swap -background none -layers merge +repage \
-  -gravity center -extent 1024x1024 icon_base.png
-
-rm -f temp.png temp2.png mask.png
-
-# 4. Generate iconset and build
-```
+- **Preview** on Foundry with `ictool`, found at `Xcode.app/Contents/Applications/Icon Composer.app/Contents/Executables/ictool`: `ictool resources/icons/Detours.icon --export-image --output-file Default.png --platform macOS --rendition Default --width 512 --height 512 --scale 1`, for each of Default, Dark, TintedLight, TintedDark, ClearLight and ClearDark. Its output has no margin.
+- **Build:** `build.sh` compiles `Detours.icon` and `Assets.xcassets` (the `AccentColor` set) with `actool` into `Assets.car` and `Detours.icns`, writes `CFBundleIconName`, `CFBundleIconFile` and `NSAccentColorName`, and stops when the catalog lacks the icon, its pre-26 renditions or the accent, because `actool` can exit 0 having written nothing.
+- **macOS 14 and 15** show the flattened pre-26 copies `actool` writes into `Assets.car`, since `CFBundleIconName` wins over `CFBundleIconFile`. There is no separate fallback to maintain.
+- **Deep-sea Dock icon:** `DeepSeaDock.png` (macOS 26 and later) and `DeepSeaDockPre26.png` (14 and 15) are the Teal 4 concept rendered by macOS, so their tile shape, margin and shadow match the default icon. To redo them, put the art in a one-layer `.icon` with glass, shadow and specular off, compile it with `actool` into a throwaway app bundle that has an executable, render the bundle with `NSWorkspace.shared.icon(forFile:)` at 1024 px for the macOS 26 image, and take `Bundle.image(forResource:)` from its catalog for the pre-26 image. `DockIconManager` shows the chosen image with `NSApp.applicationIconImage`; never modify the bundle at runtime, which breaks the signature and resets permissions.
 
 ### Git
 
@@ -282,7 +254,7 @@ macOS dual-pane and power-user file managers. Use this for feature comparison wh
 
 | App | Panes | AirDrop/Share | Archives | Themes | Folder Expansion | Undo | Filter | Git Status | Price |
 | --- | ----- | ------------- | -------- | ------ | ---------------- | ---- | ------ | ---------- | ----- |
-| **Detours** | 2 | Yes (Share menu, context menu) | Create + extract (ZIP, 7Z, TAR.*) | 4 built-in + custom | Yes | Yes (per-tab) | Yes (in-place) | Yes | Free/OSS |
+| **Detours** | 2 | Yes (Share menu, context menu) | Create + extract (ZIP, 7Z, TAR.*) | Quiet Pro: System, Light, Dark | Yes | Yes (per-tab) | Yes (in-place) | Yes | Free/OSS |
 | **Marta** | 2 | No | Open/extract many formats | 5 built-in + custom | Yes | No | Yes | No | Free |
 | **Commander One** | 2 | No | ZIP, RAR, 7Z, TAR, etc. | Light/Dark | Yes | No | Yes | No | Free / $30 Pro |
 | **ForkLift** | 2 | Yes (Share menu) | ZIP, TAR, etc. | Light/Dark | Yes | Yes | Yes | Yes | $30 |
