@@ -134,7 +134,8 @@ extension BaseUITest {
         let selectionFill: String
         let dockIcon: String?
         let dockImageIsDeepSea: Bool
-        let dockImageDifference: Double?
+        let dockImageDeepSeaDifference: Double?
+        let dockImageStandardDifference: Double?
         let increaseContrast: Bool
         let differentiateWithoutColor: Bool
         let reduceMotion: Bool

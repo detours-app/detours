@@ -10,7 +10,9 @@ final class DockIconManager {
     static let shared = DockIconManager()
 
     private(set) var appliedChoice: DockIcon?
-    private var deepSeaImage: NSImage?
+    private lazy var deepSeaImage = Bundle.main.image(forResource: Self.deepSeaImageName)
+    private lazy var deepSeaPixels = deepSeaImage.flatMap(Self.thumbnailPixels)
+    private lazy var standardPixels = Self.thumbnailPixels(NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath))
 
     private init() {
         NotificationCenter.default.addObserver(
@@ -32,31 +34,34 @@ final class DockIconManager {
         case .standard:
             NSApplication.shared.applicationIconImage = nil
         case .deepSea:
-            guard let image = Bundle.main.image(forResource: Self.deepSeaImageName) else {
+            guard let deepSeaImage else {
                 logger.error("Bundled Dock icon \(Self.deepSeaImageName, privacy: .public) is missing")
                 return
             }
-            NSApplication.shared.applicationIconImage = image
-            deepSeaImage = image
+            NSApplication.shared.applicationIconImage = deepSeaImage
         }
         appliedChoice = choice
         logger.info("Dock icon set to \(choice.rawValue, privacy: .public)")
     }
 
-    /// Whether the app icon AppKit reports looks like the deep-sea image this manager set.
-    /// AppKit keeps its own re-rendered copy, so small renderings are compared within a tolerance.
+    /// Whether the app icon AppKit reports is nearer the deep-sea image than the bundle's own icon.
+    /// AppKit keeps its own re-rendered copy of an image it is given, so small renderings are compared.
     var showsDeepSeaImage: Bool {
-        (deepSeaImageDifference ?? 1) < 0.05
+        guard let differences = shownImageDifferences else { return false }
+        return differences.deepSea < differences.standard
     }
 
-    /// Mean per-channel difference, 0 to 1, between the app icon AppKit reports and the deep-sea image
-    var deepSeaImageDifference: Double? {
-        guard let deepSeaImage,
-              let shown = NSApplication.shared.applicationIconImage,
-              let shownPixels = Self.thumbnailPixels(shown),
-              let deepSeaPixels = Self.thumbnailPixels(deepSeaImage) else { return nil }
-        let difference = zip(shownPixels, deepSeaPixels).reduce(0) { $0 + abs(Int($1.0) - Int($1.1)) }
-        return Double(difference) / Double(shownPixels.count * 255)
+    /// Mean per-channel difference, 0 to 1, between the app icon AppKit reports and each icon it can show
+    var shownImageDifferences: (deepSea: Double, standard: Double)? {
+        guard let shown = NSApplication.shared.applicationIconImage.flatMap(Self.thumbnailPixels),
+              let deepSeaPixels,
+              let standardPixels else { return nil }
+        return (Self.difference(shown, deepSeaPixels), Self.difference(shown, standardPixels))
+    }
+
+    private static func difference(_ first: [UInt8], _ second: [UInt8]) -> Double {
+        let total = zip(first, second).reduce(0) { $0 + abs(Int($1.0) - Int($1.1)) }
+        return Double(total) / Double(first.count * 255)
     }
 
     private static func thumbnailPixels(_ image: NSImage) -> [UInt8]? {

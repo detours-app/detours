@@ -221,7 +221,8 @@ enum UITestEnvironment {
         let selectionFill: String
         let dockIcon: String?
         let dockImageIsDeepSea: Bool
-        let dockImageDifference: Double?
+        let dockImageDeepSeaDifference: Double?
+        let dockImageStandardDifference: Double?
         let increaseContrast: Bool
         let differentiateWithoutColor: Bool
         let reduceMotion: Bool
@@ -230,6 +231,7 @@ enum UITestEnvironment {
         @MainActor
         static func current() -> AppAppearanceState {
             let theme = ThemeManager.shared.currentTheme
+            let dockImageDifferences = DockIconManager.shared.shownImageDifferences
             return AppAppearanceState(
                 appearance: NSApplication.shared.appearance?.name.rawValue,
                 effectiveAppearance: appearanceName(NSApplication.shared.effectiveAppearance),
@@ -240,7 +242,8 @@ enum UITestEnvironment {
                 selectionFill: theme.selectionFill.hexString,
                 dockIcon: DockIconManager.shared.appliedChoice?.rawValue,
                 dockImageIsDeepSea: DockIconManager.shared.showsDeepSeaImage,
-                dockImageDifference: DockIconManager.shared.deepSeaImageDifference,
+                dockImageDeepSeaDifference: dockImageDifferences?.deepSea,
+                dockImageStandardDifference: dockImageDifferences?.standard,
                 increaseContrast: theme.increaseContrast,
                 differentiateWithoutColor: NSWorkspace.shared.accessibilityDisplayShouldDifferentiateWithoutColor,
                 reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,

@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry guarded `QuietProUITests/testDockIconPreference` | `7b746ca2` | FAIL: choosing Deep sea and the relaunch passed, but after choosing Default the app still classed its icon as deep sea: the icon AppKit reported differed from the deep-sea image by only 0.047, under the 5% tolerance, because both icons are dark tiles of the same shape. The check now classes the reported icon by whichever it is nearer, the deep-sea image or the bundle's own icon, and reports both distances. |
 | Foundry guarded `QuietProUITests/testDockIconPreference` | `b1317e10` | FAIL: the app reported `dockIcon=deepSea deepSeaImage=false`: the choice was applied, but the image AppKit hands back differs from the one set even in its data, so AppKit keeps its own re-rendered copy. The check now compares 16 px renderings within a 5% tolerance and reports the measured difference. |
 | Foundry guarded `QuietProUITests/testDockIconPreference` | `3e68b50c` | FAIL: signed build, fixture and prompt sentry fine; the step log shows Preferences opening, Deep sea chosen and Preferences closing, but within 3 seconds the app did not report the deep-sea icon. The check compared the Dock image by object identity, which AppKit need not preserve; it now compares the image data, and the assertion prints what the app reported. |
 | Foundry Windows session tests after the VM restart | `3e68b50c` | PASS: `RemoteHostSessionLiveTests/testWindows*`, 3 tests, 0 failures in 28.9 seconds, once Marco restarted the `detours-windows` VM. |
