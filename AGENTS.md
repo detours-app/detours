@@ -12,6 +12,16 @@ Native macOS file manager. Swift tools 6.2, AppKit, SwiftUI (dialogs), macOS 14.
 - Do not write phrases such as "I won't argue with you", "I'm not going to argue", or "Understood" as a standalone compliance marker.
 - State concrete status, evidence, and the next action instead.
 
+### Safe Deletes in Shell Commands
+
+Marco has called this out more than once. Every delete an agent runs, on Spectre, Foundry or any other host, in the scratchpad or anywhere else, follows these rules without exception.
+
+- **Every `rm` names each file as a literal absolute path.** Never build a delete target from a variable, a loop, a glob, a brace expansion or command substitution. `rm -f /tmp/detours-capture/light.png` is allowed; `rm -f "$DIR/$NAME"` and `rm -f /tmp/detours-capture/*.png` are not.
+- **Never `rm -r` or `rm -rf`.** Empty a folder file by file, then remove it with `rmdir`, which fails if anything unexpected is left.
+- **Delete only what this task created.** List the folder first and remove only the files you know you wrote.
+- **Never delete to make room for a retry.** Write the next attempt to a new file name instead.
+- **Clean up Foundry temporary files at the end of the task**, by literal path as above, so nothing is left behind.
+
 ### Specs Are Authoritative
 
 - **Always use `/spec-create` skill** to create specs - don't write them manually
