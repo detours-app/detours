@@ -48,9 +48,10 @@ final class QuietProUITests: BaseUITest {
     }
 
     func testDockIconPreference() throws {
-        let initial = try appAppearanceState()
-        XCTAssertEqual(initial.dockIcon, "standard")
-        XCTAssertFalse(initial.dockImageIsDeepSea)
+        XCTAssertTrue(
+            dockIconIs("standard", deepSeaImage: false),
+            "The app should start with the default icon; the app reported \(dockIconReport())"
+        )
 
         choosePreference(inPicker: "dockIconPicker", option: "Deep sea")
         XCTAssertTrue(

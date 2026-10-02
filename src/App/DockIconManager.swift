@@ -12,9 +12,11 @@ final class DockIconManager {
     private(set) var appliedChoice: DockIcon?
     private lazy var deepSeaImage = Bundle.main.image(forResource: Self.deepSeaImageName)
     private lazy var deepSeaPixels = deepSeaImage.flatMap { Self.thumbnailPixels($0) }
-    private lazy var standardPixels = Self.thumbnailPixels(NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath))
+    private let standardPixels: [UInt8]?
 
     private init() {
+        // Read before any other icon is set: the default icon as AppKit itself reports it
+        standardPixels = NSApplication.shared.applicationIconImage.flatMap { Self.thumbnailPixels($0) }
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleSettingsChange),
@@ -44,8 +46,8 @@ final class DockIconManager {
         logger.info("Dock icon set to \(choice.rawValue, privacy: .public)")
     }
 
-    /// Whether the app icon AppKit reports is nearer the deep-sea image than the bundle's own icon.
-    /// AppKit keeps its own re-rendered copy of an image it is given, so small renderings are compared.
+    /// Whether the app icon AppKit reports is nearer the deep-sea image than the default icon.
+    /// AppKit does not hand back the image it was given, so small renderings are compared.
     var showsDeepSeaImage: Bool {
         guard let differences = shownImageDifferences else { return false }
         return differences.deepSea < differences.standard
