@@ -77,6 +77,8 @@ final class ThemeManager {
         if NSApplication.shared.appearance != appearance {
             NSApplication.shared.appearance = appearance
         }
+        // Menu-bar menus follow macOS, not the app, unless the menu carries the appearance itself.
+        NSApplication.shared.mainMenu?.appearance = appearance
     }
 
     private static func inputs() -> Theme.Inputs {
