@@ -248,7 +248,6 @@ mkdir -p "$APP_DIR/Contents/MacOS"
 mkdir -p "$APP_DIR/Contents/Resources"
 mkdir -p "$APP_DIR/Contents/Resources/Servers"
 cp "$BUILT_BINARY" "$APP_DIR/Contents/MacOS/Detours"
-cp resources/icons/AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
 cp "$LINUX_SERVER_BINARY" "$APP_DIR/Contents/Resources/Servers/"
 cp "$DARWIN_SERVER_BINARY" "$APP_DIR/Contents/Resources/Servers/"
 cp -R "$PREVIEW_ASSETS_DIR" "$APP_DIR/Contents/Resources/PreviewAssets"
@@ -257,7 +256,7 @@ cp SevenZip/README.md SevenZip/License.txt SevenZip/copying.txt SevenZip/unRarLi
 
 # actool needs a partial Info.plist path to compile an app icon, and it can exit 0
 # having written nothing, so check that the asset catalog really holds the icon,
-# its pre-26 renditions and the accent.
+# its pre-26 renditions and the accent, and that the fallback .icns was written.
 log_info "Compile app icon and accent colour"
 xcrun actool resources/icons/Assets.xcassets "resources/icons/$APP_ICON_NAME.icon" \
     --compile "$APP_DIR/Contents/Resources" \
@@ -269,6 +268,7 @@ xcrun actool resources/icons/Assets.xcassets "resources/icons/$APP_ICON_NAME.ico
     --output-format human-readable-text --errors --warnings >&2
 ASSET_CATALOG="$APP_DIR/Contents/Resources/Assets.car"
 [ -s "$ASSET_CATALOG" ] || { log_error "actool wrote no $ASSET_CATALOG"; exit 1; }
+[ -s "$APP_DIR/Contents/Resources/$APP_ICON_NAME.icns" ] || { log_error "actool wrote no $APP_ICON_NAME.icns"; exit 1; }
 ASSET_CATALOG_INFO="$(xcrun assetutil --info "$ASSET_CATALOG")"
 for ASSET in "IconImageStack:$APP_ICON_NAME" "Icon Image:$APP_ICON_NAME" "Color:$ACCENT_COLOR_NAME"; do
     if ! jq -e --arg type "${ASSET%%:*}" --arg name "${ASSET#*:}" \
@@ -313,7 +313,7 @@ cat > "$APP_DIR/Contents/Info.plist" << EOF
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
     <key>CFBundleIconFile</key>
-    <string>AppIcon</string>
+    <string>$APP_ICON_NAME</string>
     <key>CFBundleIconName</key>
     <string>$APP_ICON_NAME</string>
     <key>NSAccentColorName</key>
@@ -335,6 +335,7 @@ cat > "$APP_DIR/Contents/Info.plist" << EOF
 </dict>
 </plist>
 EOF
+require_plist_value "$APP_DIR/Contents/Info.plist" CFBundleIconFile "$APP_ICON_NAME"
 require_plist_value "$APP_DIR/Contents/Info.plist" CFBundleIconName "$APP_ICON_NAME"
 require_plist_value "$APP_DIR/Contents/Info.plist" NSAccentColorName "$ACCENT_COLOR_NAME"
 log_ok "App bundle created"
