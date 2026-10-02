@@ -210,7 +210,7 @@ BUILD_ARGS=(-c "$BUILD_CONFIG")
 # Xcode 27's SwiftPM stamps the binary's SDK version with the deployment target
 # instead of the SDK it built against, so AppKit runs Detours with macOS 14
 # linked-on behaviour. Stamp the real SDK and keep the deployment target.
-DEPLOYMENT_TARGET="$(grep -o '\.macOS(\.v[0-9]*)' Package.swift | grep -o '[0-9]*$')"
+DEPLOYMENT_TARGET="$(sed -n 's/.*\.macOS(\.v\([0-9][0-9]*\)).*/\1/p' Package.swift)"
 SDK_VERSION="$(xcrun --sdk macosx --show-sdk-version)"
 [ -n "$DEPLOYMENT_TARGET" ] && [ -n "$SDK_VERSION" ] || { log_error "Could not read the deployment target or SDK version"; exit 1; }
 BUILD_ARGS+=(-Xlinker -platform_version -Xlinker macos -Xlinker "$DEPLOYMENT_TARGET.0" -Xlinker "$SDK_VERSION")
