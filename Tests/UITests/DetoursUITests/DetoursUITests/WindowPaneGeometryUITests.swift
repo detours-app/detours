@@ -398,7 +398,7 @@ final class WindowPaneGeometryUITests: XCTestCase {
             let start = mainWindow().coordinate(withNormalizedOffset: normalized)
             let end = start.withOffset(CGVector(dx: dx, dy: 0))
 
-            start.press(forDuration: 0.2, thenDragTo: end)
+            start.click(forDuration: 0.2, thenDragTo: end)
             RunLoop.current.run(until: Date().addingTimeInterval(0.8))
 
             let movedBoundaryX = sidebarDividerX()
@@ -406,33 +406,7 @@ final class WindowPaneGeometryUITests: XCTestCase {
                 return movedBoundaryX
             }
         }
-        probeSidebarDividerHitArea(dividerY: dividerY)
         throw NSError(domain: "WindowPaneGeometryUITests", code: 3)
-    }
-
-    // TEMPORARY diagnostic for the Xcode 27 / macOS 27 SDK drag failure; removed by the fix.
-    private func probeSidebarDividerHitArea(dividerY: CGFloat) {
-        let splitterFrames = splittersSortedByX().map { NSStringFromRect($0.frame) }.joined(separator: " ")
-        XCTContext.runActivity(named: "PROBE window \(NSStringFromRect(mainWindow().frame)) sidebar \(NSStringFromRect(sidebarOutline().frame)) left \(NSStringFromRect(leftPaneOutline().frame)) splitters \(splitterFrames)") { _ in }
-        let variants: [(String, (XCUICoordinate, XCUICoordinate) -> Void)] = [
-            ("click", { start, end in start.click(forDuration: 0.2, thenDragTo: end) }),
-            ("pressVelocityHold", { start, end in
-                start.press(forDuration: 0.2, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.2)
-            }),
-        ]
-        for (name, drag) in variants {
-            let before = sidebarDividerX()
-            let windowFrame = mainWindow().frame
-            let normalized = CGVector(
-                dx: (before - windowFrame.minX) / windowFrame.width,
-                dy: (dividerY - windowFrame.minY) / windowFrame.height
-            )
-            let start = mainWindow().coordinate(withNormalizedOffset: normalized)
-            drag(start, start.withOffset(CGVector(dx: 60, dy: 0)))
-            RunLoop.current.run(until: Date().addingTimeInterval(0.8))
-            let after = sidebarDividerX()
-            XCTContext.runActivity(named: "PROBE \(name) divider \(before) -> \(after)") { _ in }
-        }
     }
 
     @discardableResult
@@ -451,7 +425,7 @@ final class WindowPaneGeometryUITests: XCTestCase {
             let start = mainWindow().coordinate(withNormalizedOffset: normalized)
             let end = start.withOffset(CGVector(dx: dx, dy: 0))
 
-            start.press(forDuration: 0.2, thenDragTo: end)
+            start.click(forDuration: 0.2, thenDragTo: end)
             RunLoop.current.run(until: Date().addingTimeInterval(0.8))
 
             let movedDividerX = paneDivider().frame.midX
