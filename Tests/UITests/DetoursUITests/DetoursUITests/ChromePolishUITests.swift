@@ -9,7 +9,6 @@ final class ChromePolishUITests: BaseUITest {
     private let quickNavCommandFileName = ".detours-quick-nav-command.json"
     private let screenshotSparseBundleName = "Specs.sparsebundle"
     private let screenshotDiskImageName = "Detours.dmg"
-    private let screenshotFileServerName = "Acme NAS"
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -131,10 +130,12 @@ final class ChromePolishUITests: BaseUITest {
         assertPaneHasKeyboardFocus("right", after: "clicking the titlebar above the right pane")
     }
 
+    /// The guarded runner attaches Foundry's screenshot demo disk images for this test. The file
+    /// server eject button is covered by `SidebarTests.testMountedVolumeAccessoryLabels`.
     func testSidebarMountedVolumesExposeEject() throws {
-        // Needs the mounted demo volumes staged by screenshot-setup.sh, which a guarded
-        // qualification root does not provide.
-        try skipWithoutScreenshotVolumes()
+        for name in [screenshotSparseBundleName, screenshotDiskImageName] {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: "/Volumes/\(name)"), "The runner should have mounted \(name)")
+        }
         launchChromePolishApp()
 
         assertSidebarRow(
@@ -144,10 +145,6 @@ final class ChromePolishUITests: BaseUITest {
         assertSidebarRow(
             named: screenshotDiskImageName,
             exposesEjectButton: "Eject \(screenshotDiskImageName)"
-        )
-        assertSidebarRow(
-            named: screenshotFileServerName,
-            exposesEjectButton: "Eject mounted shares from \(screenshotFileServerName)"
         )
     }
 
@@ -166,14 +163,6 @@ final class ChromePolishUITests: BaseUITest {
                     try applyAppearanceSettings(theme: theme, fontSize: fontSize, density: density)
                 }
             }
-        }
-    }
-
-    private func skipWithoutScreenshotVolumes() throws {
-        let mounted = ["/Volumes/\(screenshotSparseBundleName)", "/Volumes/\(screenshotDiskImageName)"]
-        let missing = mounted.filter { !FileManager.default.fileExists(atPath: $0) }
-        guard missing.isEmpty else {
-            throw XCTSkip("Screenshot demo volumes are not mounted: " + missing.joined(separator: ", "))
         }
     }
 

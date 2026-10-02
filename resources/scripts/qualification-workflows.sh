@@ -615,6 +615,48 @@ restore_accessibility_settings() {
     printf 'qualification: restored accessibility settings\n'
 }
 
+# The sidebar eject check needs mounted disk images. The runner attaches the two screenshot demo
+# images that resources/scripts/screenshot-setup.sh leaves on Foundry and detaches them after the
+# run whatever its result; run_cleanup detaches them again if a run stops early.
+demo_volumes_seed_scenario() {
+    case "$1" in
+        *testSidebarMountedVolumesExposeEject*) printf 'demo-volumes\n' ;;
+        *) printf '\n' ;;
+    esac
+}
+
+demo_volume_is_mounted() {
+    /sbin/mount | grep -F -q " on $1 ("
+}
+
+attach_demo_volumes() {
+    local scenario="$1"
+    local marker
+    [[ -n "$scenario" ]] || return 0
+    marker="$(run_dir)/demo-volumes-attached"
+    [[ ! -e "$marker" ]] || fail "the demo volumes are already attached: $marker"
+    [[ -d "$HOME/Projects/Volumes/Specs.sparsebundle" && -f "$HOME/Projects/Volumes/Detours.dmg" ]] || \
+        fail "the screenshot demo images are missing from $HOME/Projects/Volumes; run resources/scripts/screenshot-setup.sh on Foundry once"
+    ! demo_volume_is_mounted /Volumes/Specs.sparsebundle || fail "/Volumes/Specs.sparsebundle is already mounted"
+    ! demo_volume_is_mounted /Volumes/Detours.dmg || fail "/Volumes/Detours.dmg is already mounted"
+    : > "$marker"
+    hdiutil attach -quiet -mountpoint /Volumes/Specs.sparsebundle "$HOME/Projects/Volumes/Specs.sparsebundle"
+    hdiutil attach -quiet -mountpoint /Volumes/Detours.dmg "$HOME/Projects/Volumes/Detours.dmg"
+    printf 'qualification: attached the screenshot demo disk images for %s\n' "$scenario"
+}
+
+detach_demo_volumes() {
+    [[ -f "$(run_dir)/demo-volumes-attached" ]] || return 0
+    if demo_volume_is_mounted /Volumes/Specs.sparsebundle; then
+        hdiutil detach /Volumes/Specs.sparsebundle -quiet || fail "could not detach /Volumes/Specs.sparsebundle"
+        printf 'qualification: detached /Volumes/Specs.sparsebundle\n'
+    fi
+    if demo_volume_is_mounted /Volumes/Detours.dmg; then
+        hdiutil detach /Volumes/Detours.dmg -quiet || fail "could not detach /Volumes/Detours.dmg"
+        printf 'qualification: detached /Volumes/Detours.dmg\n'
+    fi
+}
+
 run_installed_once() {
     local selected_group="$1"
     local root_name="$2"
@@ -641,6 +683,7 @@ run_installed_once() {
         "$selected_group" "$context_name" "$repetitions" | tee -a "$log_path.log"
     seed_geometry_defaults "$(geometry_seed_scenario "$test_filter")" | tee -a "$log_path.log"
     seed_accessibility_settings "$(accessibility_seed_scenario "$test_filter")" | tee -a "$log_path.log"
+    attach_demo_volumes "$(demo_volumes_seed_scenario "$test_filter")" | tee -a "$log_path.log"
     started_at="$(date +%s)"
     set +e
     QUALIFICATION_GUI_RESULT_BUNDLE="$result_bundle" \
@@ -666,6 +709,7 @@ run_installed_once() {
     cat "$command_output" >> "$log_path.log"
     stop_installed_app
     restore_accessibility_settings | tee -a "$log_path.log"
+    detach_demo_volumes | tee -a "$log_path.log"
     if (( status == 0 )); then
         verify_quiet_xcode_command "$log_path.raw.log"
         verify_installed_result_bundle "$result_bundle"
@@ -724,6 +768,8 @@ run_installed_all() {
             -skip-testing:DetoursUITests/WindowPaneGeometryUITests/testOversizedSavedWindowFrameComesBackAtItsSavedSize \
             -skip-testing:DetoursUITests/WindowPaneGeometryUITests/testPoisonedSavedWindowFrameFallsBackWithoutJump \
             -skip-testing:DetoursUITests/WindowPaneGeometryUITests/testPoisonedSplitDefaultsFallBackWithoutUnusablePanes \
+            -skip-testing:DetoursUITests/ChromePolishUITests/testSidebarMountedVolumesExposeEject \
+            -skip-testing:DetoursUITests/QuietProCaptureTests/testCaptureAccessibilityScenes \
             "DETOURS_QUALIFICATION_APP_PATH_SETTING=$PROJECT_DIR/build/Detours.app" \
             "DETOURS_QUALIFICATION_UI_ROOT_SETTING=$LOCAL_ROOT" \
             "DETOURS_QUALIFICATION_UI_CONTROL_ROOT_SETTING=$control_root" \
@@ -741,15 +787,18 @@ run_installed_all() {
     fi
     record_scenario_timing installed all INSTALLED_ALL 1 "$started_at" "$status"
     (( status == 0 )) || return "$status"
-    local DETOURS_GEOMETRY_CASE
-    for DETOURS_GEOMETRY_CASE in \
-        testPoisonedSplitDefaultsFallBackWithoutUnusablePanes \
-        testPoisonedSavedWindowFrameFallsBackWithoutJump \
-        testOversizedSavedWindowFrameComesBackAtItsSavedSize; do
+    # Cases that need state seeded before launch run one at a time after the shared batch.
+    local DETOURS_SEEDED_CASE
+    for DETOURS_SEEDED_CASE in \
+        WindowPaneGeometryUITests/testPoisonedSplitDefaultsFallBackWithoutUnusablePanes \
+        WindowPaneGeometryUITests/testPoisonedSavedWindowFrameFallsBackWithoutJump \
+        WindowPaneGeometryUITests/testOversizedSavedWindowFrameComesBackAtItsSavedSize \
+        ChromePolishUITests/testSidebarMountedVolumesExposeEject \
+        QuietProCaptureTests/testCaptureAccessibilityScenes; do
         run_installed_once session LOCAL_ROOT 1 \
-            "${log_path}-${DETOURS_GEOMETRY_CASE}" \
-            "${result_bundle%.xcresult}-${DETOURS_GEOMETRY_CASE}.xcresult" \
-            "" LOCAL_ROOT "WindowPaneGeometryUITests/$DETOURS_GEOMETRY_CASE"
+            "${log_path}-${DETOURS_SEEDED_CASE#*/}" \
+            "${result_bundle%.xcresult}-${DETOURS_SEEDED_CASE#*/}.xcresult" \
+            "" LOCAL_ROOT "$DETOURS_SEEDED_CASE"
     done
 }
 
