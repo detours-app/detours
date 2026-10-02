@@ -1,0 +1,64 @@
+<title>Detours Redesign Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+/*__CSS__*/
+</style>
+
+<div class="board">
+  <header class="top">
+    <div class="title">
+      <div class="eyebrow">Detours · redesign · 2 Oct 2026</div>
+      <h1>Detours Redesign Board</h1>
+      <p>Three directions for macOS 27 Golden Gate, drawn with the screenshot fixture: acme-corp on the left, taskflow/api on devtest on the right. Every direction keeps the agreed defaults: stock file icons, inset rounded selection, no banding, SF Pro with aligned digits, compact rows.</p>
+    </div>
+  </header>
+
+  <div class="controls" role="toolbar" aria-label="Mockup controls">
+    <div class="ctl"><span>Direction</span>
+      <div class="seg" id="ctl-dir">
+        <button type="button" id="dir-a" data-v="a">Golden Gate</button>
+        <button type="button" id="dir-b" data-v="b">Quiet Pro</button>
+        <button type="button" id="dir-c" data-v="c">Instrument</button>
+        <button type="button" id="dir-all" data-v="all">All three</button>
+      </div>
+    </div>
+    <div class="ctl"><span>Appearance</span>
+      <div class="seg" id="ctl-app">
+        <button type="button" id="app-light" data-v="light">Light</button>
+        <button type="button" id="app-dark" data-v="dark">Dark</button>
+        <button type="button" id="app-both" data-v="both">Both</button>
+      </div>
+    </div>
+    <div class="ctl"><span>Accent</span>
+      <div class="seg" id="ctl-acc">
+        <button type="button" id="acc-detours" data-v="detours">Detours</button>
+        <button type="button" id="acc-blue" data-v="blue">Blue</button>
+        <button type="button" id="acc-graphite" data-v="graphite">Graphite</button>
+      </div>
+    </div>
+    <div class="ctl"><span>Density</span>
+      <div class="seg" id="ctl-den">
+        <button type="button" id="den-compact" data-v="compact">Compact</button>
+        <button type="button" id="den-comfortable" data-v="comfortable">Comfortable</button>
+        <button type="button" id="den-spacious" data-v="spacious">Spacious</button>
+      </div>
+    </div>
+    <div class="ctl"><span>Active pane</span>
+      <div class="seg" id="ctl-pane">
+        <button type="button" id="pane-left" data-v="left">Left</button>
+        <button type="button" id="pane-right" data-v="right">Right</button>
+      </div>
+    </div>
+    <button type="button" class="toggle" id="ctl-qn" aria-pressed="false">Quick Nav ⌘P</button>
+  </div>
+
+  <main class="views" id="views"></main>
+
+  <footer class="note">Glass is drawn with CSS blur as an approximation of Liquid Glass; on macOS 14 and 15 Golden Gate falls back to the opaque sidebar and titlebar materials. Accent follows the macOS accent setting; "Detours" is the app's own accent, used when macOS is set to Multicolor. Icons are image-generation concepts; the shipped icon is redrawn as Icon Composer layers.</footer>
+</div>
+
+<script>
+/*__JS__*/
+</script>
