@@ -77,10 +77,14 @@ extension BaseUITest {
         pressCharKey(",", modifiers: .command)
         let preferences = app.windows["Preferences"]
         XCTAssertTrue(preferences.waitForExistence(timeout: 3), "Preferences should open")
-        // The sidebar entry: Preferences reopens on its last section, whose Appearance picker has the same label.
-        let sidebar = preferences.outlines.containing(NSPredicate(format: "label == %@", "General")).firstMatch
-        let section = sidebar.staticTexts["Appearance"]
-        XCTAssertTrue(section.waitForExistence(timeout: 2), "The Appearance section should exist")
+        // Preferences reopens on its last section, whose Appearance picker shares the label;
+        // the sidebar entry is the leftmost of them.
+        let labels = preferences.staticTexts.matching(identifier: "Appearance")
+        guard labels.firstMatch.waitForExistence(timeout: 2),
+              let section = labels.allElementsBoundByIndex.min(by: { $0.frame.minX < $1.frame.minX }) else {
+            XCTFail("The Appearance section should exist")
+            return preferences
+        }
         section.click()
         return preferences
     }

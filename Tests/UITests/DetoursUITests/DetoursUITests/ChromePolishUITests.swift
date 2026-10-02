@@ -237,11 +237,23 @@ final class ChromePolishUITests: BaseUITest {
         let pathControl = app.descendants(matching: .any)
             .matching(identifier: "panePathControl")
             .element(boundBy: 0)
-        XCTAssertTrue(pathControl.waitForExistence(timeout: 3), "Path control should exist")
+        if !pathControl.waitForExistence(timeout: 3) {
+            logAccessibilityTree(of: app.windows.firstMatch, because: "the path control is missing")
+        }
+        XCTAssertTrue(pathControl.exists, "Path control should exist")
 
         let crumb = pathControl.staticTexts[title]
-        XCTAssertTrue(crumb.waitForExistence(timeout: 3), "\(title) breadcrumb should exist")
+        if !crumb.waitForExistence(timeout: 3) {
+            logAccessibilityTree(of: pathControl, because: "the \(title) breadcrumb is missing")
+        }
+        XCTAssertTrue(crumb.exists, "\(title) breadcrumb should exist")
         crumb.click()
+    }
+
+    /// Standard error is unbuffered, so the tree reaches the run's log even when the guarded
+    /// runner stops the run at the failure that follows.
+    private func logAccessibilityTree(of element: XCUIElement, because reason: String) {
+        FileHandle.standardError.write(Data("Accessibility tree because \(reason):\n\(element.debugDescription)\n".utf8))
     }
 
     private func assertPaneHasKeyboardFocus(
