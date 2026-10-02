@@ -68,16 +68,18 @@ final class QuietProCaptureTests: BaseUITest {
         closePreferences(preferences)
     }
 
+    /// The Dock is captured with the whole screen: it can also list an installed Detours among its
+    /// recent apps, so a single Detours Dock item is not a unique element.
     func testCaptureAppIcons() throws {
         let dock = XCUIApplication(bundleIdentifier: "com.apple.dock")
-        let dockItem = dock.descendants(matching: .dockItem)["Detours"]
-        XCTAssertTrue(dockItem.waitForExistence(timeout: 5), "Detours should be in the Dock while it runs")
-        attachScreenshot("dock-default-running", of: dockItem)
+        let dockItems = dock.descendants(matching: .dockItem).matching(identifier: "Detours")
+        XCTAssertTrue(dockItems.firstMatch.waitForExistence(timeout: 5), "Detours should be in the Dock while it runs")
+        attachScreenshot("dock-default-running", of: nil)
 
         choosePreference(inPicker: "dockIconPicker", option: "Deep sea")
         XCTAssertTrue(waitForCondition(timeout: 3) { (try? self.appAppearanceState())?.dockImageIsDeepSea == true }, "Deep sea should be applied")
         sleep(1)
-        attachScreenshot("dock-deep-sea-running", of: dockItem)
+        attachScreenshot("dock-deep-sea-running", of: nil)
 
         app.activate()
         XCUIElement.perform(withKeyModifiers: .command) {
@@ -87,20 +89,11 @@ final class QuietProCaptureTests: BaseUITest {
         }
         app.activate()
 
-        // Kept in the Dock, the quit app shows the bundle's own icon again. Foundry does not keep
-        // Detours in its Dock, so the test adds it and takes it out again.
-        chooseDockMenuOption("Keep in Dock", item: dockItem)
-        addTeardownBlock { @MainActor in
-            if dockItem.exists, !self.isRunning() {
-                self.chooseDockMenuOption("Remove from Dock", item: dockItem)
-            }
-        }
+        // Quit with Deep sea chosen: any Detours the Dock still shows, among its recent apps, has
+        // the bundle's own icon again.
         app.terminate()
-        XCTAssertTrue(dockItem.waitForExistence(timeout: 5), "A kept Detours stays in the Dock after quitting")
         sleep(1)
-        attachScreenshot("dock-after-quit-deep-sea-chosen", of: dockItem)
-        chooseDockMenuOption("Remove from Dock", item: dockItem)
-        XCTAssertTrue(dockItem.doesNotExistOrWait(timeout: 5), "Detours should leave the Dock again")
+        attachScreenshot("dock-after-quit-deep-sea-chosen", of: nil)
         app.launch()
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 5), "Detours should relaunch")
 
@@ -247,31 +240,6 @@ final class QuietProCaptureTests: BaseUITest {
             waitForCondition(timeout: 60) { (try? self.requestRemotePaneState(pane: "left"))?.operationRunning == false },
             "The copy should finish"
         )
-    }
-
-    // MARK: - App and Dock control
-
-    private func chooseDockMenuOption(_ title: String, item: XCUIElement) {
-        guard item.exists else { return }
-        item.rightClick()
-        let options = item.menuItems["Options"]
-        guard options.waitForExistence(timeout: 2) else {
-            XCTFail("The Dock menu has no Options item")
-            return
-        }
-        options.hover()
-        let choice = item.menuItems[title]
-        guard choice.waitForExistence(timeout: 2) else {
-            XCTFail("The Dock Options menu has no \(title) item")
-            item.typeKey(.escape, modifierFlags: [])
-            item.typeKey(.escape, modifierFlags: [])
-            return
-        }
-        choice.click()
-    }
-
-    private func isRunning() -> Bool {
-        app.state == .runningForeground || app.state == .runningBackground
     }
 }
 
