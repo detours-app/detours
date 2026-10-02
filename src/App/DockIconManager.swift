@@ -9,7 +9,8 @@ private let logger = Logger(subsystem: "com.detours", category: "dock-icon")
 final class DockIconManager {
     static let shared = DockIconManager()
 
-    private var appliedChoice: DockIcon?
+    private(set) var appliedChoice: DockIcon?
+    private var deepSeaImage: NSImage?
 
     private init() {
         NotificationCenter.default.addObserver(
@@ -36,9 +37,16 @@ final class DockIconManager {
                 return
             }
             NSApplication.shared.applicationIconImage = image
+            deepSeaImage = image
         }
         appliedChoice = choice
         logger.info("Dock icon set to \(choice.rawValue, privacy: .public)")
+    }
+
+    /// Whether the Dock is showing the deep-sea image this manager set.
+    var showsDeepSeaImage: Bool {
+        guard let deepSeaImage else { return false }
+        return NSApplication.shared.applicationIconImage === deepSeaImage
     }
 
     /// Each image is drawn with the tile shape, margin and shadow the system gives the

@@ -128,7 +128,8 @@ extension FileListViewController {
             gitStatuses: gitStatuses,
             refreshRequestCount: qualificationRefreshRequestCount,
             listingMutationCount: qualificationListingMutationCount,
-            lastRefreshMilliseconds: qualificationLastRefreshMilliseconds
+            lastRefreshMilliseconds: qualificationLastRefreshMilliseconds,
+            appAppearance: .current()
         )
     }
 

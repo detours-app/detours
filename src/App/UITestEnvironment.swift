@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 
 enum UITestEnvironment {
     static let commandReadyNotificationName = Notification.Name("com.detours.uitest.command-ready")
@@ -209,6 +209,44 @@ enum UITestEnvironment {
         let refreshRequestCount: Int
         let listingMutationCount: Int
         let lastRefreshMilliseconds: Double?
+        let appAppearance: AppAppearanceState
+    }
+
+    /// App-wide appearance, accent and Dock icon, which XCUI cannot read from pixels alone.
+    struct AppAppearanceState: Encodable {
+        let appearance: String?
+        let effectiveAppearance: String
+        let windowAppearances: [String]
+        let usesDetoursAccent: Bool
+        let selectionFill: String
+        let dockIcon: String?
+        let dockImageIsDeepSea: Bool
+
+        @MainActor
+        static func current() -> AppAppearanceState {
+            let theme = ThemeManager.shared.currentTheme
+            let fill = theme.selectionFill.usingColorSpace(.sRGB) ?? theme.selectionFill
+            return AppAppearanceState(
+                appearance: NSApplication.shared.appearance?.name.rawValue,
+                effectiveAppearance: appearanceName(NSApplication.shared.effectiveAppearance),
+                windowAppearances: NSApplication.shared.windows.filter(\.isVisible).map {
+                    "\($0.title.isEmpty ? String(describing: type(of: $0)) : $0.title)=\(appearanceName($0.effectiveAppearance))"
+                },
+                usesDetoursAccent: theme.usesDetoursAccent,
+                selectionFill: String(
+                    format: "#%02X%02X%02X",
+                    Int((fill.redComponent * 255).rounded()),
+                    Int((fill.greenComponent * 255).rounded()),
+                    Int((fill.blueComponent * 255).rounded())
+                ),
+                dockIcon: DockIconManager.shared.appliedChoice?.rawValue,
+                dockImageIsDeepSea: DockIconManager.shared.showsDeepSeaImage
+            )
+        }
+
+        private static func appearanceName(_ appearance: NSAppearance) -> String {
+            appearance.bestMatch(from: [.aqua, .darkAqua])?.rawValue ?? appearance.name.rawValue
+        }
     }
 
     static var isEnabled: Bool {

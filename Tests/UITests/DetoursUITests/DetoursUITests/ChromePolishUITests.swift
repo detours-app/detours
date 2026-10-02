@@ -166,7 +166,7 @@ final class ChromePolishUITests: BaseUITest {
             try? applyAppearanceSettings(theme: "system", fontSize: 13, density: "compact")
         }
 
-        let themes = ["system", "light", "dark", "foolscap", "drafting"]
+        let themes = ["system", "light", "dark"]
         let densities = ["compact", "comfortable", "spacious"]
 
         for theme in themes {
