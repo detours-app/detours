@@ -40,6 +40,7 @@ final class DroppablePathControl: NSPathControl, NSDraggingSource {
     private var mouseDownLocation: NSPoint?
     private var dragSourceItemIndex: Int?
     private var pendingMouseDownEvent: NSEvent?
+    private var crumbElements: [PathCrumbAccessibilityElement] = []
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -309,6 +310,26 @@ final class DroppablePathControl: NSPathControl, NSDraggingSource {
         highlightLayer = layer
     }
 
+    // MARK: - Accessibility
+
+    /// Crumbs are drawn here rather than by AppKit, so each is exposed as its own element for
+    /// VoiceOver and UI tests. The elements are kept while the path is unchanged.
+    override func accessibilityChildren() -> [Any]? {
+        let items = pathItems
+        let rects = calculateItemRects()
+        if crumbElements.map(\.title) != items.map(\.title) {
+            crumbElements = items.indices.map { PathCrumbAccessibilityElement(index: $0, title: items[$0].title, control: self) }
+        }
+        for (index, element) in crumbElements.enumerated() where index < rects.count {
+            var frame = rects[index]
+            if index < items.count - 1 {
+                frame.size.width -= Self.separatorWidth
+            }
+            element.setAccessibilityFrameInParentSpace(frame)
+        }
+        return crumbElements
+    }
+
     // MARK: - Context Menu
 
     override func menu(for event: NSEvent) -> NSMenu? {
@@ -330,5 +351,33 @@ final class DroppablePathControl: NSPathControl, NSDraggingSource {
         guard let url = sender.representedObject as? URL else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(url.path.shellQuoted, forType: .string)
+    }
+}
+
+/// One drawn crumb: a static text like AppKit's own, which navigates when pressed like a click
+private final class PathCrumbAccessibilityElement: NSAccessibilityElement {
+    let title: String
+    private let index: Int
+    private weak var control: DroppablePathControl?
+
+    init(index: Int, title: String, control: DroppablePathControl) {
+        self.index = index
+        self.title = title
+        self.control = control
+        super.init()
+        setAccessibilityRole(.staticText)
+        setAccessibilityValue(title)
+        setAccessibilityParent(control)
+    }
+
+    override func accessibilityPerformPress() -> Bool {
+        let control = control
+        let index = index
+        // AppKit delivers accessibility actions on the main thread.
+        return MainActor.assumeIsolated {
+            guard let delegate = control?.dropDelegate else { return false }
+            delegate.pathControlDidClick(at: index)
+            return true
+        }
     }
 }
