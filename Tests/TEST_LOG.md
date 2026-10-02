@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry guarded `ChromePolishUITests/testNoTextOverlapAcrossDensitiesAndThemes` | `7d3d402c` | PASS: 1 passed, 0 failed, 0 skipped in 17 s; no overlapping text in any of the 63 appearance, density and font-size combinations. |
 | Foundry guarded `QuietProUITests/testAppearanceAppliesAppWide` | `bd058456` | PASS: 1 passed, 0 failed, 0 skipped in 1 min 12 s. Light and Dark switch Preferences, the main window, a right-click menu, the alert and the preview together and survive relaunch; System follows macOS. Foundry was back in Dark afterwards. |
 | Foundry guarded `QuietProCaptureTests/testCaptureMenus` | `0630722f` | PASS as a capture, but the second fix did not work either: with every menu in the menu bar carrying the Light appearance, the File menu and its New File submenu were still dark under macOS Dark. macOS 27 draws menu-bar menus in the system appearance whatever the app sets on them; the open question on the appearance criterion goes to Marco. |
 | Foundry guarded `QuietProCaptureTests/testCaptureMenus` | `ffed5f54` | PASS as a capture, but the fix did not work: with the main menu carrying the Light appearance, the File menu and its New File submenu were still dark under macOS Dark. A dropdown seems to take its appearance from the menu bar rather than from the main menu object, so every menu in the menu bar now carries the appearance itself; that change compiled in the scratch copy with no warnings. |
