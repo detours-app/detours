@@ -54,12 +54,25 @@ struct GitStatusPreview: View {
         .padding(.vertical, 4)
     }
 
-    @ViewBuilder
     private func statusIndicator(for status: GitStatus) -> some View {
-        let appearance: NSAppearance? = colorScheme == .dark ? NSAppearance(named: .darkAqua) : NSAppearance(named: .aqua)
-        RoundedRectangle(cornerRadius: 1)
-            .fill(Color(status.color(for: appearance)))
-            .frame(width: 2, height: 16)
+        GitMarkSwatch(status: status, color: status.color(in: ThemeManager.shared.currentTheme))
+            .frame(width: GitMarkView.markSize, height: GitMarkView.markSize)
+            .id(colorScheme)
+    }
+}
+
+/// The file list's git mark, shown as a legend swatch
+private struct GitMarkSwatch: NSViewRepresentable {
+    let status: GitStatus
+    let color: NSColor
+
+    func makeNSView(context: Context) -> GitMarkView {
+        GitMarkView()
+    }
+
+    func updateNSView(_ view: GitMarkView, context: Context) {
+        view.status = status
+        view.color = color
     }
 }
 

@@ -54,10 +54,7 @@ extension FileListDataSource {
 
                 guard !Task.isCancelled else { return }
 
-                // Tint folder icons with accent color
-                let resolvedIcon = item.isPresentedAsFolder
-                    ? FileItem.tintedFolderIcon(icon)
-                    : icon
+                let resolvedIcon = icon
                 // An unchanged icon must not redraw the row (or recreate its
                 // cell under an active rename).
                 guard resolvedIcon !== item.icon else { return }

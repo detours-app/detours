@@ -183,7 +183,7 @@ extension DetoursPreviewGenerator {
     /// right colour, so there is no white rectangle while the rest is read. It is allowed past the
     /// document's own security policy by its exact fingerprint, so no other inline styling is.
     func criticalBackgroundStyle(for theme: Theme) -> String {
-        "html,body{margin:0;background:\(cssHex(theme.background));color:\(cssHex(theme.textPrimary))}"
+        "html,body{margin:0;background:\(cssHex(theme.content));color:\(cssHex(theme.textPrimary))}"
     }
 
     static func styleFingerprint(_ style: String) -> String {
@@ -218,7 +218,7 @@ extension DetoursPreviewGenerator {
         let controls = chrome.controls
         let criticalStyle = criticalBackgroundStyle(for: theme)
         let styleHash = Self.styleFingerprint(criticalStyle)
-        let isDarkTheme = theme.background.usingColorSpace(.deviceRGB).map { $0.brightnessComponent < 0.5 } ?? false
+        let isDarkTheme = theme.content.usingColorSpace(.deviceRGB).map { $0.brightnessComponent < 0.5 } ?? false
         let connectSource = chrome.allowsChunkRequests ? "\(DetoursPreviewChunkHandler.scheme):" : "'none'"
         // No third-party stylesheet is linked at all. Everything is coloured before it is written,
         // using the theme, and the one that used to be linked here paints code blocks solid white,

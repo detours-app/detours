@@ -103,7 +103,7 @@ struct DeploySheetView: View {
         if model.currentStep == step {
             return .yellow
         }
-        return Color(ThemeManager.shared.currentTheme.textTertiary)
+        return Color(ThemeManager.shared.currentTheme.textSecondary)
     }
 
     private func textColor(for step: RemoteDeployStep) -> Color {

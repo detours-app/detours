@@ -4,15 +4,6 @@ import os.log
 // MARK: - Tab Button
 
 final class TabButton: NSView {
-    struct Colors {
-        let surface: NSColor
-        let background: NSColor
-        let border: NSColor
-        let accent: NSColor
-        let textPrimary: NSColor
-        let textSecondary: NSColor
-    }
-
     private let iconView = NSImageView()
     private let closeButton = NSButton()
     private let titleLabel = NSTextField(labelWithString: "")
@@ -21,12 +12,20 @@ final class TabButton: NSView {
     private var isDropTarget: Bool = false
     private var isPaneActive: Bool = true
     private var trackingArea: NSTrackingArea?
-    private let colors: Colors
+    private let colors: Theme
 
-    private static let iconSize: CGFloat = 16
+    static let pillHeight: CGFloat = 26
+    static let pillRadius: CGFloat = 7
+    static let minimumWidth: CGFloat = 96
+    static let maximumWidth: CGFloat = 220
+    static let fontSize: CGFloat = 12
+    static let underlineHeight: CGFloat = 2
+    /// Space below the pill, so the pill sits 8 pt under the bar's top edge in a 40 pt bar
+    static let pillBottomInset: CGFloat = 6
+    private static let iconSize: CGFloat = 14
     private static let leadingPad: CGFloat = 10
     private static let iconTextGap: CGFloat = 6
-    private static let trailingPad: CGFloat = 12
+    private static let trailingPad: CGFloat = 10
 
     var tabAction: (() -> Void)?
     var closeAction: (() -> Void)?
@@ -34,14 +33,20 @@ final class TabButton: NSView {
 
     private var mouseDownLocation: NSPoint?
 
+    /// Width from the title, clamped so short titles keep a usable target and long ones truncate in the middle
     var idealWidth: CGFloat {
         let textWidth = ceil(titleLabel.intrinsicContentSize.width)
-        return Self.leadingPad + Self.iconSize + Self.iconTextGap + textWidth + Self.trailingPad
+        let natural = Self.leadingPad + Self.iconSize + Self.iconTextGap + textWidth + Self.trailingPad
+        return min(Self.maximumWidth, max(Self.minimumWidth, natural))
     }
 
-    init(title: String, symbolName: String, isSelected: Bool, colors: Colors) {
+    private var pillRect: NSRect {
+        NSRect(x: 0, y: Self.pillBottomInset, width: bounds.width, height: Self.pillHeight)
+    }
+
+    init(title: String, symbolName: String, isSelected: Bool, theme: Theme) {
         self.isSelected = isSelected
-        self.colors = colors
+        self.colors = theme
         super.init(frame: .zero)
 
         wantsLayer = true
@@ -58,7 +63,7 @@ final class TabButton: NSView {
     }
 
     private func setupIcon(_ symbolName: String) {
-        let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .regular)
+        let config = NSImage.SymbolConfiguration(pointSize: 11, weight: .regular)
         iconView.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
             .withSymbolConfiguration(config)
         iconView.contentTintColor = colors.textSecondary
@@ -69,7 +74,7 @@ final class TabButton: NSView {
         iconView.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Self.leadingPad),
-            iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            iconView.centerYAnchor.constraint(equalTo: bottomAnchor, constant: -(Self.pillBottomInset + Self.pillHeight / 2)),
             iconView.widthAnchor.constraint(equalToConstant: Self.iconSize),
             iconView.heightAnchor.constraint(equalToConstant: Self.iconSize),
         ])
@@ -91,7 +96,7 @@ final class TabButton: NSView {
         closeButton.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             closeButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Self.leadingPad),
-            closeButton.centerYAnchor.constraint(equalTo: centerYAnchor),
+            closeButton.centerYAnchor.constraint(equalTo: iconView.centerYAnchor),
             closeButton.widthAnchor.constraint(equalToConstant: Self.iconSize),
             closeButton.heightAnchor.constraint(equalToConstant: Self.iconSize),
         ])
@@ -99,13 +104,13 @@ final class TabButton: NSView {
 
     private func setupTitleLabel(_ title: String) {
         titleLabel.stringValue = title
-        titleLabel.font = ThemeManager.shared.currentTheme.uiFont(size: 13, weight: isSelected ? .semibold : .medium)
-        titleLabel.lineBreakMode = .byClipping
+        titleLabel.font = colors.uiFont(size: Self.fontSize, weight: .medium)
+        titleLabel.lineBreakMode = .byTruncatingMiddle
         titleLabel.isEditable = false
         titleLabel.isSelectable = false
         titleLabel.isBordered = false
         titleLabel.drawsBackground = false
-        titleLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
+        titleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         addSubview(titleLabel)
 
@@ -113,7 +118,7 @@ final class TabButton: NSView {
         NSLayoutConstraint.activate([
             titleLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: Self.iconTextGap),
             titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -Self.trailingPad),
-            titleLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
+            titleLabel.centerYAnchor.constraint(equalTo: iconView.centerYAnchor),
         ])
     }
 
@@ -123,7 +128,6 @@ final class TabButton: NSView {
 
     func setSelected(_ selected: Bool) {
         isSelected = selected
-        titleLabel.font = ThemeManager.shared.currentTheme.uiFont(size: 13, weight: isSelected ? .semibold : .medium)
         updateAppearance()
     }
 
@@ -138,37 +142,15 @@ final class TabButton: NSView {
     }
 
     private func updateAppearance() {
-        layer?.backgroundColor = nil
-        layer?.cornerRadius = 0
-
-        let backgroundColor = currentBackgroundColor()
         let textColor: NSColor
         if isDropTarget || (isSelected && isPaneActive) {
-            textColor = ChromeContrast.readableTextColor(
-                preferred: colors.textPrimary,
-                fallback: colors.textSecondary,
-                on: backgroundColor
-            )
-        } else if isSelected {
-            textColor = ChromeContrast.readableTextColor(
-                preferred: colors.textSecondary,
-                fallback: colors.textPrimary,
-                on: backgroundColor
-            )
+            textColor = ChromeContrast.readableTextColor(preferred: colors.textPrimary, fallback: colors.textPrimary, on: currentBackgroundColor())
         } else {
-            textColor = ChromeContrast.readableTextColor(
-                preferred: colors.textSecondary,
-                fallback: colors.textPrimary,
-                on: backgroundColor
-            )
+            textColor = ChromeContrast.readableTextColor(preferred: colors.textSecondary, fallback: colors.textPrimary, on: currentBackgroundColor())
         }
         titleLabel.textColor = textColor
         iconView.contentTintColor = textColor
         closeButton.contentTintColor = textColor
-
-        titleLabel.alphaValue = 1.0
-        iconView.alphaValue = 1.0
-        closeButton.alphaValue = 1.0
 
         // On hover: swap icon for close button
         iconView.isHidden = isHovered
@@ -179,46 +161,49 @@ final class TabButton: NSView {
 
     private func currentBackgroundColor() -> NSColor {
         if isDropTarget {
-            return ChromeContrast.blend(colors.accent, alpha: isPaneActive ? 0.18 : 0.12, over: tabBarBackgroundColor())
+            return ChromeContrast.flatten(colors.dropTarget, over: colors.header)
         }
         if isSelected {
-            if isPaneActive {
-                return colors.background
-            }
-            return colors.surface.blended(withFraction: 0.35, of: colors.background) ?? colors.surface
+            return colors.raised
         }
         if isHovered {
-            return ChromeContrast.blend(colors.textPrimary, alpha: isPaneActive ? 0.055 : 0.035, over: tabBarBackgroundColor())
+            return ChromeContrast.flatten(colors.hover, over: colors.header)
         }
-        return tabBarBackgroundColor()
-    }
-
-    private func tabBarBackgroundColor() -> NSColor {
-        isPaneActive ? colors.surface : (colors.surface.blended(withFraction: 0.50, of: colors.background) ?? colors.surface)
+        return colors.header
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        let b = bounds
+        let pill = NSBezierPath(roundedRect: pillRect, xRadius: Self.pillRadius, yRadius: Self.pillRadius)
 
         if isDropTarget {
-            colors.accent.withAlphaComponent(isPaneActive ? 0.18 : 0.12).setFill()
-            b.fill()
+            colors.dropTarget.setFill()
+            pill.fill()
         } else if isSelected {
-            let fillColor: NSColor
-            if isPaneActive {
-                fillColor = colors.background
-            } else {
-                fillColor = colors.surface.blended(withFraction: 0.35, of: colors.background) ?? colors.surface
-            }
-            fillColor.setFill()
-            b.fill()
+            // The current tab is a raised pill: a hairline ring and a soft drop below it.
+            NSGraphicsContext.saveGraphicsState()
+            let shadow = NSShadow()
+            shadow.shadowColor = NSColor.black.withAlphaComponent(colors.isDark ? 0.4 : 0.08)
+            shadow.shadowOffset = NSSize(width: 0, height: -1)
+            shadow.shadowBlurRadius = 2
+            shadow.set()
+            colors.raised.setFill()
+            pill.fill()
+            NSGraphicsContext.restoreGraphicsState()
 
-            // Accent indicator at bottom edge
-            colors.accent.withAlphaComponent(isPaneActive ? 1.0 : 0.45).setFill()
-            NSRect(x: 0, y: 0, width: b.width, height: 2).fill()
+            colors.hairline.setStroke()
+            let ring = NSBezierPath(roundedRect: pillRect.insetBy(dx: 0.25, dy: 0.25), xRadius: Self.pillRadius, yRadius: Self.pillRadius)
+            ring.lineWidth = 0.5
+            ring.stroke()
+
+            // The active pane's current tab carries the accent underline.
+            if isPaneActive {
+                ChromeContrast.stateIndicatorColor(preferred: colors.accent, fallback: colors.textPrimary, on: colors.header).setFill()
+                let inset = Self.pillRadius
+                NSRect(x: inset, y: 0, width: bounds.width - inset * 2, height: Self.underlineHeight).fill()
+            }
         } else if isHovered {
-            colors.textPrimary.withAlphaComponent(isPaneActive ? 0.055 : 0.035).setFill()
-            b.fill()
+            colors.hover.setFill()
+            pill.fill()
         }
     }
 

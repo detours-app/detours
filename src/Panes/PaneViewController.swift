@@ -37,12 +37,16 @@ final class PaneViewController: NSViewController {
     weak var splitCoordinator: (any PaneSplitCoordinating)?
 
     let tabBar = PaneTabBar()
+    let backButton = NSButton()
+    let forwardButton = NSButton()
     let homeButton = NSButton()
     let iCloudButton = NSButton()
     let pathControl = DroppablePathControl()
     let pathStripView = NSView()
     private let pathStripSeparator = NSView()
     static let reconnectBannerLabelMaximumWidth: CGFloat = 360
+    static let pathBarHeight: CGFloat = 30
+    static let pathBarButtonSize: CGFloat = 24
 
     let reconnectBanner = NSView()
     let reconnectBannerLabel = NSTextField(labelWithString: "")
@@ -90,6 +94,7 @@ final class PaneViewController: NSViewController {
 
         setupTabBar()
         setupPathStrip()
+        setupNavigationButtons()
         setupHomeButton()
         setupICloudButton()
         updateRemoteHostBadge()
@@ -154,6 +159,33 @@ final class PaneViewController: NSViewController {
         view.addSubview(pathStripView)
     }
 
+    /// Back and forward lead the path bar; their identifiers and shortcuts are unchanged.
+    private func setupNavigationButtons() {
+        for (button, symbol, title, identifier, action) in [
+            (backButton, "chevron.left", "Back", "paneBackButton", #selector(navigateBackClicked)),
+            (forwardButton, "chevron.right", "Forward", "paneForwardButton", #selector(navigateForwardClicked)),
+        ] {
+            button.bezelStyle = .inline
+            button.isBordered = false
+            button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: title)
+            button.imagePosition = .imageOnly
+            button.target = self
+            button.action = action
+            button.toolTip = title
+            button.isEnabled = false
+            button.setAccessibilityIdentifier(identifier)
+            view.addSubview(button)
+        }
+    }
+
+    @objc private func navigateBackClicked() {
+        goBack()
+    }
+
+    @objc private func navigateForwardClicked() {
+        goForward()
+    }
+
     private func setupHomeButton() {
         homeButton.bezelStyle = .inline
         homeButton.image = NSImage(systemSymbolName: "house", accessibilityDescription: "Home")
@@ -184,7 +216,16 @@ final class PaneViewController: NSViewController {
             on: background
         )
         let config = NSImage.SymbolConfiguration(paletteColors: [color])
+        let navigationConfig = config.applying(NSImage.SymbolConfiguration(pointSize: 12, weight: .medium))
 
+        if let backImage = NSImage(systemSymbolName: "chevron.left", accessibilityDescription: "Back")?
+            .withSymbolConfiguration(navigationConfig) {
+            backButton.image = backImage
+        }
+        if let forwardImage = NSImage(systemSymbolName: "chevron.right", accessibilityDescription: "Forward")?
+            .withSymbolConfiguration(navigationConfig) {
+            forwardButton.image = forwardImage
+        }
         if let homeImage = NSImage(systemSymbolName: "house", accessibilityDescription: "Home")?
             .withSymbolConfiguration(config) {
             homeButton.image = homeImage
@@ -201,8 +242,8 @@ final class PaneViewController: NSViewController {
         let theme = ThemeManager.shared.currentTheme
         let stripColor = paneChromeBackgroundColor(for: theme)
         pathStripView.layer?.backgroundColor = stripColor.cgColor
-        pathStripSeparator.layer?.backgroundColor = theme.border.withAlphaComponent(isActive ? 1.0 : 0.65).cgColor
-        reconnectBanner.layer?.backgroundColor = NSColor.systemYellow.withAlphaComponent(isActive ? 0.18 : 0.12).cgColor
+        pathStripSeparator.layer?.backgroundColor = theme.hairline.cgColor
+        reconnectBanner.layer?.backgroundColor = theme.warningFill.cgColor
         reconnectBannerLabel.font = theme.uiFont(size: 12)
         reconnectBannerLabel.textColor = theme.textPrimary
         reconnectDismissButton.contentTintColor = theme.textSecondary
@@ -249,7 +290,7 @@ final class PaneViewController: NSViewController {
     }
 
     private func paneChromeBackgroundColor(for theme: Theme) -> NSColor {
-        isActive ? theme.surface : (theme.surface.blended(withFraction: 0.45, of: theme.background) ?? theme.surface)
+        theme.header
     }
 
     private func setupTabContainer() {
@@ -259,7 +300,7 @@ final class PaneViewController: NSViewController {
     private func setupReconnectBanner() {
         reconnectBanner.isHidden = true
         reconnectBanner.wantsLayer = true
-        reconnectBanner.layer?.backgroundColor = NSColor.systemYellow.withAlphaComponent(0.18).cgColor
+        reconnectBanner.layer?.backgroundColor = ThemeManager.shared.currentTheme.warningFill.cgColor
         reconnectBanner.setAccessibilityElement(true)
         reconnectBanner.setAccessibilityIdentifier("remoteReconnectBanner")
         reconnectBanner.setAccessibilityRole(.group)
@@ -335,6 +376,8 @@ final class PaneViewController: NSViewController {
         tabBar.translatesAutoresizingMaskIntoConstraints = false
         pathStripView.translatesAutoresizingMaskIntoConstraints = false
         pathStripSeparator.translatesAutoresizingMaskIntoConstraints = false
+        backButton.translatesAutoresizingMaskIntoConstraints = false
+        forwardButton.translatesAutoresizingMaskIntoConstraints = false
         homeButton.translatesAutoresizingMaskIntoConstraints = false
         iCloudButton.translatesAutoresizingMaskIntoConstraints = false
         pathControl.translatesAutoresizingMaskIntoConstraints = false
@@ -346,7 +389,7 @@ final class PaneViewController: NSViewController {
         statusBar.translatesAutoresizingMaskIntoConstraints = false
 
         pathControlLeadingToICloudConstraint = pathControl.leadingAnchor.constraint(equalTo: iCloudButton.trailingAnchor, constant: 8)
-        pathControlLeadingToViewConstraint = pathControl.leadingAnchor.constraint(equalTo: pathStripView.leadingAnchor, constant: 10)
+        pathControlLeadingToViewConstraint = pathControl.leadingAnchor.constraint(equalTo: forwardButton.trailingAnchor, constant: 6)
         pathControlTrailingConstraint = pathControl.trailingAnchor.constraint(equalTo: pathStripView.trailingAnchor, constant: -10)
         reconnectBannerHeightConstraint = reconnectBanner.heightAnchor.constraint(equalToConstant: 0)
 
@@ -355,13 +398,13 @@ final class PaneViewController: NSViewController {
             tabBar.topAnchor.constraint(equalTo: view.topAnchor),
             tabBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tabBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            tabBar.heightAnchor.constraint(equalToConstant: 32),
+            tabBar.heightAnchor.constraint(equalToConstant: PaneTabBar.barHeight),
 
             // Path strip under tab bar
             pathStripView.topAnchor.constraint(equalTo: tabBar.bottomAnchor),
             pathStripView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             pathStripView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            pathStripView.heightAnchor.constraint(equalToConstant: 28),
+            pathStripView.heightAnchor.constraint(equalToConstant: Self.pathBarHeight),
 
             pathStripSeparator.leadingAnchor.constraint(equalTo: pathStripView.leadingAnchor),
             pathStripSeparator.trailingAnchor.constraint(equalTo: pathStripView.trailingAnchor),
@@ -369,7 +412,17 @@ final class PaneViewController: NSViewController {
             pathStripSeparator.heightAnchor.constraint(equalToConstant: 1),
 
             // Path control and quick path buttons sit inside the path strip
-            homeButton.leadingAnchor.constraint(equalTo: pathStripView.leadingAnchor, constant: 10),
+            backButton.leadingAnchor.constraint(equalTo: pathStripView.leadingAnchor, constant: 8),
+            backButton.centerYAnchor.constraint(equalTo: pathStripView.centerYAnchor),
+            backButton.widthAnchor.constraint(equalToConstant: Self.pathBarButtonSize),
+            backButton.heightAnchor.constraint(equalToConstant: Self.pathBarButtonSize),
+
+            forwardButton.leadingAnchor.constraint(equalTo: backButton.trailingAnchor, constant: 2),
+            forwardButton.centerYAnchor.constraint(equalTo: pathStripView.centerYAnchor),
+            forwardButton.widthAnchor.constraint(equalToConstant: Self.pathBarButtonSize),
+            forwardButton.heightAnchor.constraint(equalToConstant: Self.pathBarButtonSize),
+
+            homeButton.leadingAnchor.constraint(equalTo: forwardButton.trailingAnchor, constant: 6),
             homeButton.centerYAnchor.constraint(equalTo: pathStripView.centerYAnchor),
             homeButton.widthAnchor.constraint(equalToConstant: 24),
             homeButton.heightAnchor.constraint(equalToConstant: 24),

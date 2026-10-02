@@ -34,7 +34,7 @@ final class EqualSplitIndicatorView: NSView {
         super.init(frame: .zero)
 
         wantsLayer = true
-        layer?.backgroundColor = Theme.currentFolderAccentColor().cgColor
+        layer?.backgroundColor = Theme.currentSnapshot().accent.cgColor
         isHidden = true
 
         leftPane.postsFrameChangedNotifications = true
@@ -54,7 +54,7 @@ final class EqualSplitIndicatorView: NSView {
     }
 
     override func updateLayer() {
-        layer?.backgroundColor = Theme.currentFolderAccentColor().cgColor
+        layer?.backgroundColor = Theme.currentSnapshot().accent.cgColor
     }
 
     /// Pass clicks through to the pane underneath; the indicator is decoration only.

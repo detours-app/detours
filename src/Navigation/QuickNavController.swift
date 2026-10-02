@@ -71,7 +71,7 @@ final class QuickNavController {
         panel.isFloatingPanel = true
         panel.level = .floating
         panel.hasShadow = true
-        panel.backgroundColor = ThemeManager.shared.currentTheme.background
+        panel.backgroundColor = ThemeManager.shared.currentTheme.content
         panel.isOpaque = false
         panel.contentViewController = hostingController
 

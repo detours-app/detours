@@ -1,4 +1,7 @@
 import AppKit
+import os
+
+private let settingsLogger = Logger(subsystem: "com.detours", category: "settings")
 
 // MARK: - File List Row Density
 
@@ -23,6 +26,14 @@ enum FileListRowDensity: String, CaseIterable, Equatable {
         }
     }
 
+    var selectionRadius: CGFloat {
+        switch self {
+        case .compact: return 5
+        case .comfortable: return 6
+        case .spacious: return 7
+        }
+    }
+
     var primaryIconSize: CGFloat {
         switch self {
         case .compact: return 16
@@ -44,14 +55,6 @@ enum FileListRowDensity: String, CaseIterable, Equatable {
         }
     }
 
-    var gitMarkerHeight: CGFloat {
-        switch self {
-        case .compact: return 14
-        case .comfortable: return 16
-        case .spacious: return 18
-        }
-    }
-
     var expandedFolderIconLeading: CGFloat {
         switch self {
         case .compact: return 2
@@ -68,23 +71,7 @@ enum FileListRowDensity: String, CaseIterable, Equatable {
         }
     }
 
-    var standardIconLeading: CGFloat {
-        switch self {
-        case .compact: return 12
-        case .comfortable: return 13
-        case .spacious: return 14
-        }
-    }
-
-    var expandedGitMarkerLeading: CGFloat { 1 }
-
-    var standardGitMarkerLeading: CGFloat {
-        switch self {
-        case .compact: return 5
-        case .comfortable: return 6
-        case .spacious: return 7
-        }
-    }
+    var standardIconLeading: CGFloat { FileListRowMetrics.cellPadding }
 
     var disclosureWidth: CGFloat { 20 }
 
@@ -147,6 +134,20 @@ extension FileListRowDensity: Codable {
     }
 }
 
+/// Quiet Pro file list row metrics shared by every density
+enum FileListRowMetrics {
+    static let horizontalInset: CGFloat = 10
+    static let cellPadding: CGFloat = 8
+}
+
+/// Quiet Pro file list column and header metrics
+enum FileListColumnMetrics {
+    static let sizeWidth: CGFloat = 72
+    static let dateWidth: CGFloat = 104
+    static let headerHeight: CGFloat = 26
+    static let headerFontSize: CGFloat = 11
+}
+
 // MARK: - Settings
 
 struct Settings: Equatable {
@@ -160,9 +161,10 @@ struct Settings: Equatable {
 
     // Appearance
     var theme: ThemeChoice = .system
-    var customTheme: CustomThemeColors?
     var fontSize: Int = 13
     var fileListRowDensity: FileListRowDensity = .compact
+    var fileListBanding: Bool = false
+    var dockIcon: DockIcon = .standard
     var dateFormatCurrentYear: String = "d. MMM H:mm"
     var dateFormatOtherYears: String = "d.M.yy"
 
@@ -206,9 +208,10 @@ extension Settings: Codable {
         case showHiddenByDefault
         case searchIncludesHidden
         case theme
-        case customTheme
         case fontSize
         case fileListRowDensity
+        case fileListBanding
+        case dockIcon
         case dateFormatCurrentYear
         case dateFormatOtherYears
         case showStatusBar
@@ -235,9 +238,10 @@ extension Settings: Codable {
 
         // Appearance
         theme = (try? container.decodeIfPresent(ThemeChoice.self, forKey: .theme)) ?? defaults.theme
-        customTheme = try? container.decodeIfPresent(CustomThemeColors.self, forKey: .customTheme)
         fontSize = (try? container.decodeIfPresent(Int.self, forKey: .fontSize)) ?? defaults.fontSize
         fileListRowDensity = (try? container.decodeIfPresent(FileListRowDensity.self, forKey: .fileListRowDensity)) ?? defaults.fileListRowDensity
+        fileListBanding = (try? container.decodeIfPresent(Bool.self, forKey: .fileListBanding)) ?? defaults.fileListBanding
+        dockIcon = (try? container.decodeIfPresent(DockIcon.self, forKey: .dockIcon)) ?? defaults.dockIcon
         dateFormatCurrentYear = (try? container.decodeIfPresent(String.self, forKey: .dateFormatCurrentYear)) ?? defaults.dateFormatCurrentYear
         dateFormatOtherYears = (try? container.decodeIfPresent(String.self, forKey: .dateFormatOtherYears)) ?? defaults.dateFormatOtherYears
 
@@ -273,9 +277,10 @@ extension Settings: Codable {
         try container.encode(showHiddenByDefault, forKey: .showHiddenByDefault)
         try container.encode(searchIncludesHidden, forKey: .searchIncludesHidden)
         try container.encode(theme, forKey: .theme)
-        try container.encodeIfPresent(customTheme, forKey: .customTheme)
         try container.encode(fontSize, forKey: .fontSize)
         try container.encode(fileListRowDensity, forKey: .fileListRowDensity)
+        try container.encode(fileListBanding, forKey: .fileListBanding)
+        try container.encode(dockIcon, forKey: .dockIcon)
         try container.encode(dateFormatCurrentYear, forKey: .dateFormatCurrentYear)
         try container.encode(dateFormatOtherYears, forKey: .dateFormatOtherYears)
         try container.encode(showStatusBar, forKey: .showStatusBar)
@@ -293,125 +298,58 @@ extension Settings: Codable {
 
 // MARK: - Theme Choice
 
-enum ThemeChoice: String, Codable, CaseIterable {
+enum ThemeChoice: String, CaseIterable {
     case system
     case light
     case dark
-    case foolscap
-    case drafting
-    case custom
 
     var displayName: String {
         switch self {
         case .system: return "System"
         case .light: return "Light"
         case .dark: return "Dark"
-        case .foolscap: return "Foolscap"
-        case .drafting: return "Drafting"
-        case .custom: return "Custom"
         }
     }
 }
 
-// MARK: - Custom Theme Colors
-
-struct CustomThemeColors: Equatable {
-    var background: CodableColor
-    var surface: CodableColor
-    var border: CodableColor
-    var textPrimary: CodableColor
-    var textSecondary: CodableColor
-    var textTertiary: CodableColor
-    var accent: CodableColor
-    var accentText: CodableColor
-    var fontName: String
-    var uiFontName: String
-
-    static var defaultLight: CustomThemeColors {
-        CustomThemeColors(
-            background: CodableColor(hex: "#FAFAF8"),
-            surface: CodableColor(hex: "#F5F5F3"),
-            border: CodableColor(hex: "#E8E6E3"),
-            textPrimary: CodableColor(hex: "#1A1918"),
-            textSecondary: CodableColor(hex: "#6B6965"),
-            textTertiary: CodableColor(hex: "#9C9990"),
-            accent: CodableColor(hex: "#1F4D4D"),
-            accentText: CodableColor(hex: "#FFFFFF"),
-            fontName: "SF Pro",
-            uiFontName: "SF Pro"
-        )
-    }
-}
-
-extension CustomThemeColors: Codable {
-    private enum CodingKeys: String, CodingKey {
-        case background, surface, border
-        case textPrimary, textSecondary, textTertiary
-        case accent, accentText, fontName, uiFontName
-    }
-
+extension ThemeChoice: Codable {
+    /// Retired themes map to the nearest appearance: Foolscap and Drafting to Light, Custom to System.
     init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        background = try container.decode(CodableColor.self, forKey: .background)
-        surface = try container.decode(CodableColor.self, forKey: .surface)
-        border = try container.decode(CodableColor.self, forKey: .border)
-        textPrimary = try container.decode(CodableColor.self, forKey: .textPrimary)
-        textSecondary = try container.decode(CodableColor.self, forKey: .textSecondary)
-        textTertiary = try container.decode(CodableColor.self, forKey: .textTertiary)
-        accent = try container.decode(CodableColor.self, forKey: .accent)
-        accentText = try container.decode(CodableColor.self, forKey: .accentText)
-        fontName = try container.decode(String.self, forKey: .fontName)
-        uiFontName = (try? container.decodeIfPresent(String.self, forKey: .uiFontName)) ?? "SF Pro"
+        let rawValue = try decoder.singleValueContainer().decode(String.self)
+        if let choice = ThemeChoice(rawValue: rawValue) {
+            self = choice
+            return
+        }
+        let migrated: ThemeChoice
+        switch rawValue {
+        case "foolscap", "drafting":
+            migrated = .light
+        case "custom":
+            migrated = .system
+        default:
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown theme \(rawValue)"))
+        }
+        settingsLogger.info("Migrated retired theme \(rawValue, privacy: .public) to \(migrated.rawValue, privacy: .public)")
+        self = migrated
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
     }
 }
 
-// MARK: - Codable Color
+// MARK: - Dock Icon
 
-struct CodableColor: Codable, Equatable {
-    var red: CGFloat
-    var green: CGFloat
-    var blue: CGFloat
-    var alpha: CGFloat
+enum DockIcon: String, Codable, CaseIterable {
+    case standard
+    case deepSea
 
-    init(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat = 1.0) {
-        self.red = red
-        self.green = green
-        self.blue = blue
-        self.alpha = alpha
-    }
-
-    init(hex: String) {
-        var hexString = hex.trimmingCharacters(in: .whitespacesAndNewlines)
-        if hexString.hasPrefix("#") {
-            hexString.removeFirst()
+    var displayName: String {
+        switch self {
+        case .standard: return "Default"
+        case .deepSea: return "Deep sea"
         }
-
-        var rgbValue: UInt64 = 0
-        Scanner(string: hexString).scanHexInt64(&rgbValue)
-
-        self.red = CGFloat((rgbValue & 0xFF0000) >> 16) / 255.0
-        self.green = CGFloat((rgbValue & 0x00FF00) >> 8) / 255.0
-        self.blue = CGFloat(rgbValue & 0x0000FF) / 255.0
-        self.alpha = 1.0
-    }
-
-    init(nsColor: NSColor) {
-        let color = nsColor.usingColorSpace(.sRGB) ?? nsColor
-        self.red = color.redComponent
-        self.green = color.greenComponent
-        self.blue = color.blueComponent
-        self.alpha = color.alphaComponent
-    }
-
-    var nsColor: NSColor {
-        NSColor(red: red, green: green, blue: blue, alpha: alpha)
-    }
-
-    var hexString: String {
-        let r = Int(red * 255)
-        let g = Int(green * 255)
-        let b = Int(blue * 255)
-        return String(format: "#%02X%02X%02X", r, g, b)
     }
 }
 
@@ -627,20 +565,13 @@ enum GitStatus: String, Codable {
     case conflict
     case clean
 
-    func color(for appearance: NSAppearance?) -> NSColor {
-        let isDark = appearance?.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-
+    func color(in theme: Theme) -> NSColor {
         switch self {
-        case .modified:
-            return isDark ? NSColor(hex: "#E5A832") : NSColor(hex: "#C4820E")
-        case .staged:
-            return isDark ? NSColor(hex: "#4CAF50") : NSColor(hex: "#2E7D32")
-        case .untracked:
-            return isDark ? NSColor(hex: "#8E8E93") : NSColor(hex: "#636366")
-        case .conflict:
-            return isDark ? NSColor(hex: "#EF5350") : NSColor(hex: "#C62828")
-        case .clean:
-            return .clear
+        case .modified: return theme.gitModified
+        case .staged: return theme.gitStaged
+        case .untracked: return theme.gitUntracked
+        case .conflict: return theme.gitConflict
+        case .clean: return .clear
         }
     }
 }

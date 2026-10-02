@@ -87,7 +87,7 @@ extension FileListViewController {
 
     private func applyThemeBackground() {
         scrollView.drawsBackground = false
-        tableView.backgroundColor = ThemeManager.shared.currentTheme.background
+        tableView.backgroundColor = ThemeManager.shared.currentTheme.content
     }
 
     private func tableViewHasKeyboardFocus() -> Bool {
@@ -170,7 +170,7 @@ extension FileListViewController {
 
         // Set up "No matches" label (hidden by default)
         noMatchesLabel.font = ThemeManager.shared.currentUIFont
-        noMatchesLabel.textColor = ThemeManager.shared.currentTheme.textTertiary
+        noMatchesLabel.textColor = ThemeManager.shared.currentTheme.textSecondary
         noMatchesLabel.alignment = .center
         noMatchesLabel.isHidden = true
         view.addSubview(noMatchesLabel)
@@ -200,7 +200,7 @@ extension FileListViewController {
     }
 
     func setupTableView() {
-        tableView.backgroundColor = ThemeManager.shared.currentTheme.background
+        tableView.backgroundColor = ThemeManager.shared.currentTheme.content
         tableView.style = .plain
         tableView.rowHeight = SettingsManager.shared.fileListRowDensity.rowHeight
         tableView.intercellSpacing = NSSize(width: 0, height: 0)
@@ -304,30 +304,31 @@ extension FileListViewController {
         nameColumn.isEditable = false
         tableView.addTableColumn(nameColumn)
 
-        // Size column - fixed 80px
+        // Size column - fixed width
         let sizeColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("Size"))
         sizeColumn.title = "Size"
         sizeColumn.headerCell = ThemedHeaderCell(textCell: "Size")
-        sizeColumn.width = 80
-        sizeColumn.minWidth = 80
-        sizeColumn.maxWidth = 80
+        sizeColumn.width = FileListColumnMetrics.sizeWidth
+        sizeColumn.minWidth = FileListColumnMetrics.sizeWidth
+        sizeColumn.maxWidth = FileListColumnMetrics.sizeWidth
         sizeColumn.resizingMask = []
         sizeColumn.isEditable = false
         tableView.addTableColumn(sizeColumn)
 
-        // Date column - fixed 132px (includes 12px padding on each side)
+        // Date column - fixed width plus the row inset it gives up as the last column
         let dateColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("Date"))
         dateColumn.title = "Date Modified"
         dateColumn.headerCell = ThemedHeaderCell(textCell: "Date Modified")
-        dateColumn.width = 132
-        dateColumn.minWidth = 132
-        dateColumn.maxWidth = 132
+        let dateColumnWidth = FileListColumnMetrics.dateWidth + FileListRowMetrics.horizontalInset
+        dateColumn.width = dateColumnWidth
+        dateColumn.minWidth = dateColumnWidth
+        dateColumn.maxWidth = dateColumnWidth
         dateColumn.resizingMask = []
         dateColumn.isEditable = false
         tableView.addTableColumn(dateColumn)
 
         // Set up themed header view
-        tableView.headerView = ThemedHeaderView()
+        tableView.headerView = ThemedHeaderView(frame: NSRect(x: 0, y: 0, width: 0, height: FileListColumnMetrics.headerHeight))
 
         // Set initial sort indicator on Name column (default sort)
         dataSource.updateSortIndicators(on: tableView)

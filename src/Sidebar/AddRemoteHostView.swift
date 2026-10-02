@@ -250,7 +250,7 @@ struct AddRemoteHostView: View {
             footer
         }
         .frame(width: 540, height: 360)
-        .background(Color(ThemeManager.shared.currentTheme.background))
+        .background(Color(ThemeManager.shared.currentTheme.content))
         .onKeyPress(.upArrow) {
             model.moveSuggestionSelection(by: -1)
             return .handled

@@ -7,18 +7,18 @@ extension DetoursPreviewGenerator {
         let syntax = syntaxColors(for: theme)
         return """
         :root {
-          --detours-background: \(cssHex(theme.background));
-          --detours-surface: \(cssHex(theme.surface));
-          --detours-toolbar: \(cssHex(theme.surface));
-          --detours-border: \(cssHex(theme.border));
+          --detours-background: \(cssHex(theme.content));
+          --detours-surface: \(cssHex(theme.header));
+          --detours-toolbar: \(cssHex(theme.header));
+          --detours-border: \(cssHex(theme.hairline));
           --detours-text-primary: \(cssHex(theme.textPrimary));
           --detours-text-secondary: \(cssHex(theme.textSecondary));
-          --detours-text-tertiary: \(cssHex(theme.textTertiary));
+          --detours-text-tertiary: \(cssHex(theme.textSecondary));
           --detours-accent: \(cssHex(theme.accent));
           --detours-selection: \(cssHex(theme.accent.withAlphaComponent(0.22)));
-          --detours-gutter: \(cssHex(theme.surface));
-          --detours-line-number: \(cssHex(theme.textTertiary));
-          --detours-font-family: "\(theme.fontName)", "SF Mono", Menlo, monospace;
+          --detours-gutter: \(cssHex(theme.header));
+          --detours-line-number: \(cssHex(theme.textSecondary));
+          --detours-font-family: ui-monospace, "SF Mono", Menlo, monospace;
           --detours-font-size: \(Int(fontSize.rounded()))px;
           --detours-token-keyword: \(syntax.keyword);
           --detours-token-string: \(syntax.string);
@@ -76,7 +76,7 @@ extension DetoursPreviewGenerator {
     }
 
     private func themeIsDark(_ theme: Theme) -> Bool {
-        let rgb = theme.background.usingColorSpace(.sRGB) ?? theme.background
+        let rgb = theme.content.usingColorSpace(.sRGB) ?? theme.content
         let red = rgb.redComponent
         let green = rgb.greenComponent
         let blue = rgb.blueComponent
@@ -86,13 +86,12 @@ extension DetoursPreviewGenerator {
 
     func themeIdentity(_ theme: Theme) -> String {
         [
-            cssHex(theme.background),
-            cssHex(theme.surface),
-            cssHex(theme.border),
+            cssHex(theme.content),
+            cssHex(theme.header),
+            cssHex(theme.hairline),
             cssHex(theme.textPrimary),
             cssHex(theme.textSecondary),
-            cssHex(theme.accent),
-            theme.fontName
+            cssHex(theme.accent)
         ].joined(separator: "-")
     }
 

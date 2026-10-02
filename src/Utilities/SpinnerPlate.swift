@@ -27,8 +27,8 @@ final class SpinnerPlate: NSView {
     }
 
     func apply(theme: Theme) {
-        layer?.backgroundColor = theme.surface.cgColor
-        layer?.borderColor = theme.border.cgColor
+        layer?.backgroundColor = theme.header.cgColor
+        layer?.borderColor = theme.hairline.cgColor
     }
 
     /// Wraps a spinner in a plate, centred, sized to leave room around it.

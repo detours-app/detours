@@ -129,7 +129,7 @@ final class DroppablePathControl: NSPathControl, NSDraggingSource {
 
         // Draw background
         let bgRect = NSRect(origin: .zero, size: imageSize)
-        ThemeManager.shared.currentTheme.surface.withAlphaComponent(0.9).setFill()
+        ThemeManager.shared.currentTheme.header.setFill()
         NSBezierPath(roundedRect: bgRect, xRadius: 4, yRadius: 4).fill()
 
         // Draw text
@@ -245,7 +245,7 @@ final class DroppablePathControl: NSPathControl, NSDraggingSource {
 
         let layer = CALayer()
         layer.frame = highlightRect
-        layer.backgroundColor = ThemeManager.shared.currentTheme.accent.withAlphaComponent(0.25).cgColor
+        layer.backgroundColor = ThemeManager.shared.currentTheme.dropTarget.cgColor
         layer.cornerRadius = 4
         self.layer?.addSublayer(layer)
         highlightLayer = layer

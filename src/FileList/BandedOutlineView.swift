@@ -19,19 +19,18 @@ enum FileListSelectionOrigin {
 
 // MARK: - Themed Header View
 
-/// Header view that draws themed background
+/// Column header on the content surface with a hairline beneath it
 final class ThemedHeaderView: NSTableHeaderView {
     override func draw(_ dirtyRect: NSRect) {
-        // Draw themed background
-        ThemeManager.shared.currentTheme.surface.setFill()
+        ThemeManager.shared.currentTheme.content.setFill()
         bounds.fill()
-
-        // Draw bottom border
-        ThemeManager.shared.currentTheme.border.setFill()
-        NSRect(x: 0, y: 0, width: bounds.width, height: 1).fill()
 
         // Let cells draw themselves
         super.draw(dirtyRect)
+
+        ThemeManager.shared.currentTheme.hairline.setFill()
+        let lineY = isFlipped ? bounds.maxY - 1 : bounds.minY
+        NSRect(x: 0, y: lineY, width: bounds.width, height: 1).fill()
     }
 }
 
@@ -43,26 +42,40 @@ final class ThemedHeaderCell: NSTableHeaderCell {
     var sortAscending: Bool?
 
     override func draw(withFrame cellFrame: NSRect, in controlView: NSView) {
-        // Draw background
-        ThemeManager.shared.currentTheme.surface.setFill()
+        let theme = ThemeManager.shared.currentTheme
+        theme.content.setFill()
         cellFrame.fill()
 
-        // Draw text
-        let theme = ThemeManager.shared.currentTheme
+        let isFirstColumn = cellFrame.minX < 1
+        let isLastColumn = abs(cellFrame.maxX - controlView.bounds.maxX) < 1
+        var contentFrame = cellFrame
+        if isFirstColumn {
+            contentFrame.origin.x += FileListRowMetrics.horizontalInset
+            contentFrame.size.width -= FileListRowMetrics.horizontalInset
+        }
+        if isLastColumn {
+            contentFrame.size.width -= FileListRowMetrics.horizontalInset
+        }
+
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = isFirstColumn ? .left : .right
+        paragraph.lineBreakMode = .byTruncatingTail
         let attrs: [NSAttributedString.Key: Any] = [
             .foregroundColor: theme.textSecondary,
-            .font: ThemeManager.shared.currentTheme.uiFont(size: 11)
+            .font: theme.uiFont(size: FileListColumnMetrics.headerFontSize, weight: .medium),
+            .paragraphStyle: paragraph
         ]
 
         let title = stringValue
         let size = title.size(withAttributes: attrs)
 
-        // Reserve space for AppKit's sort indicator.
+        // Reserve space for AppKit's sort indicator at the trailing edge.
         let indicatorWidth: CGFloat = sortAscending != nil ? sortIndicatorRect(forBounds: cellFrame).width + 4 : 0
+        let padding = FileListRowMetrics.cellPadding
         let textRect = NSRect(
-            x: cellFrame.minX + 4,
-            y: cellFrame.midY - size.height / 2,
-            width: cellFrame.width - 8 - indicatorWidth,
+            x: contentFrame.minX + padding,
+            y: contentFrame.midY - size.height / 2,
+            width: contentFrame.width - padding * 2 - indicatorWidth,
             height: size.height
         )
         title.draw(in: textRect, withAttributes: attrs)
@@ -319,6 +332,7 @@ final class BandedOutlineView: NSOutlineView {
         }
 
         var frame = super.frameOfOutlineCell(atRow: row)
+        frame.origin.x += FileListRowMetrics.horizontalInset
         let rowRect = rect(ofRow: row)
         frame.origin.y = rowRect.midY - frame.height / 2 + SettingsManager.shared.fileListRowDensity.verticalTextOffset
         return frame
@@ -332,6 +346,14 @@ final class BandedOutlineView: NSOutlineView {
             frame.origin.x -= outlineWidth
             frame.size.width += outlineWidth
         }
+        // Keep cell content inside the inset rounded selection.
+        if column == 0 {
+            frame.origin.x += FileListRowMetrics.horizontalInset
+            frame.size.width -= FileListRowMetrics.horizontalInset
+        }
+        if column == numberOfColumns - 1 {
+            frame.size.width -= FileListRowMetrics.horizontalInset
+        }
         return frame
     }
 
@@ -342,50 +364,23 @@ final class BandedOutlineView: NSOutlineView {
 
     override func drawBackground(inClipRect clipRect: NSRect) {
         let theme = ThemeManager.shared.currentTheme
-        theme.background.setFill()
+        theme.content.setFill()
         clipRect.fill()
 
-        let bandColor = theme.textPrimary.withAlphaComponent(0.04)
-        let rowH = rowHeight + intercellSpacing.height
-
-        for row in 0..<numberOfRows {
-            guard row % 2 == 0 else { continue }
-            let rowRect = rect(ofRow: row).intersection(clipRect)
-            guard !rowRect.isEmpty else { continue }
-            bandColor.setFill()
-            rowRect.fill()
-        }
-
-        let startY: CGFloat
-        let nextIndex: Int
-        if numberOfRows > 0 {
-            let lastRect = rect(ofRow: numberOfRows - 1)
-            startY = lastRect.maxY
-            nextIndex = numberOfRows
-        } else {
-            startY = 0
-            nextIndex = 0
-        }
-
-        var y = startY
-        var idx = nextIndex
-        bandColor.setFill()
-        while y < clipRect.maxY {
-            if idx % 2 == 0 {
-                let bandRect = NSRect(x: clipRect.minX, y: y, width: clipRect.width, height: rowH)
-                    .intersection(clipRect)
-                if !bandRect.isEmpty {
-                    bandRect.fill()
-                }
+        if SettingsManager.shared.fileListBanding {
+            let density = SettingsManager.shared.fileListRowDensity
+            theme.stripe.setFill()
+            let visibleRows = rows(in: clipRect)
+            for row in visibleRows.location..<NSMaxRange(visibleRows) where row % 2 == 1 {
+                let stripeRect = rect(ofRow: row).insetBy(dx: FileListRowMetrics.horizontalInset, dy: 0)
+                NSBezierPath(roundedRect: stripeRect, xRadius: density.selectionRadius, yRadius: density.selectionRadius).fill()
             }
-            y += rowH
-            idx += 1
         }
 
         if isBackgroundDropTarget {
-            theme.accent.withAlphaComponent(0.10).setFill()
+            theme.dropTarget.setFill()
             clipRect.fill()
-            theme.accent.withAlphaComponent(0.65).setStroke()
+            theme.accent.setStroke()
             NSBezierPath(rect: bounds.insetBy(dx: 1, dy: 1)).stroke()
         }
     }

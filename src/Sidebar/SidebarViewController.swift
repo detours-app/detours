@@ -68,7 +68,7 @@ final class SidebarViewController: NSViewController {
     }
 
     private func updateSeparatorColor() {
-        sidebarSeparator?.layer?.backgroundColor = ThemeManager.shared.currentTheme.border.cgColor
+        sidebarSeparator?.layer?.backgroundColor = ThemeManager.shared.currentTheme.hairline.cgColor
     }
 
     private func setupScrollView() {
@@ -229,7 +229,7 @@ final class SidebarViewController: NSViewController {
     private func applyTheme() {
         let theme = ThemeManager.shared.currentTheme
         effectView.layer?.isOpaque = true
-        effectView.layer?.backgroundColor = theme.surface.cgColor
+        effectView.layer?.backgroundColor = theme.sidebar.cgColor
         outlineView.backgroundColor = .clear
         updateSeparatorColor()
     }

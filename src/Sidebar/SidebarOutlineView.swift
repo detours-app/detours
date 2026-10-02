@@ -104,7 +104,7 @@ final class SidebarRowView: NSTableRowView {
 
     override func drawBackground(in dirtyRect: NSRect) {
         if isHovered && !isSelected {
-            Theme.currentSnapshot().textPrimary.withAlphaComponent(0.055).setFill()
+            Theme.currentSnapshot().hover.setFill()
             bounds.fill()
         }
     }
@@ -112,13 +112,13 @@ final class SidebarRowView: NSTableRowView {
     override func drawSelection(in dirtyRect: NSRect) {
         guard isSelected else { return }
         let theme = Theme.currentSnapshot()
-        theme.accent.withAlphaComponent(ChromeContrast.sidebarSelectionAlpha).setFill()
+        theme.sidebarSelection.setFill()
         bounds.fill()
 
         ChromeContrast.stateIndicatorColor(
             preferred: theme.accent,
             fallback: theme.textPrimary,
-            on: ChromeContrast.sidebarSelectionFill(for: theme)
+            on: theme.sidebarSelection
         ).setFill()
         NSRect(x: bounds.minX, y: bounds.minY, width: 2, height: bounds.height).fill()
     }

@@ -393,7 +393,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let sidebarLayer = mainWindowController?.splitViewController.sidebarViewController.view.layer,
               let backgroundColor = sidebarLayer.backgroundColor,
               let actualColor = NSColor(cgColor: backgroundColor)?.usingColorSpace(.deviceRGB),
-              let expectedColor = ThemeManager.shared.currentTheme.surface.usingColorSpace(.deviceRGB) else {
+              let expectedColor = ThemeManager.shared.currentTheme.header.usingColorSpace(.deviceRGB) else {
             return "Sidebar background color is not available"
         }
 

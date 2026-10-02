@@ -57,7 +57,7 @@ final class StatusBarView: NSView {
         let theme = ThemeManager.shared.currentTheme
 
         // Normal label
-        label.font = theme.uiFont(size: ThemeManager.shared.fontSize - 1)
+        label.font = theme.numericFont(size: ThemeManager.shared.fontSize - 1)
         label.textColor = theme.textSecondary
         label.lineBreakMode = .byTruncatingMiddle
         label.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -75,7 +75,7 @@ final class StatusBarView: NSView {
         addSubview(progressBar)
 
         // Progress label
-        progressLabel.font = theme.uiFont(size: ThemeManager.shared.fontSize - 1)
+        progressLabel.font = theme.numericFont(size: ThemeManager.shared.fontSize - 1)
         progressLabel.textColor = theme.textSecondary
         progressLabel.lineBreakMode = .byTruncatingMiddle
         progressLabel.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -130,8 +130,8 @@ final class StatusBarView: NSView {
 
     private func applyThemeColors() {
         let theme = ThemeManager.shared.currentTheme
-        label.font = theme.uiFont(size: ThemeManager.shared.fontSize - 1)
-        progressLabel.font = theme.uiFont(size: ThemeManager.shared.fontSize - 1)
+        label.font = theme.numericFont(size: ThemeManager.shared.fontSize - 1)
+        progressLabel.font = theme.numericFont(size: ThemeManager.shared.fontSize - 1)
 
         switch mode {
         case .normal:
@@ -166,7 +166,7 @@ final class StatusBarView: NSView {
     }
 
     private func statusBackgroundColor(for theme: Theme) -> NSColor {
-        isPaneActive ? theme.surface : (theme.surface.blended(withFraction: 0.45, of: theme.background) ?? theme.surface)
+        theme.header
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -175,7 +175,7 @@ final class StatusBarView: NSView {
         bounds.fill()
 
         // Draw top border
-        (isPaneActive ? theme.border : theme.border.withAlphaComponent(0.65)).setStroke()
+        theme.hairline.setStroke()
         let path = NSBezierPath()
         path.move(to: NSPoint(x: 0, y: bounds.height))
         path.line(to: NSPoint(x: bounds.width, y: bounds.height))

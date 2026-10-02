@@ -33,12 +33,12 @@ final class FileListCellTests: XCTestCase {
         let nameAlignmentRect = nameLabel.alignmentRect(forFrame: nameLabel.frame)
 
         XCTAssertEqual(cell.frame.height, FileListRowDensity.compact.rowHeight)
-        XCTAssertEqual(iconView.frame.origin.x, 12, accuracy: 0.5)
+        XCTAssertEqual(iconView.frame.origin.x, FileListRowMetrics.cellPadding, accuracy: 0.5)
         XCTAssertEqual(iconView.frame.width, 16, accuracy: 0.5)
         XCTAssertEqual(iconView.frame.height, 16, accuracy: 0.5)
         XCTAssertEqual(iconView.frame.midY, cell.bounds.midY, accuracy: 0.5)
 
-        XCTAssertEqual(nameAlignmentRect.origin.x, 36, accuracy: 0.5)
+        XCTAssertEqual(nameAlignmentRect.origin.x, 32, accuracy: 0.5)
         XCTAssertEqual(nameAlignmentRect.midY, cell.bounds.midY, accuracy: 0.5)
         XCTAssertGreaterThanOrEqual(nameLabel.frame.minY, cell.bounds.minY)
         XCTAssertLessThanOrEqual(nameLabel.frame.maxY, cell.bounds.maxY)
@@ -70,8 +70,8 @@ final class FileListCellTests: XCTestCase {
                 try assertNameCellLayoutDoesNotOverlap(nameCell, density: density)
             }
 
-            try assertMetadataCellContentFits(item: accessoryItems[0], columnIdentifier: "Size", width: 84, density: density)
-            try assertMetadataCellContentFits(item: accessoryItems[0], columnIdentifier: "Date", width: 132, density: density)
+            try assertMetadataCellContentFits(item: accessoryItems[0], columnIdentifier: "Size", width: FileListColumnMetrics.sizeWidth, density: density)
+            try assertMetadataCellContentFits(item: accessoryItems[0], columnIdentifier: "Date", width: FileListColumnMetrics.dateWidth, density: density)
             XCTAssertGreaterThanOrEqual(density.disclosureWidth, 20)
         }
     }
@@ -144,9 +144,7 @@ final class FileListCellTests: XCTestCase {
         let iconRect = iconView.alignmentRect(forFrame: iconView.frame)
         let nameAlignmentRect = nameLabel.alignmentRect(forFrame: nameLabel.frame)
         let gitMarker = try XCTUnwrap(
-            cell.subviews.first { view in
-                view !== iconView && !(view is NSImageView) && !(view is NSTextField)
-            },
+            cell.subviews.first { $0 is GitMarkView },
             file: file,
             line: line
         )
@@ -158,7 +156,9 @@ final class FileListCellTests: XCTestCase {
         XCTAssertEqual(accessoryViews.count, 1, file: file, line: line)
         XCTAssertEqual(cell.bounds.height, density.rowHeight, accuracy: 0.5, file: file, line: line)
         XCTAssertFalse(gitMarker.isHidden, file: file, line: line)
-        XCTAssertLessThanOrEqual(gitMarkerRect.maxX, iconRect.minX + 0.5, file: file, line: line)
+        XCTAssertGreaterThanOrEqual(gitMarkerRect.minX, nameAlignmentRect.maxX, file: file, line: line)
+        XCTAssertLessThanOrEqual(gitMarkerRect.maxX, cell.bounds.maxX, file: file, line: line)
+        XCTAssertEqual(gitMarkerRect.midY, nameAlignmentRect.midY, accuracy: 1, file: file, line: line)
         XCTAssertLessThanOrEqual(iconRect.maxX, nameAlignmentRect.minX + 0.5, file: file, line: line)
         XCTAssertGreaterThanOrEqual(nameLabel.frame.minY, cell.bounds.minY, file: file, line: line)
         XCTAssertLessThanOrEqual(nameLabel.frame.maxY, cell.bounds.maxY, file: file, line: line)

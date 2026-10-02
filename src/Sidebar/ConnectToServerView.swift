@@ -106,7 +106,7 @@ struct ConnectToServerView: View {
                                 .padding(.horizontal, 8)
                                 .background(
                                     RoundedRectangle(cornerRadius: 6)
-                                        .fill(Color(ThemeManager.shared.currentTheme.surface))
+                                        .fill(Color(ThemeManager.shared.currentTheme.sidebar))
                                 )
                             }
                         }

@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 import QualificationSupport
 @testable import Detours
 
@@ -50,9 +50,10 @@ func resetSettingsForTests() {
     manager.showHiddenByDefault = defaultsSettings.showHiddenByDefault
     manager.searchIncludesHidden = defaultsSettings.searchIncludesHidden
     manager.theme = defaultsSettings.theme
-    manager.customTheme = defaultsSettings.customTheme
     manager.fontSize = defaultsSettings.fontSize
     manager.fileListRowDensity = defaultsSettings.fileListRowDensity
+    manager.fileListBanding = defaultsSettings.fileListBanding
+    manager.dockIcon = defaultsSettings.dockIcon
     manager.dateFormatCurrentYear = defaultsSettings.dateFormatCurrentYear
     manager.dateFormatOtherYears = defaultsSettings.dateFormatOtherYears
     manager.showStatusBar = defaultsSettings.showStatusBar
@@ -82,4 +83,12 @@ func makeTemporaryQualificationRoot() throws -> (root: URL, parent: URL) {
     try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
     let descriptor = try QualificationRunRootGuard().create(provider: .local, allowlistedParent: parent)
     return (URL(fileURLWithPath: descriptor.rootPath, isDirectory: true), parent)
+}
+
+extension Theme {
+    /// Quiet Pro light tokens with the Detours accent, for tests that need a fixed theme
+    static var light: Theme { resolve(isDark: false, increaseContrast: false, accent: .detours) }
+
+    /// Quiet Pro dark tokens with the Detours accent, for tests that need a fixed theme
+    static var dark: Theme { resolve(isDark: true, increaseContrast: false, accent: .detours) }
 }

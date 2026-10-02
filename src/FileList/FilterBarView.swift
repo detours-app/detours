@@ -97,7 +97,7 @@ final class FilterBarView: NSView {
 
     private func applyTheme() {
         let theme = ThemeManager.shared.currentTheme
-        layer?.backgroundColor = theme.surface.cgColor
+        layer?.backgroundColor = theme.header.cgColor
         countLabel.textColor = theme.textSecondary
         searchField.font = ThemeManager.shared.currentUIFont
         countLabel.font = theme.uiFont(size: 11)
@@ -107,7 +107,7 @@ final class FilterBarView: NSView {
         super.draw(dirtyRect)
 
         let theme = ThemeManager.shared.currentTheme
-        theme.border.setFill()
+        theme.hairline.setFill()
         // Bottom border
         NSRect(x: 0, y: 0, width: bounds.width, height: 1).fill()
         // Top border

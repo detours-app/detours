@@ -75,7 +75,6 @@ struct ArchiveDialog: View {
     var onConfirm: (ArchiveModel) -> Void
     var onCancel: () -> Void
 
-    private let themeFontName = ThemeManager.shared.currentTheme.fontName
     private let themeFontSize = ThemeManager.shared.fontSize
 
     private var titleFont: Font {

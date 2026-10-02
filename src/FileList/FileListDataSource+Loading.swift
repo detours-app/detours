@@ -244,7 +244,7 @@ extension FileListDataSource {
             isPackage: entry.isPackage,
             location: entry.location
         ) {
-            placeholder = FileItem.tintedFolderIcon(IconLoader.placeholderFolderIcon)
+            placeholder = IconLoader.placeholderFolderIcon
         } else {
             placeholder = IconLoader.placeholderFileIcon
         }

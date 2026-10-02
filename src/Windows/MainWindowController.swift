@@ -137,7 +137,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func applyThemeBackground() {
-        window?.backgroundColor = ThemeManager.shared.currentTheme.background
+        window?.backgroundColor = ThemeManager.shared.currentTheme.content
     }
 
     func resizeForUITest(to size: NSSize) {

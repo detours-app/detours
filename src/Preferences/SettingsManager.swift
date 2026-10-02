@@ -97,11 +97,6 @@ final class SettingsManager {
         set { settings.theme = newValue }
     }
 
-    var customTheme: CustomThemeColors? {
-        get { settings.customTheme }
-        set { settings.customTheme = newValue }
-    }
-
     var fontSize: Int {
         get { settings.fontSize }
         set { settings.fontSize = max(10, min(16, newValue)) }
@@ -110,6 +105,16 @@ final class SettingsManager {
     var fileListRowDensity: FileListRowDensity {
         get { settings.fileListRowDensity }
         set { settings.fileListRowDensity = newValue }
+    }
+
+    var fileListBanding: Bool {
+        get { settings.fileListBanding }
+        set { settings.fileListBanding = newValue }
+    }
+
+    var dockIcon: DockIcon {
+        get { settings.dockIcon }
+        set { settings.dockIcon = newValue }
     }
 
     var dateFormatCurrentYear: String {

@@ -89,7 +89,7 @@ extension FileListViewController {
         // Opaque fill so the error cleanly covers the list area; without it the overlay is
         // transparent and stale rows show through behind the message, which looks broken.
         container.wantsLayer = true
-        container.layer?.backgroundColor = theme.background.cgColor
+        container.layer?.backgroundColor = theme.content.cgColor
 
         let stack = NSStackView()
         stack.orientation = .vertical
@@ -132,9 +132,6 @@ extension FileListViewController {
             let goUpButton = NSButton(title: "Go to Parent Folder", target: self, action: #selector(goToNearestParent))
             goUpButton.bezelStyle = .push
             goUpButton.controlSize = .large
-            if let keyEquivalent = goUpButton.cell as? NSButtonCell {
-                keyEquivalent.backgroundColor = theme.accent
-            }
             goUpButton.keyEquivalent = "\r"
             buttonStack.addArrangedSubview(goUpButton)
         }
@@ -182,7 +179,7 @@ extension FileListViewController {
         let banner = NSView()
         banner.translatesAutoresizingMaskIntoConstraints = false
         banner.wantsLayer = true
-        banner.layer?.backgroundColor = NSColor.systemYellow.withAlphaComponent(0.18).cgColor
+        banner.layer?.backgroundColor = ThemeManager.shared.currentTheme.errorFill.cgColor
         banner.setAccessibilityElement(true)
         banner.setAccessibilityRole(.group)
         banner.setAccessibilityIdentifier("remoteRefreshErrorBanner")

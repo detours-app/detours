@@ -1,7 +1,7 @@
 import AppKit
 
-final class FileListCell: NSTableCellView {
-    private let gitStatusBar = NSView()
+final class FileListCell: NSTableCellView, RowSelectionStyling {
+    private let gitMark = GitMarkView()
     private let iconView = NSImageView()
     private let cloudIcon = NSImageView()
     private let linkIcon = NSImageView()
@@ -13,11 +13,10 @@ final class FileListCell: NSTableCellView {
     private var isHiddenFile: Bool = false
     private var isNavigableFolder: Bool = false
     private var isReadable: Bool = true
-    private var originalIcon: NSImage?
     private var gitStatus: GitStatus?
     private var iconLeadingConstraint: NSLayoutConstraint?
-    private var gitBarLeadingConstraint: NSLayoutConstraint?
-    private var gitBarHeightConstraint: NSLayoutConstraint?
+    private var gitMarkGapConstraint: NSLayoutConstraint?
+    private var gitMarkWidthConstraint: NSLayoutConstraint?
     private var iconWidthConstraint: NSLayoutConstraint?
     private var iconHeightConstraint: NSLayoutConstraint?
     private var cloudTrailingConstraint: NSLayoutConstraint?
@@ -48,12 +47,6 @@ final class FileListCell: NSTableCellView {
     }
 
     private func setup() {
-        // Git status bar - 2px wide, 14px tall, in 8px gutter
-        gitStatusBar.wantsLayer = true
-        gitStatusBar.layer?.cornerRadius = 1
-        gitStatusBar.isHidden = true
-        addSubview(gitStatusBar)
-
         // Icon setup - 16x16
         iconView.imageScaling = .scaleProportionallyUpOrDown
         addSubview(iconView)
@@ -95,8 +88,11 @@ final class FileListCell: NSTableCellView {
         sharedLabel.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
         addSubview(sharedLabel)
 
+        gitMark.setContentCompressionResistancePriority(.required, for: .horizontal)
+        addSubview(gitMark)
+
         // Layout
-        gitStatusBar.translatesAutoresizingMaskIntoConstraints = false
+        gitMark.translatesAutoresizingMaskIntoConstraints = false
         iconView.translatesAutoresizingMaskIntoConstraints = false
         cloudIcon.translatesAutoresizingMaskIntoConstraints = false
         linkIcon.translatesAutoresizingMaskIntoConstraints = false
@@ -106,9 +102,9 @@ final class FileListCell: NSTableCellView {
 
         // Create dynamic constraints for density and folder expansion changes.
         let density = SettingsManager.shared.fileListRowDensity
-        gitBarLeadingConstraint = gitStatusBar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 5)
-        iconLeadingConstraint = iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12)
-        gitBarHeightConstraint = gitStatusBar.heightAnchor.constraint(equalToConstant: density.gitMarkerHeight)
+        iconLeadingConstraint = iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: density.standardIconLeading)
+        gitMarkGapConstraint = gitMark.leadingAnchor.constraint(equalTo: nameLabel.trailingAnchor, constant: 0)
+        gitMarkWidthConstraint = gitMark.widthAnchor.constraint(equalToConstant: 0)
         iconWidthConstraint = iconView.widthAnchor.constraint(equalToConstant: density.primaryIconSize)
         iconHeightConstraint = iconView.heightAnchor.constraint(equalToConstant: density.primaryIconSize)
         cloudTrailingConstraint = cloudIcon.trailingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: density.overlayOffset)
@@ -128,12 +124,6 @@ final class FileListCell: NSTableCellView {
         sharedLabelCenterYConstraint = sharedLabel.centerYAnchor.constraint(equalTo: centerYAnchor, constant: density.verticalTextOffset)
 
         NSLayoutConstraint.activate([
-            // Git status bar: fixed width, density-controlled height.
-            gitBarLeadingConstraint!,
-            gitStatusBar.centerYAnchor.constraint(equalTo: centerYAnchor),
-            gitStatusBar.widthAnchor.constraint(equalToConstant: 2),
-            gitBarHeightConstraint!,
-
             // Icon: density-controlled size, centered vertically.
             iconLeadingConstraint!,
             iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
@@ -160,8 +150,14 @@ final class FileListCell: NSTableCellView {
             nameLabelLeadingConstraint!,
             nameLabelCenterYConstraint!,
 
-            // Shared label: after name, before trailing edge
-            sharedLabel.leadingAnchor.constraint(equalTo: nameLabel.trailingAnchor, constant: 8),
+            // Git mark follows the name; it collapses to nothing for clean files.
+            gitMarkGapConstraint!,
+            gitMarkWidthConstraint!,
+            gitMark.heightAnchor.constraint(equalToConstant: GitMarkView.markSize),
+            gitMark.centerYAnchor.constraint(equalTo: nameLabel.centerYAnchor),
+
+            // Shared label: after name and mark, before trailing edge
+            sharedLabel.leadingAnchor.constraint(equalTo: gitMark.trailingAnchor, constant: 8),
             sharedLabel.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -4),
             sharedLabelCenterYConstraint!,
         ])
@@ -195,6 +191,7 @@ final class FileListCell: NSTableCellView {
 
     @objc private func handleThemeChange() {
         updateThemeColors()
+        updateColorsForBackgroundStyle()
     }
 
     func configure(with item: FileItem, isDropTarget: Bool = false) {
@@ -204,7 +201,6 @@ final class FileListCell: NSTableCellView {
         self.isNavigableFolder = item.isNavigableFolder
         self.isReadable = item.isReadable
         self.gitStatus = item.gitStatus
-        originalIcon = item.icon
         iconView.image = item.icon
         itemName = item.name
         nameLabel.stringValue = item.name
@@ -221,21 +217,16 @@ final class FileListCell: NSTableCellView {
             // Folders: minimal spacing (no git bar needed)
             // Files: slightly more space to accommodate git bar
             iconLeadingConstraint?.constant = item.isNavigableFolder ? density.expandedFolderIconLeading : density.expandedFileIconLeading
-            gitBarLeadingConstraint?.constant = density.expandedGitMarkerLeading
         } else {
-            // Standard spacing with room for git status bar
             iconLeadingConstraint?.constant = density.standardIconLeading
-            gitBarLeadingConstraint?.constant = density.standardGitMarkerLeading
         }
-        updateLockOverlayLeading(for: item, density: density, folderExpansionEnabled: folderExpansionEnabled)
 
         // Update theme colors in case they changed
         updateThemeColors()
         // Update selection colors based on current background style
         updateColorsForBackgroundStyle()
 
-        // Git status indicator
-        updateGitStatusBar()
+        updateGitMark()
 
         // iCloud status indicator
         switch item.iCloudStatus {
@@ -263,7 +254,6 @@ final class FileListCell: NSTableCellView {
 
     private func applyDensityMetrics() {
         let density = SettingsManager.shared.fileListRowDensity
-        gitBarHeightConstraint?.constant = density.gitMarkerHeight
         iconWidthConstraint?.constant = density.primaryIconSize
         iconHeightConstraint?.constant = density.primaryIconSize
         cloudTrailingConstraint?.constant = density.overlayOffset
@@ -283,20 +273,26 @@ final class FileListCell: NSTableCellView {
         sharedLabelCenterYConstraint?.constant = density.verticalTextOffset
     }
 
-    private func updateLockOverlayLeading(for item: FileItem, density: FileListRowDensity, folderExpansionEnabled: Bool) {
-        let hasVisibleGitMarker = (item.gitStatus ?? .clean) != .clean
-        let usesExpandedFileGutter = folderExpansionEnabled && !item.isNavigableFolder
-        lockLeadingConstraint?.constant = usesExpandedFileGutter && hasVisibleGitMarker ? 0 : -density.overlayOffset
+    private func updateGitMark() {
+        let status = gitStatus ?? .clean
+        gitMark.status = status
+        let isVisible = status != .clean
+        gitMarkGapConstraint?.constant = isVisible ? 5 : 0
+        gitMarkWidthConstraint?.constant = isVisible ? GitMarkView.markSize : 0
+        gitMark.color = Self.gitMarkColor(for: status, theme: ThemeManager.shared.currentTheme, selection: rowSelectionState)
     }
 
-    private func updateGitStatusBar() {
-        guard let status = gitStatus, status != .clean else {
-            gitStatusBar.isHidden = true
-            return
+    /// Git mark colour for the row's state: white or the selection text on an active
+    /// selection, otherwise the git token held to 3:1 against the surface it sits on.
+    static func gitMarkColor(for status: GitStatus, theme: Theme, selection: RowSelectionState) -> NSColor {
+        switch selection {
+        case .active:
+            return theme.selectionText
+        case .inactive:
+            return ChromeContrast.stateIndicatorColor(preferred: status.color(in: theme), fallback: theme.textPrimary, on: theme.inactiveSelection)
+        case .none:
+            return ChromeContrast.stateIndicatorColor(preferred: status.color(in: theme), fallback: theme.textPrimary, on: theme.content)
         }
-
-        gitStatusBar.isHidden = false
-        gitStatusBar.layer?.backgroundColor = status.color(for: effectiveAppearance).cgColor
     }
 
     private func updateDropTargetAppearance() {
@@ -332,7 +328,14 @@ final class FileListCell: NSTableCellView {
         lockIcon.alphaValue = alpha
         nameLabel.alphaValue = alpha
         sharedLabel.alphaValue = alpha
-        setAccessibilityLabel(isCut ? "\(itemName), pending move" : itemName)
+        var label = itemName
+        if let gitLabel = gitStatus?.markLabel {
+            label += ", \(gitLabel)"
+        }
+        if isCut {
+            label += ", pending move"
+        }
+        setAccessibilityLabel(label)
         setAccessibilityHelp(isCut ? "This item will move when you paste it." : nil)
     }
 
@@ -344,9 +347,9 @@ final class FileListCell: NSTableCellView {
         updateCutAppearance()
     }
 
-    override var backgroundStyle: NSView.BackgroundStyle {
+    var rowSelectionState: RowSelectionState = .none {
         didSet {
-            updateColorsForBackgroundStyle()
+            if rowSelectionState != oldValue { updateColorsForBackgroundStyle() }
         }
     }
 
@@ -374,20 +377,15 @@ final class FileListCell: NSTableCellView {
 
     private func updateColorsForBackgroundStyle() {
         let theme = ThemeManager.shared.currentTheme
-        let isEmphasized = backgroundStyle == .emphasized
-
-        if isEmphasized {
-            let selectedForeground = ChromeContrast.fileListSelectedForeground(for: theme)
-            let selectedSecondaryForeground = ChromeContrast.fileListSelectedSecondaryForeground(for: theme)
+        if rowSelectionState != .none {
+            let isActive = rowSelectionState == .active
+            let selectedForeground = ChromeContrast.fileListSelectedForeground(for: theme, active: isActive)
+            let selectedSecondaryForeground = ChromeContrast.fileListSelectedSecondaryForeground(for: theme, active: isActive)
             nameLabel.textColor = selectedForeground
             sharedLabel.textColor = selectedSecondaryForeground
             cloudIcon.contentTintColor = selectedSecondaryForeground
             linkIcon.contentTintColor = selectedSecondaryForeground
             lockIcon.contentTintColor = selectedSecondaryForeground
-            // Tint folder icons with accent color
-            if isNavigableFolder, let original = originalIcon {
-                iconView.image = Self.tintedIcon(original, color: theme.accent)
-            }
         } else {
             // Normal row: use theme colors
             nameLabel.textColor = theme.textPrimary
@@ -395,29 +393,7 @@ final class FileListCell: NSTableCellView {
             cloudIcon.contentTintColor = theme.textSecondary
             linkIcon.contentTintColor = theme.textSecondary
             lockIcon.contentTintColor = theme.textSecondary
-            // Restore original icon
-            iconView.image = originalIcon
         }
-    }
-
-    /// Creates a tinted version of an icon using the given color
-    private static func tintedIcon(_ icon: NSImage, color: NSColor) -> NSImage {
-        let size = icon.size
-        guard size.width > 0, size.height > 0 else { return icon }
-
-        let tinted = NSImage(size: size, flipped: false) { rect in
-            guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
-
-            // Draw original icon
-            icon.draw(in: rect)
-
-            // Overlay tint color
-            ctx.setBlendMode(.sourceAtop)
-            ctx.setFillColor(color.withAlphaComponent(0.8).cgColor)
-            ctx.fill(rect)
-
-            return true
-        }
-        return tinted
+        updateGitMark()
     }
 }

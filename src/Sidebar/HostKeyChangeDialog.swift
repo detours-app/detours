@@ -60,7 +60,7 @@ struct HostKeyChangeDialog: View {
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(8)
-                .background(Color(ThemeManager.shared.currentTheme.surface))
+                .background(Color(ThemeManager.shared.currentTheme.sidebar))
                 .clipShape(RoundedRectangle(cornerRadius: 6))
         }
     }

@@ -28,7 +28,7 @@ final class ThemedPaneView: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        ThemeManager.shared.currentTheme.surface.setFill()
+        ThemeManager.shared.currentTheme.header.setFill()
         bounds.fill()
     }
 }

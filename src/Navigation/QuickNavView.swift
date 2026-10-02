@@ -106,7 +106,7 @@ struct QuickNavView: View {
             .padding(.vertical, 8)
         }
         .frame(width: 900)
-        .background(Color(ThemeManager.shared.currentTheme.background))
+        .background(Color(ThemeManager.shared.currentTheme.content))
         .task {
             loadInitialResults()
             if UITestEnvironment.isEnabled {
@@ -247,7 +247,7 @@ struct QuickNavView: View {
                 Text("Reconnect to \(remoteHost?.displayName ?? "server")")
             }
             .font(Font(ThemeManager.shared.currentTheme.font(size: 14)))
-            .foregroundColor(Color(ThemeManager.shared.currentTheme.accentText))
+            .foregroundColor(Color(ThemeManager.shared.currentTheme.selectionText))
             .padding(.horizontal, 18)
             .padding(.vertical, 12)
             .background(Color(ThemeManager.shared.currentTheme.accent).opacity(0.85))
@@ -574,11 +574,7 @@ private struct ResultRow: View {
             systemIcon = NSImage()
         }
         systemIcon.size = NSSize(width: 20, height: 20)
-        if result.isDirectory {
-            self.icon = FileItem.tintedFolderIcon(systemIcon)
-        } else {
-            self.icon = systemIcon
-        }
+        self.icon = systemIcon
     }
 
     var body: some View {
@@ -605,7 +601,7 @@ private struct ResultRow: View {
                     if let hostLabel = result.hostLabel {
                         Text(hostLabel)
                             .font(Font(ThemeManager.shared.currentTheme.uiFont(size: 10, weight: .medium)))
-                            .foregroundColor(Color(ThemeManager.shared.currentTheme.accentText))
+                            .foregroundColor(Color(ThemeManager.shared.currentTheme.selectionText))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
                             .background(Color(ThemeManager.shared.currentTheme.accent).opacity(0.85))
