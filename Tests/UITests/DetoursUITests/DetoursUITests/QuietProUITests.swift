@@ -169,8 +169,8 @@ final class QuietProUITests: BaseUITest {
         var count = 0
         for y in stride(from: 0, to: bitmap.pixelsHigh, by: stepY) {
             for x in stride(from: 0, to: bitmap.pixelsWide, by: stepX) {
-                guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { continue }
-                total += 0.2126 * color.redComponent + 0.7152 * color.greenComponent + 0.0722 * color.blueComponent
+                guard let pixel = rgb(bitmap.colorAt(x: x, y: y)) else { continue }
+                total += 0.2126 * pixel[0] + 0.7152 * pixel[1] + 0.0722 * pixel[2]
                 count += 1
             }
         }
@@ -190,30 +190,32 @@ final class QuietProUITests: BaseUITest {
         let bitmap = try XCTUnwrap(NSBitmapImageRep(data: tiff))
         let scale = CGFloat(bitmap.pixelsWide) / max(row.frame.width, 1)
         // 13 pt in: inside the 10 pt selection inset and before the 8 pt cell padding and icon.
-        let raw = try XCTUnwrap(bitmap.colorAt(x: Int(13 * scale), y: bitmap.pixelsHigh / 2))
-        let drawn = try XCTUnwrap(raw.usingColorSpace(.sRGB))
-        let expected = try XCTUnwrap(srgbColor(hex: expectedHex))
-        let difference = max(
-            abs(drawn.redComponent - expected.redComponent),
-            abs(drawn.greenComponent - expected.greenComponent),
-            abs(drawn.blueComponent - expected.blueComponent)
-        )
-        let screenSpace = NSScreen.main?.colorSpace
+        let drawn = try XCTUnwrap(rgb(bitmap.colorAt(x: Int(13 * scale), y: bitmap.pixelsHigh / 2)), "The screenshot pixel should be RGB")
+        let screenSpace = try XCTUnwrap(NSScreen.main?.colorSpace, "The screen's colour space should be known")
+        let expected = try XCTUnwrap(rgb(srgbColor(hex: expectedHex)?.usingColorSpace(screenSpace)))
+        let difference = zip(drawn, expected).map { abs($0 - $1) }.max() ?? 1
         XCTAssertLessThan(
             difference,
-            0.06,
-            "\(label): the drawn selection should be \(expectedHex), read \(components(drawn)) in sRGB"
-                + " from \(components(raw)) in \(bitmap.colorSpace.localizedName ?? "an unnamed space");"
-                + " the screen is \(screenSpace?.localizedName ?? "unknown"), where \(expectedHex) is"
-                + " \(screenSpace.flatMap { expected.usingColorSpace($0) }.map { components($0) } ?? "unconvertible")"
+            0.03,
+            "\(label): the drawn selection read \(format(drawn)); \(expectedHex) on the"
+                + " \(screenSpace.localizedName ?? "unnamed") screen is \(format(expected))"
         )
     }
 
-    /// The colour components without alpha, for failure messages
-    private func components(_ color: NSColor) -> String {
-        var values = [CGFloat](repeating: 0, count: color.numberOfComponents)
+    // MARK: - Screenshot pixels
+
+    /// Screenshot pixels hold the screen's own values. Converting them through the screenshot's
+    /// colour tag gave a different, wrong colour on each Foundry run, so expected colours are
+    /// converted into the screen's colour space instead.
+    private func rgb(_ color: NSColor?) -> [CGFloat]? {
+        guard let color, color.numberOfComponents == 4 else { return nil }
+        var values = [CGFloat](repeating: 0, count: 4)
         color.getComponents(&values)
-        return values.dropLast().map { String(format: "%.3f", Double($0)) }.joined(separator: " ")
+        return Array(values.prefix(3))
+    }
+
+    private func format(_ components: [CGFloat]) -> String {
+        components.map { String(format: "%.3f", Double($0)) }.joined(separator: " ")
     }
 
     private func srgbColor(hex: String) -> NSColor? {
