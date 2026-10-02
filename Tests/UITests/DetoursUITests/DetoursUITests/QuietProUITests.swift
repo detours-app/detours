@@ -55,19 +55,19 @@ final class QuietProUITests: BaseUITest {
         choosePreference(inPicker: "dockIconPicker", option: "Deep sea")
         XCTAssertTrue(
             waitForCondition(timeout: 3) { self.dockIconIs("deepSea", deepSeaImage: true) },
-            "Choosing Deep sea should change the application icon"
+            "Choosing Deep sea should change the application icon; the app reported \(self.dockIconReport())"
         )
 
         try relaunchApp()
         XCTAssertTrue(
             waitForCondition(timeout: 5) { self.dockIconIs("deepSea", deepSeaImage: true) },
-            "Deep sea should come back after relaunch"
+            "Deep sea should come back after relaunch; the app reported \(self.dockIconReport())"
         )
 
         choosePreference(inPicker: "dockIconPicker", option: "Default")
         XCTAssertTrue(
             waitForCondition(timeout: 3) { self.dockIconIs("standard", deepSeaImage: false) },
-            "Default should restore the application icon"
+            "Default should restore the application icon; the app reported \(self.dockIconReport())"
         )
     }
 
@@ -210,6 +210,11 @@ final class QuietProUITests: BaseUITest {
     }
 
     // MARK: - App control
+
+    private func dockIconReport() -> String {
+        guard let state = try? appAppearanceState() else { return "nothing" }
+        return "dockIcon=\(state.dockIcon ?? "nil") deepSeaImage=\(state.dockImageIsDeepSea)"
+    }
 
     private func dockIconIs(_ choice: String, deepSeaImage: Bool) -> Bool {
         guard let state = try? appAppearanceState() else { return false }

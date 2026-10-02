@@ -43,10 +43,11 @@ final class DockIconManager {
         logger.info("Dock icon set to \(choice.rawValue, privacy: .public)")
     }
 
-    /// Whether the Dock is showing the deep-sea image this manager set.
+    /// Whether the app icon AppKit reports is the deep-sea image this manager set. AppKit may
+    /// hand back its own copy, so the pixels are compared rather than the object.
     var showsDeepSeaImage: Bool {
-        guard let deepSeaImage else { return false }
-        return NSApplication.shared.applicationIconImage === deepSeaImage
+        guard let deepSeaImage, let shown = NSApplication.shared.applicationIconImage else { return false }
+        return shown === deepSeaImage || shown.tiffRepresentation == deepSeaImage.tiffRepresentation
     }
 
     /// Each image is drawn with the tile shape, margin and shadow the system gives the
