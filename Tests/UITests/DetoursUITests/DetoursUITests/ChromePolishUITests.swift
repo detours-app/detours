@@ -63,6 +63,13 @@ final class ChromePolishUITests: BaseUITest {
 
     func testPaneChromePreservesNavigation() throws {
         launchChromePolishApp()
+        // The test folder's long generated name only fits the path bar, which also holds Back and
+        // Forward, in a wide window; otherwise it folds into the ellipsis, which cannot be clicked.
+        let originalSize = app.windows.firstMatch.frame.size
+        try resizeMainWindow(width: 1700, height: originalSize.height)
+        addTeardownBlock { @MainActor [self] in
+            try? resizeMainWindow(width: originalSize.width, height: originalSize.height)
+        }
 
         openFolderB()
         clickPathCrumb(named: testFolderName)
