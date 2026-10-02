@@ -109,18 +109,19 @@ final class QuietProCaptureTests: BaseUITest {
             XCTFail("Finder did not open the Applications folder")
         }
 
-        let launcher = XCUIApplication(bundleIdentifier: "com.apple.apps.launcher")
-        launcher.activate()
+        // Apps, which replaced Launchpad, is a background stub that opens its view and exits;
+        // Spotlight hosts that view, so the search is typed there.
+        let spotlight = XCUIApplication(bundleIdentifier: "com.apple.Spotlight")
+        XCUIApplication(bundleIdentifier: "com.apple.apps.launcher").activate()
         sleep(2)
-        launcher.typeText("Detours")
+        spotlight.typeText("Detours")
         sleep(2)
         attachScreenshot("apps-launcher-search", of: nil)
-        launcher.typeKey(.escape, modifierFlags: [])
-        launcher.typeKey(.escape, modifierFlags: [])
+        spotlight.typeKey(.escape, modifierFlags: [])
+        spotlight.typeKey(.escape, modifierFlags: [])
 
         app.activate()
         app.typeKey(" ", modifierFlags: .command)
-        let spotlight = XCUIApplication(bundleIdentifier: "com.apple.Spotlight")
         sleep(1)
         spotlight.typeText("Detours")
         sleep(2)
