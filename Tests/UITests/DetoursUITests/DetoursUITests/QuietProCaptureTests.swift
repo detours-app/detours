@@ -26,6 +26,20 @@ final class QuietProCaptureTests: BaseUITest {
         try captureCopyActivity()
     }
 
+    /// The whole screen with the File menu and its New File submenu open, in each appearance
+    func testCaptureMenus() throws {
+        for theme in ["light", "dark"] {
+            try applyAppearanceSettings(theme: theme, fontSize: 13, density: "compact")
+            let fileMenu = app.menuBars.firstMatch.menuBarItems["File"]
+            fileMenu.click()
+            fileMenu.menuItems["New File"].hover()
+            XCTAssertTrue(app.menuItems["Empty File..."].waitForExistence(timeout: 2), "The New File menu should open")
+            attachScreenshot("\(theme)-file-menu", of: nil)
+            pressKey(.escape)
+            pressKey(.escape)
+        }
+    }
+
     func testCaptureAccessibilityScenes() throws {
         // The guarded runner turns these on only when this test is the run's filter.
         let state = try appAppearanceState()
