@@ -190,14 +190,30 @@ final class QuietProUITests: BaseUITest {
         let bitmap = try XCTUnwrap(NSBitmapImageRep(data: tiff))
         let scale = CGFloat(bitmap.pixelsWide) / max(row.frame.width, 1)
         // 13 pt in: inside the 10 pt selection inset and before the 8 pt cell padding and icon.
-        let drawn = try XCTUnwrap(bitmap.colorAt(x: Int(13 * scale), y: bitmap.pixelsHigh / 2)?.usingColorSpace(.sRGB))
+        let raw = try XCTUnwrap(bitmap.colorAt(x: Int(13 * scale), y: bitmap.pixelsHigh / 2))
+        let drawn = try XCTUnwrap(raw.usingColorSpace(.sRGB))
         let expected = try XCTUnwrap(srgbColor(hex: expectedHex))
         let difference = max(
             abs(drawn.redComponent - expected.redComponent),
             abs(drawn.greenComponent - expected.greenComponent),
             abs(drawn.blueComponent - expected.blueComponent)
         )
-        XCTAssertLessThan(difference, 0.06, "\(label): the drawn selection \(drawn) should be \(expectedHex)")
+        let screenSpace = NSScreen.main?.colorSpace
+        XCTAssertLessThan(
+            difference,
+            0.06,
+            "\(label): the drawn selection should be \(expectedHex), read \(components(drawn)) in sRGB"
+                + " from \(components(raw)) in \(bitmap.colorSpace.localizedName ?? "an unnamed space");"
+                + " the screen is \(screenSpace?.localizedName ?? "unknown"), where \(expectedHex) is"
+                + " \(screenSpace.flatMap { expected.usingColorSpace($0) }.map { components($0) } ?? "unconvertible")"
+        )
+    }
+
+    /// The colour components without alpha, for failure messages
+    private func components(_ color: NSColor) -> String {
+        var values = [CGFloat](repeating: 0, count: color.numberOfComponents)
+        color.getComponents(&values)
+        return values.dropLast().map { String(format: "%.3f", Double($0)) }.joined(separator: " ")
     }
 
     private func srgbColor(hex: String) -> NSColor? {
