@@ -114,8 +114,10 @@ final class QuietProCaptureTests: BaseUITest {
             XCTFail("Finder did not open the Applications folder")
         }
 
-        // Apps, which replaced Launchpad, is a background stub that opens its view and exits.
-        XCUIApplication(bundleIdentifier: "com.apple.apps.launcher").activate()
+        // Apps, which replaced Launchpad, is a background stub that opens its view and exits before
+        // XCTest can attach to it, so it is opened through Launch Services instead of activated.
+        let appsURL = try XCTUnwrap(NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.apps.launcher"), "Apps should be installed")
+        XCTAssertTrue(NSWorkspace.shared.open(appsURL), "Apps should launch")
         XCTAssertTrue(siriAI.dialogs.firstMatch.waitForExistence(timeout: 5), "Apps should open its panel")
         siriAI.typeText("Detours")
         sleep(2)
