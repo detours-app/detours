@@ -6,6 +6,10 @@ Date: 2026-10-02. Input for three mockup directions, each in light and dark, plu
 
 Make Detours look elegant, professional and at home on macOS 27 Golden Gate, in light and dark mode, while it keeps running on macOS 14.
 
+## Chosen direction
+
+Marco chose Quiet Pro on 2026-10-02, with blue as the Detours accent (used when macOS is set to Multicolor). The Quiet Pro icon is the strongest concept but not yet acceptable; five slight variations are being explored before it is redrawn as layers. The icon is finished before the implementation spec is written.
+
 ## Decisions
 
 | Topic | Decision |

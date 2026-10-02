@@ -398,7 +398,7 @@ final class WindowPaneGeometryUITests: XCTestCase {
             let start = mainWindow().coordinate(withNormalizedOffset: normalized)
             let end = start.withOffset(CGVector(dx: dx, dy: 0))
 
-            start.press(forDuration: 0.2, thenDragTo: end)
+            start.click(forDuration: 0.2, thenDragTo: end)
             RunLoop.current.run(until: Date().addingTimeInterval(0.8))
 
             let movedBoundaryX = sidebarDividerX()
@@ -425,7 +425,7 @@ final class WindowPaneGeometryUITests: XCTestCase {
             let start = mainWindow().coordinate(withNormalizedOffset: normalized)
             let end = start.withOffset(CGVector(dx: dx, dy: 0))
 
-            start.press(forDuration: 0.2, thenDragTo: end)
+            start.click(forDuration: 0.2, thenDragTo: end)
             RunLoop.current.run(until: Date().addingTimeInterval(0.8))
 
             let movedDividerX = paneDivider().frame.midX

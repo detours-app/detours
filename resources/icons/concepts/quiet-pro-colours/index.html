@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quiet Pro Icon Colours</title>
+<style>
+:root {
+  --paper: #F5F4F2;
+  --panel: #FFFFFF;
+  --ink: #1C1B1A;
+  --muted: #6E6B66;
+  --line: #E3E1DD;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root { color-scheme: dark; --paper: #161514; --panel: #1E1D1C; --ink: #ECEAE6; --muted: #9A968F; --line: #2F2D2B; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 14px/1.5 var(--font); padding-inline: 24px; padding-block: 28px 48px; }
+main { max-width: 1240px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+h1 { margin: 0; font-size: 26px; letter-spacing: -0.01em; }
+header p { margin: 4px 0 0; color: var(--muted); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap: 16px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.card h2 { margin: 0; font-size: 15px; }
+.card h2 span { color: var(--muted); font-weight: 500; }
+.beds { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.bed { border-radius: 10px; padding: 14px 10px; display: flex; align-items: end; justify-content: center; gap: 12px; }
+.bed.light { background: linear-gradient(160deg, #DCE5EA, #EFE6DA); }
+.bed.dark { background: linear-gradient(160deg, #1A222B, #2A2420); }
+.bed img { display: block; border-radius: 22.4%; box-shadow: 0 5px 12px rgba(0,0,0,.28), 0 1px 2px rgba(0,0,0,.2); }
+.big { width: 100%; max-width: 100%; aspect-ratio: 1; border-radius: 22.4%; display: block; box-shadow: 0 10px 24px rgba(0,0,0,.25); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Quiet Pro Icon Colours</h1>
+    <p>Colour studies built on variant 1, sized to Apple's icon grid, with the current Detours icon for comparison. Shown with the system squircle mask, at 128, 64 and 32 px on light and dark desktops.</p>
+  </header>
+  <div class="grid" id="grid"></div>
+</main>
+<script>
+const VARIANTS = [
+  ["old-icon", "Current Detours icon", "for reference"],
+  ["colour-1", "Colour 1", "variant 1 as is"],
+  ["colour-2", "Colour 2", "charcoal ground, white panes, blue edge"],
+  ["colour-3", "Colour 3", "blue glass front pane, light ground"],
+  ["colour-4", "Colour 4", "blue glass front pane, charcoal ground"],
+  ["colour-5", "Colour 5", "white panes on navy"],
+  ["colour-6", "Colour 6", "teal glass front pane, charcoal ground"]
+];
+document.getElementById("grid").innerHTML = VARIANTS.map(([file, name, note]) => {
+  const src = file + ".png";
+  const sizes = bed => [128, 64, 32].map(s => '<img src="' + src + '" width="' + s + '" height="' + s + '" alt="' + name + ', ' + bed + ', ' + s + ' px">').join("");
+  return '<section class="card"><h2>' + name + ' <span>· ' + note + '</span></h2>' +
+    '<img class="big" src="' + src + '" alt="' + name + ' full size">' +
+    '<div class="beds"><div class="bed light">' + sizes("light") + '</div><div class="bed dark">' + sizes("dark") + '</div></div></section>';
+}).join("");
+</script>
+</body>
+</html>
