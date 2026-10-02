@@ -2,7 +2,7 @@
 
 ## Meta
 
-- Status: Draft
+- Status: Reviewed
 - Branch: feature/quiet-pro-redesign
 
 ---
@@ -64,7 +64,7 @@ Restyle the whole app in the Quiet Pro direction Marco chose on 2 October 2026: 
 - Glass effects, and the Golden Gate and Instrument directions.
 - Changes to date formats or their defaults.
 - New themes, a custom colour editor, an accent picker inside Detours, or a choice of fonts.
-- Changing the icon Finder shows for the app, or keeping the deep-sea icon in the Dock after quitting.
+- Applying the deep-sea alternative to Finder, or keeping it in the Dock after quitting.
 - Icons in menus.
 - New commands, toolbar buttons or changes to keyboard shortcuts.
 
@@ -106,13 +106,17 @@ The icon is rebuilt as an Icon Composer document (`resources/icons/Detours.icon`
 | Sidebar selection | `#E4E2DE` | `#2B2A28` |
 | Hover | text primary at 4% | text primary at 6% |
 | Git modified | `#B86E00` | `#E3A03A` |
-| Git added | `#2F8A4C` | `#5BBE7A` |
+| Git staged | `#2F8A4C` | `#5BBE7A` |
 | Git untracked | `#8A867F` | `#8E8A83` |
 | Git conflict and error | `#C42B1C` | `#FF6B5E` |
 | Warning banner fill | `#FBEFD0` | `#2E2514` |
 | Error banner fill | `#FCE9E6` | `#3A1F1B` |
 | Increase Contrast: text secondary | `#4F4C48` | `#BDB9B2` |
 | Increase Contrast: hairline | glyph token | glyph token |
+
+Resolve foregrounds against the surface they actually draw on, using the existing `ChromeContrast.readableTextColor` and `stateIndicatorColor` rules: text must reach 4.5:1 and state marks 3:1, falling back to text primary when the preferred token misses its target. This applies to inactive selections and the Increase Contrast outline too; the inactive selection fill itself retains the explicitly accepted native contrast. Active teal selections use opaque white for all text and marks; system-accent selections use `selectedContentBackgroundColor` with `selectedTextColor`, adjusted by the same contrast rules. Inactive selections retain readable primary/secondary text and git-state colours. The glyph token is for symbols, not preview text or line numbers.
+
+The green git role represents the existing `GitStatus.staged` state, including staged modifications, additions and deletions; it does not introduce an added-only state or change status classification. Use the label "Staged in git" for that mark.
 
 Metrics: rows 24/28/32 pt (Compact/Comfortable/Spacious) with selection radius 5/6/7, horizontal inset 10, cell padding 8; size column 72, date column 104, column header 26 at 11 pt medium; tab strip 40 high with 26 pt tabs, radius 7, 12 pt medium in every state, minimum width 96 with middle truncation; path bar 30 high, back/forward 24 pt, last crumb 12 pt medium; sidebar headers 11 pt semibold sentence case in text secondary; status bar 26 high, 11 pt, tabular digits; Quick Nav 600 wide, radius 12, input 20 pt, result rows 40 pt.
 
@@ -147,9 +151,9 @@ Metrics: rows 24/28/32 pt (Compact/Comfortable/Spacious) with selection radius 5
 **Phase 2: File list**
 
 - [ ] **C10** In `src/FileList/BandedOutlineView.swift` draw a flat content background, stripes only behind real rows when `fileListBanding` is on, and the drop target from tokens.
-- [ ] **C11** In `InactiveHidingRowView` (`src/FileList/FileListDataSource.swift`) draw inset rounded selection, hover and drop target per density metrics, with white text on the active selection and the Increase Contrast outline on the inactive one.
+- [ ] **C11** In `InactiveHidingRowView` and `ThemedTextCell` (`src/FileList/FileListDataSource.swift`) draw inset rounded selection, hover and drop target per density metrics, applying the foreground rules above to every column and the Increase Contrast outline to the inactive selection.
 - [ ] **C12** Remove `FileItem.tintedFolderIcon` and the selected-row icon tint in `src/FileList/FileListCell.swift`, and switch every caller (file list, iCloud, sidebar favourites, Quick Nav) to the stock icon.
-- [ ] **C13** Replace the git bar in `FileListCell` with a mark after the name: modified filled circle, added filled rounded square, untracked hollow ring, conflict filled diamond, white on a selected row, with tooltip and accessibility label ("Modified in git", "Added to git", "Untracked", "Conflict").
+- [ ] **C13** Replace the git bar in `FileListCell` with a mark after the name: modified filled circle, staged filled rounded square, untracked hollow ring, conflict filled diamond, using the selection foreground rules above, with tooltip and accessibility label ("Modified in git", "Staged in git", "Untracked", "Conflict"); clean files have no mark.
 - [ ] **C14** Set column widths, header font, header hairline and tabular digits in `src/FileList/FileListViewController+Setup.swift` and `src/FileList/FileListDataSource+Rendering.swift`.
 - [ ] **C15** Restyle the loading, reconnect and refresh-error banners in `FileListViewController+LoadingState.swift` and `PaneViewController.swift` with the warning and error tokens, and the Quick Look loading overlay in `FileListViewController+QuickLook.swift`.
 
@@ -157,7 +161,7 @@ Metrics: rows 24/28/32 pt (Compact/Comfortable/Spacious) with selection radius 5
 
 - [ ] **C16** Restyle `src/Panes/PaneTabBar.swift` and `PaneTabBar+TabButton.swift`: 26 pt pills, raised selected pill, one font weight, minimum width with middle truncation, and a 2 px accent underline under the selected tab of the active pane only.
 - [ ] **C17** Move back and forward from the tab row to the leading edge of the path bar in `PaneViewController.swift`, at 24 pt, keeping their identifiers and shortcuts.
-- [ ] **C18** Restyle the path strip in `PaneViewController+PathControl.swift` and `DroppablePathControl.swift` so separators use the glyph token in both appearances and the last crumb is medium weight in text primary; remove the duplicated `updatePathControlColors`.
+- [ ] **C18** Restyle the path strip in `PaneViewController+PathControl.swift` and `DroppablePathControl.swift` so separators use the glyph token in both appearances and the last crumb is medium weight in text primary; keep one `updatePathControlColors` implementation in `PaneViewController.swift` for its existing callers.
 - [ ] **C19** Restyle `src/Panes/StatusBarView.swift`: 26 pt, 11 pt secondary text with tabular digits, order host, count, selection size, free space, activity at the trailing edge.
 - [ ] **C20** Draw the pane divider and sidebar edge as hairline-token lines and configure the sidebar split item in `MainSplitViewController.swift` for an opaque full-height sidebar without a floating inset.
 
@@ -187,33 +191,33 @@ Metrics: rows 24/28/32 pt (Compact/Comfortable/Spacious) with selection radius 5
 
 ## Testing
 
-All tests run on Foundry. Installed-app tests run one at a time through `resources/scripts/qualification-foundry.sh installed-smoke ... --test-filter <Class/testMethod>` per `resources/docs/testing-runbook.md`. `Tests/TEST_LOG.md` is updated after every run.
+All tests run on Foundry. Installed-app tests run one at a time through `resources/scripts/qualification-foundry.sh installed-smoke <group> <context> --smoke-repetitions 1 --test-filter <Class/testMethod>` per `resources/docs/testing-runbook.md`. App and macOS preference setup runs through the unsandboxed qualification workflow, not from the XCUI runner; restore changed macOS appearance, accent and accessibility settings during guarded cleanup. `Tests/TEST_LOG.md` is updated after every run.
 
 ### Unit Tests (`Tests/`)
 
-- [ ] **T1** `ThemeTests.testQuietProTokenContrast` - text, glyph, git, banner and selection tokens meet 4.5:1 for text and 3:1 for state marks in light, dark and Increase Contrast.
+- [ ] **T1** `ThemeTests.testQuietProTokenContrast` - resolved text, glyph, git, banner and selection foregrounds meet 4.5:1 for text and 3:1 for state marks on their actual surfaces, including inactive and sidebar selections, in light, dark and Increase Contrast; exclude the explicitly accepted inactive selection fill from the state-mark threshold.
 - [ ] **T2** `PreferencesTests.testRetiredThemesMigrate` - saved foolscap and drafting decode as light, custom as system, other settings unchanged.
 - [ ] **T3** `PreferencesTests.testBandingAndDockIconDefaults` - stripes default off, Dock icon defaults to the default icon, both persist and fall back on invalid data.
-- [ ] **T4** `FileListCellTests.testGitMarkShapesAndLabels` - each git state draws its shape, turns white when selected and exposes its accessibility label.
+- [ ] **T4** `FileListCellTests.testGitMarkShapesAndLabels` - modified, staged, untracked and conflict draw their assigned shapes and labels, clean has no mark, and active teal, system-accent and inactive selections use the specified readable foregrounds.
 - [ ] **T5** `FileListCellTests.testStockIconsUntinted` - folder and file icons in rows, selected rows and Quick Nav results match the workspace icon.
 - [ ] **T6** `FileListDataSourceTests.testSelectionInsetAndRadiusPerDensity` - selection rect inset and radius follow each density.
 - [ ] **T7** `ThemeTests.testSelectionTextReadableForSystemAccents` - selection text contrast holds for all eight macOS accent colours and the teal fill.
-- [ ] **T8** `DetoursPreviewGeneratorTests.testPreviewVariablesFromTokens` - Quick Look CSS variables and syntax choice follow tokens and effective appearance.
+- [ ] **T8** `DetoursPreviewGeneratorTests.testPreviewVariablesFromTokens` - Quick Look CSS variables, cache identity and syntax choice follow tokens and effective appearance; preview text and line numbers use text roles and no removed font field remains.
 - [ ] **T9** Update `ThemeTests`, `PreferencesTests`, `StatusBarProgressTests`, `PreviewWindowSpinnerTests` and `DetoursPreviewGeneratorTests` assertions that reference removed themes, custom colours or old hex values.
 
 ### UI Tests (`Tests/UITests/DetoursUITests/`, Foundry)
 
 - [ ] **T10** `ChromePolishUITests.testNoTextOverlapAcrossDensitiesAndThemes` - loop over System, Light and Dark, densities and font sizes 10 to 16 with no overlap.
-- [ ] **T11** `QuietProUITests.testAppearanceAppliesAppWide` - Light and Dark switch the window, menus, an alert and Preferences together and persist across relaunch.
+- [ ] **T11** `QuietProUITests.testAppearanceAppliesAppWide` - Light and Dark switch the window, menus, an alert, Preferences and Quick Look together and persist across relaunch; System follows a macOS appearance change.
 - [ ] **T12** `QuietProUITests.testMulticolorUsesDetoursTeal` - with the Foundry accent set to Multicolor the selection is teal, with Graphite it follows the system.
 - [ ] **T13** `QuietProUITests.testDockIconPreference` - choosing deep sea changes the application icon, survives relaunch, and default restores it.
-- [ ] **T14** Rerun `ChromePolishUITests` Quick Nav, density, navigation and sidebar eject tests to confirm A1.
+- [ ] **T14** Rerun `ChromePolishUITests` Quick Nav, density, navigation, pane-focus and sidebar eject tests to confirm A1 and A5; required fixture-dependent cases must execute rather than skip.
 
 ### Build and Visual Checks (Foundry)
 
-- [ ] **T15** Build with `resources/scripts/build.sh`; confirm `Assets.car`, `AppIcon.icns`, `CFBundleIconName`, `NSAccentColorName` and a valid code signature, and capture Dock and Finder icon screenshots with default and deep-sea icons.
-- [ ] **T16** Capture light and dark screenshots with left and right pane active through the guarded launcher and compare them with the Quiet Pro mockup board.
-- [ ] **T17** Run the full Foundry unit suite over SSH once at the end.
+- [ ] **T15** Build with `resources/scripts/build.sh`; confirm `Assets.car`, `AppIcon.icns`, `CFBundleIconName`, `CFBundleIconFile`, `NSAccentColorName` and a valid code signature; inspect default, dark, clear and tinted icons and capture Finder, Launchpad, Spotlight, Dock and app-switcher icons, including the Dock returning to default after quitting with deep sea selected.
+- [ ] **T16** Capture light and dark screenshots with left and right pane active through the guarded launcher and compare them with the Quiet Pro mockup board, using this spec for its stated overrides; inspect stripes on/off and plain empty space, tabs, path separators, sidebar, status/activity, banners, sheets and Quick Nav, then exercise Increase Contrast, Reduce Motion, Differentiate Without Color and Full Keyboard Access against A15.
+- [ ] **T17** Run the full Foundry unit suite over SSH once at the end, excluding `ClipboardManagerTests` and `DroppablePathControlTests` from that invocation and running those two classes through `resources/scripts/gui-test.sh` with a narrow filter, as required by the testing runbook.
 
 ---
 
