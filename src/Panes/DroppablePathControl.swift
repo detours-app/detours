@@ -312,8 +312,21 @@ final class DroppablePathControl: NSPathControl, NSDraggingSource {
 
     // MARK: - Accessibility
 
-    /// Crumbs are drawn here rather than by AppKit, so each is exposed as its own element for
-    /// VoiceOver and UI tests. The elements are kept while the path is unchanged.
+    // AppKit normally exposes this control through its cell; with the crumbs drawn here, the
+    // control itself is the element, a group holding one element per crumb.
+    override func isAccessibilityElement() -> Bool {
+        true
+    }
+
+    override func accessibilityRole() -> NSAccessibility.Role? {
+        .group
+    }
+
+    override func accessibilityLabel() -> String? {
+        "Path"
+    }
+
+    /// The crumb elements are kept while the path is unchanged.
     override func accessibilityChildren() -> [Any]? {
         let items = pathItems
         let rects = calculateItemRects()
@@ -367,6 +380,7 @@ private final class PathCrumbAccessibilityElement: NSAccessibilityElement {
         super.init()
         setAccessibilityRole(.staticText)
         setAccessibilityValue(title)
+        setAccessibilityEnabled(true)
         setAccessibilityParent(control)
     }
 
