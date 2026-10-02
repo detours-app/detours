@@ -11,12 +11,12 @@ struct GitSettingsView: View {
                         SettingsManager.shared.gitStatusEnabled = newValue
                     }
 
-                Text("Display colored bars next to files that have been modified, staged, or are untracked in git repositories.")
+                Text("Show a mark after the name of each file that is modified, staged, untracked or in conflict in a git repository. Each state has its own shape.")
                     .font(Font(ThemeManager.shared.currentTheme.uiFont(size: 12)))
                     .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
             }
 
-            Section("Indicator Colors") {
+            Section("Indicators") {
                 GitStatusPreview()
             }
         }
