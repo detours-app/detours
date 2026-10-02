@@ -213,7 +213,7 @@ final class QuietProUITests: BaseUITest {
 
     private func dockIconReport() -> String {
         guard let state = try? appAppearanceState() else { return "nothing" }
-        return "dockIcon=\(state.dockIcon ?? "nil") deepSeaImage=\(state.dockImageIsDeepSea)"
+        return "dockIcon=\(state.dockIcon ?? "nil") deepSeaImage=\(state.dockImageIsDeepSea) difference=\(state.dockImageDifference.map { String(format: "%.3f", $0) } ?? "none")"
     }
 
     private func dockIconIs(_ choice: String, deepSeaImage: Bool) -> Bool {

@@ -221,6 +221,7 @@ enum UITestEnvironment {
         let selectionFill: String
         let dockIcon: String?
         let dockImageIsDeepSea: Bool
+        let dockImageDifference: Double?
         let increaseContrast: Bool
         let differentiateWithoutColor: Bool
         let reduceMotion: Bool
@@ -239,6 +240,7 @@ enum UITestEnvironment {
                 selectionFill: theme.selectionFill.hexString,
                 dockIcon: DockIconManager.shared.appliedChoice?.rawValue,
                 dockImageIsDeepSea: DockIconManager.shared.showsDeepSeaImage,
+                dockImageDifference: DockIconManager.shared.deepSeaImageDifference,
                 increaseContrast: theme.increaseContrast,
                 differentiateWithoutColor: NSWorkspace.shared.accessibilityDisplayShouldDifferentiateWithoutColor,
                 reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,

@@ -43,11 +43,33 @@ final class DockIconManager {
         logger.info("Dock icon set to \(choice.rawValue, privacy: .public)")
     }
 
-    /// Whether the app icon AppKit reports is the deep-sea image this manager set. AppKit may
-    /// hand back its own copy, so the pixels are compared rather than the object.
+    /// Whether the app icon AppKit reports looks like the deep-sea image this manager set.
+    /// AppKit keeps its own re-rendered copy, so small renderings are compared within a tolerance.
     var showsDeepSeaImage: Bool {
-        guard let deepSeaImage, let shown = NSApplication.shared.applicationIconImage else { return false }
-        return shown === deepSeaImage || shown.tiffRepresentation == deepSeaImage.tiffRepresentation
+        (deepSeaImageDifference ?? 1) < 0.05
+    }
+
+    /// Mean per-channel difference, 0 to 1, between the app icon AppKit reports and the deep-sea image
+    var deepSeaImageDifference: Double? {
+        guard let deepSeaImage,
+              let shown = NSApplication.shared.applicationIconImage,
+              let shownPixels = Self.thumbnailPixels(shown),
+              let deepSeaPixels = Self.thumbnailPixels(deepSeaImage) else { return nil }
+        let difference = zip(shownPixels, deepSeaPixels).reduce(0) { $0 + abs(Int($1.0) - Int($1.1)) }
+        return Double(difference) / Double(shownPixels.count * 255)
+    }
+
+    private static func thumbnailPixels(_ image: NSImage) -> [UInt8]? {
+        let side = 16
+        guard let bitmap = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: side, pixelsHigh: side, bitsPerSample: 8, samplesPerPixel: 4,
+            hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: side * 4, bitsPerPixel: 32
+        ), let context = NSGraphicsContext(bitmapImageRep: bitmap), let data = bitmap.bitmapData else { return nil }
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        image.draw(in: NSRect(x: 0, y: 0, width: side, height: side))
+        NSGraphicsContext.restoreGraphicsState()
+        return Array(UnsafeBufferPointer(start: data, count: side * side * 4))
     }
 
     /// Each image is drawn with the tile shape, margin and shadow the system gives the
