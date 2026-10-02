@@ -30,7 +30,7 @@ final class QuietProUITests: BaseUITest {
     }
 
     func testMulticolorUsesDetoursTeal() throws {
-        let multicolor = try appearanceState()
+        let multicolor = try appAppearanceState()
         XCTAssertTrue(multicolor.usesDetoursAccent, "This test needs Foundry's accent set to Multicolor")
         let dark = multicolor.effectiveAppearance == darkName
 
@@ -39,7 +39,7 @@ final class QuietProUITests: BaseUITest {
 
         // Graphite for this launch, read by AppKit the same way as the System Settings value.
         try relaunchApp(arguments: ["-AppleAccentColor", " -1"])
-        let graphite = try appearanceState()
+        let graphite = try appAppearanceState()
         XCTAssertFalse(graphite.usesDetoursAccent, "Graphite is a system accent")
         XCTAssertEqual(graphite.effectiveAppearance, multicolor.effectiveAppearance)
 
@@ -48,7 +48,7 @@ final class QuietProUITests: BaseUITest {
     }
 
     func testDockIconPreference() throws {
-        let initial = try appearanceState()
+        let initial = try appAppearanceState()
         XCTAssertEqual(initial.dockIcon, "standard")
         XCTAssertFalse(initial.dockImageIsDeepSea)
 
@@ -120,12 +120,12 @@ final class QuietProUITests: BaseUITest {
     ) throws {
         let expected = dark ? darkName : lightName
         XCTAssertTrue(
-            waitForCondition(timeout: 5) { (try? self.appearanceState())?.effectiveAppearance == expected },
+            waitForCondition(timeout: 5) { (try? self.appAppearanceState())?.effectiveAppearance == expected },
             "\(label): the app should resolve to \(expected)",
             file: file,
             line: line
         )
-        let state = try appearanceState()
+        let state = try appAppearanceState()
         XCTAssertEqual(state.appearance, appAppearance, "\(label): app appearance", file: file, line: line)
         try assertEveryWindow(expected, label: label, file: file, line: line)
         assertLooks(app.windows.firstMatch, dark: dark, "\(label) main window", file: file, line: line)
@@ -137,7 +137,7 @@ final class QuietProUITests: BaseUITest {
         file: StaticString = #filePath,
         line: UInt = #line
     ) throws {
-        let windows = try appearanceState().windowAppearances
+        let windows = try appAppearanceState().windowAppearances
         XCTAssertFalse(windows.isEmpty, "\(label): the app reported no windows", file: file, line: line)
         for window in windows {
             XCTAssertTrue(window.hasSuffix("=\(expected)"), "\(label): \(window) should be \(expected)", file: file, line: line)
@@ -180,8 +180,8 @@ final class QuietProUITests: BaseUITest {
 
     private func assertSelection(inRowNamed name: String, fill expectedHex: String, label: String) throws {
         XCTAssertTrue(
-            waitForCondition(timeout: 3) { (try? self.appearanceState())?.selectionFill == expectedHex },
-            "\(label): the selection fill should be \(expectedHex), was \((try? self.appearanceState())?.selectionFill ?? "unreported")"
+            waitForCondition(timeout: 3) { (try? self.appAppearanceState())?.selectionFill == expectedHex },
+            "\(label): the selection fill should be \(expectedHex), was \((try? self.appAppearanceState())?.selectionFill ?? "unreported")"
         )
         let row = outlineRow(named: name)
         XCTAssertTrue(row.waitForExistence(timeout: 3), "\(name) row should exist")
@@ -211,53 +211,8 @@ final class QuietProUITests: BaseUITest {
 
     // MARK: - App control
 
-    private func appearanceState() throws -> AppAppearanceState {
-        try requestRemotePaneState(pane: "left").appAppearance
-    }
-
     private func dockIconIs(_ choice: String, deepSeaImage: Bool) -> Bool {
-        guard let state = try? appearanceState() else { return false }
+        guard let state = try? appAppearanceState() else { return false }
         return state.dockIcon == choice && state.dockImageIsDeepSea == deepSeaImage
-    }
-
-    private func choosePreference(inPicker identifier: String, option: String, keepWindowOpen: Bool = false) {
-        pressCharKey(",", modifiers: .command)
-        let preferences = app.windows["Preferences"]
-        XCTAssertTrue(preferences.waitForExistence(timeout: 3), "Preferences should open")
-        let section = preferences.staticTexts["Appearance"]
-        XCTAssertTrue(section.waitForExistence(timeout: 2), "The Appearance section should exist")
-        section.click()
-
-        let picker = preferences.descendants(matching: .any).matching(identifier: identifier).firstMatch
-        XCTAssertTrue(picker.waitForExistence(timeout: 3), "\(identifier) should exist")
-        if picker.elementType == .popUpButton {
-            picker.click()
-            let item = app.menuItems[option]
-            XCTAssertTrue(item.waitForExistence(timeout: 2), "\(option) should be offered")
-            item.click()
-        } else {
-            let choice = [picker.radioButtons[option], picker.buttons[option]].first { $0.exists }
-            XCTAssertNotNil(choice, "\(identifier) should offer \(option)")
-            choice?.click()
-        }
-
-        if !keepWindowOpen {
-            pressCharKey("w", modifiers: .command)
-            XCTAssertTrue(preferences.doesNotExistOrWait(timeout: 3), "Preferences should close")
-        }
-    }
-
-    private func relaunchApp(arguments: [String] = []) throws {
-        app.terminate()
-        app.launchArguments = arguments
-        app.launch()
-        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 5), "The app window should come back")
-        XCTAssertTrue(
-            waitForCondition(timeout: 15) { (try? self.requestRemotePaneState(pane: "left", timeout: 2)) != nil },
-            "The relaunched app never answered the control seam"
-        )
-        if !waitForRow(named: "FolderA", timeout: 5) {
-            try navigatePaneToFixtureRoot(paneIndex: 0, pane: "left")
-        }
     }
 }

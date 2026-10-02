@@ -89,10 +89,6 @@ extension DetoursPreviewGenerator {
     }
 
     func cssHex(_ color: NSColor) -> String {
-        let rgb = color.usingColorSpace(.sRGB) ?? color
-        let red = max(0, min(255, Int(round(rgb.redComponent * 255))))
-        let green = max(0, min(255, Int(round(rgb.greenComponent * 255))))
-        let blue = max(0, min(255, Int(round(rgb.blueComponent * 255))))
-        return String(format: "#%02X%02X%02X", red, green, blue)
+        color.hexString
     }
 }

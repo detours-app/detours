@@ -333,11 +333,7 @@ final class SidebarItemView: NSTableCellView {
         // Selected: accent glyph and semibold name on the quiet sidebar selection fill.
         let selectedForeground = ChromeContrast.sidebarSelectedForeground(for: currentTheme)
         if normalIconTintColor != nil {
-            iconView.contentTintColor = ChromeContrast.stateIndicatorColor(
-                preferred: currentTheme.accent,
-                fallback: selectedForeground,
-                on: currentTheme.sidebarSelection
-            )
+            iconView.contentTintColor = ChromeContrast.sidebarSelectedGlyph(for: currentTheme)
         }
         nameLabel.textColor = selectedForeground
         nameLabel.font = currentTheme.uiFont(size: nameLabel.font?.pointSize ?? 13, weight: .semibold)

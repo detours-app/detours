@@ -229,7 +229,6 @@ enum UITestEnvironment {
         @MainActor
         static func current() -> AppAppearanceState {
             let theme = ThemeManager.shared.currentTheme
-            let fill = theme.selectionFill.usingColorSpace(.sRGB) ?? theme.selectionFill
             return AppAppearanceState(
                 appearance: NSApplication.shared.appearance?.name.rawValue,
                 effectiveAppearance: appearanceName(NSApplication.shared.effectiveAppearance),
@@ -237,12 +236,7 @@ enum UITestEnvironment {
                     "\($0.title.isEmpty ? String(describing: type(of: $0)) : $0.title)=\(appearanceName($0.effectiveAppearance))"
                 },
                 usesDetoursAccent: theme.usesDetoursAccent,
-                selectionFill: String(
-                    format: "#%02X%02X%02X",
-                    Int((fill.redComponent * 255).rounded()),
-                    Int((fill.greenComponent * 255).rounded()),
-                    Int((fill.blueComponent * 255).rounded())
-                ),
+                selectionFill: theme.selectionFill.hexString,
                 dockIcon: DockIconManager.shared.appliedChoice?.rawValue,
                 dockImageIsDeepSea: DockIconManager.shared.showsDeepSeaImage,
                 increaseContrast: theme.increaseContrast,

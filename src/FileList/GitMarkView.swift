@@ -44,10 +44,6 @@ final class GitMarkView: NSView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    override var intrinsicContentSize: NSSize {
-        NSSize(width: Self.markSize, height: Self.markSize)
-    }
-
     override func draw(_ dirtyRect: NSRect) {
         guard let path = Self.path(for: status, in: bounds) else { return }
         color.setFill()

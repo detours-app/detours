@@ -225,7 +225,7 @@ class BaseUITest: XCTestCase {
     /// hooks, so a command written in the moment before that lands is treated as seen and
     /// never executed. Round-trip one request, retrying with a fresh id, before any test
     /// drives the seam.
-    private func waitForControlSeamReady(timeout: TimeInterval = 15) -> Bool {
+    func waitForControlSeamReady(timeout: TimeInterval = 15) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         repeat {
             if (try? requestRemotePaneState(pane: "left", timeout: 2)) != nil {

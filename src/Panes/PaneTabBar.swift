@@ -22,32 +22,6 @@ final class PaneTabBar: NSView {
     private var dropIndicatorIndex: Int?
     private var fileDropTargetTabIndex: Int?
 
-    // MARK: - Colors (from theme)
-
-    private var surfaceColor: NSColor {
-        ThemeManager.shared.currentTheme.header
-    }
-
-    private var backgroundColor: NSColor {
-        ThemeManager.shared.currentTheme.content
-    }
-
-    private var accentColor: NSColor {
-        ThemeManager.shared.currentTheme.accent
-    }
-
-    private var textPrimaryColor: NSColor {
-        ThemeManager.shared.currentTheme.textPrimary
-    }
-
-    private var textSecondaryColor: NSColor {
-        ThemeManager.shared.currentTheme.textSecondary
-    }
-
-    private var borderColor: NSColor {
-        ThemeManager.shared.currentTheme.hairline
-    }
-
     // MARK: - Initialization
 
     override init(frame frameRect: NSRect) {
@@ -229,12 +203,7 @@ final class PaneTabBar: NSView {
     }
 
     private func updateNewTabButtonColor() {
-        let background = surfaceColor
-        let color = ChromeContrast.readableTextColor(
-            preferred: textSecondaryColor,
-            fallback: textPrimaryColor,
-            on: background
-        )
+        let color = ChromeContrast.chromeSecondaryText(for: ThemeManager.shared.currentTheme)
         // New tab button uses text, set attributed title
         let attrs: [NSAttributedString.Key: Any] = [
             .foregroundColor: color,

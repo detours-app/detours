@@ -306,7 +306,6 @@ extension PaneViewController {
         isActive = active
         updateBackgroundTint()
         tabBar.setActive(active)
-        statusBar.setPaneActive(active)
 
         // Update all tabs' data sources with active state
         for tab in tabs {

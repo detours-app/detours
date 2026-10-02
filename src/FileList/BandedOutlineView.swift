@@ -372,7 +372,7 @@ final class BandedOutlineView: NSOutlineView {
             theme.stripe.setFill()
             let visibleRows = rows(in: clipRect)
             for row in visibleRows.location..<NSMaxRange(visibleRows) where row % 2 == 1 {
-                let stripeRect = rect(ofRow: row).insetBy(dx: FileListRowMetrics.horizontalInset, dy: 0)
+                let stripeRect = InactiveHidingRowView.highlightRect(in: rect(ofRow: row))
                 NSBezierPath(roundedRect: stripeRect, xRadius: density.selectionRadius, yRadius: density.selectionRadius).fill()
             }
         }

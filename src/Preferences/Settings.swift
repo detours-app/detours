@@ -310,6 +310,15 @@ enum ThemeChoice: String, CaseIterable {
         case .dark: return "Dark"
         }
     }
+
+    /// The appearance Light or Dark pins for the whole app; System follows macOS.
+    var appearanceName: NSAppearance.Name? {
+        switch self {
+        case .system: return nil
+        case .light: return .aqua
+        case .dark: return .darkAqua
+        }
+    }
 }
 
 extension ThemeChoice: Codable {
@@ -331,11 +340,6 @@ extension ThemeChoice: Codable {
         }
         settingsLogger.info("Migrated retired theme \(rawValue, privacy: .public) to \(migrated.rawValue, privacy: .public)")
         self = migrated
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        try container.encode(rawValue)
     }
 }
 
@@ -593,5 +597,12 @@ extension NSColor {
         let blue = CGFloat(rgbValue & 0x0000FF) / 255.0
 
         self.init(red: red, green: green, blue: blue, alpha: 1.0)
+    }
+
+    /// `#RRGGBB` in sRGB, the inverse of `init(hex:)`
+    var hexString: String {
+        let rgb = usingColorSpace(.sRGB) ?? self
+        let byte = { (component: CGFloat) in max(0, min(255, Int((component * 255).rounded()))) }
+        return String(format: "#%02X%02X%02X", byte(rgb.redComponent), byte(rgb.greenComponent), byte(rgb.blueComponent))
     }
 }

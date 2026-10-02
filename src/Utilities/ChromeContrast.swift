@@ -23,6 +23,34 @@ enum ChromeContrast {
         theme.textPrimary
     }
 
+    // MARK: - Chrome on the header surface
+
+    /// Path crumbs, tab titles, status text and the path bar's buttons
+    static func chromeSecondaryText(for theme: Theme) -> NSColor {
+        readableTextColor(preferred: theme.textSecondary, fallback: theme.textPrimary, on: theme.header)
+    }
+
+    static func pathSeparator(for theme: Theme) -> NSColor {
+        stateIndicatorColor(preferred: theme.glyph, fallback: theme.textSecondary, on: theme.header)
+    }
+
+    /// The active pane's current-tab underline
+    static func tabUnderline(for theme: Theme) -> NSColor {
+        stateIndicatorColor(preferred: theme.accent, fallback: theme.textPrimary, on: theme.header)
+    }
+
+    static func statusCompletionText(for theme: Theme) -> NSColor {
+        readableTextColor(preferred: theme.accent, fallback: theme.textPrimary, on: theme.header)
+    }
+
+    static func statusErrorText(for theme: Theme) -> NSColor {
+        readableTextColor(preferred: theme.errorText, fallback: theme.textPrimary, on: theme.header)
+    }
+
+    static func sidebarSelectedGlyph(for theme: Theme) -> NSColor {
+        stateIndicatorColor(preferred: theme.accent, fallback: sidebarSelectedForeground(for: theme), on: theme.sidebarSelection)
+    }
+
     static func readableTextColor(preferred: NSColor, fallback: NSColor, on background: NSColor) -> NSColor {
         if contrastRatio(foreground: preferred, background: background) >= minimumNormalTextContrast {
             return preferred

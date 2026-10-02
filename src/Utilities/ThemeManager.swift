@@ -14,6 +14,7 @@ final class ThemeManager {
 
     /// The currently active theme
     private(set) var currentTheme: Theme
+    private var appliedFontSize = CGFloat(SettingsManager.shared.fontSize)
 
     private init() {
         // Resolve theme immediately from saved settings
@@ -61,19 +62,18 @@ final class ThemeManager {
     func updateTheme() {
         Theme.currentInputs = Self.inputs()
         Self.applyAppAppearance()
-        currentTheme = Self.resolveTheme()
+        let theme = Self.resolveTheme()
+        // Most settings writes change neither the tokens nor the font size; leave the views alone then.
+        guard theme != currentTheme || fontSize != appliedFontSize else { return }
+        currentTheme = theme
+        appliedFontSize = fontSize
         logger.debug("Theme updated to: \(SettingsManager.shared.theme.rawValue)")
         NotificationCenter.default.post(name: Self.themeDidChange, object: nil)
     }
 
     /// Light or Dark pins the whole app, so stock controls, menus and alerts follow; System clears it.
     private static func applyAppAppearance() {
-        let appearance: NSAppearance?
-        switch Theme.currentInputs.choice {
-        case .system: appearance = nil
-        case .light: appearance = NSAppearance(named: .aqua)
-        case .dark: appearance = NSAppearance(named: .darkAqua)
-        }
+        let appearance = Theme.currentInputs.choice.appearanceName.flatMap { NSAppearance(named: $0) }
         if NSApplication.shared.appearance != appearance {
             NSApplication.shared.appearance = appearance
         }
@@ -102,23 +102,13 @@ final class ThemeManager {
         CGFloat(SettingsManager.shared.fontSize)
     }
 
-    /// The current mono font at the configured size
+    /// The file list font at the configured size
     var currentFont: NSFont {
         currentTheme.font(size: fontSize)
     }
 
-    /// The current mono font at a custom size
-    func font(size: CGFloat) -> NSFont {
-        currentTheme.font(size: size)
-    }
-
-    /// The current UI (proportional) font at the configured size
+    /// The chrome font at the configured size
     var currentUIFont: NSFont {
         currentTheme.uiFont(size: fontSize)
-    }
-
-    /// The current UI (proportional) font at a custom size
-    func uiFont(size: CGFloat) -> NSFont {
-        currentTheme.uiFont(size: size)
     }
 }

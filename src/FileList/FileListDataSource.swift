@@ -201,6 +201,7 @@ final class InactiveHidingRowView: NSTableRowView {
     }
 
     override func drawBackground(in dirtyRect: NSRect) {
+        guard isDropTarget || (isHovered && !isSelected) else { return }
         let theme = Theme.currentSnapshot()
 
         if isDropTarget {

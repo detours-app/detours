@@ -208,13 +208,7 @@ final class PaneViewController: NSViewController {
     }
 
     private func updateButtonColors() {
-        let theme = ThemeManager.shared.currentTheme
-        let background = paneChromeBackgroundColor(for: theme)
-        let color = ChromeContrast.readableTextColor(
-            preferred: theme.textSecondary,
-            fallback: theme.textPrimary,
-            on: background
-        )
+        let color = ChromeContrast.chromeSecondaryText(for: ThemeManager.shared.currentTheme)
         let config = NSImage.SymbolConfiguration(paletteColors: [color])
         let navigationConfig = config.applying(NSImage.SymbolConfiguration(pointSize: 12, weight: .medium))
 
@@ -240,8 +234,7 @@ final class PaneViewController: NSViewController {
 
     func updatePaneChromeColors() {
         let theme = ThemeManager.shared.currentTheme
-        let stripColor = paneChromeBackgroundColor(for: theme)
-        pathStripView.layer?.backgroundColor = stripColor.cgColor
+        pathStripView.layer?.backgroundColor = theme.header.cgColor
         pathStripSeparator.layer?.backgroundColor = theme.hairline.cgColor
         reconnectBanner.layer?.backgroundColor = theme.warningFill.cgColor
         reconnectBannerLabel.font = theme.uiFont(size: 12)
@@ -271,23 +264,10 @@ final class PaneViewController: NSViewController {
 
     func updatePathControlColors() {
         let theme = ThemeManager.shared.currentTheme
-        let background = paneChromeBackgroundColor(for: theme)
-        pathControl.crumbColor = ChromeContrast.readableTextColor(
-            preferred: theme.textSecondary,
-            fallback: theme.textPrimary,
-            on: background
-        )
+        pathControl.crumbColor = ChromeContrast.chromeSecondaryText(for: theme)
         pathControl.currentCrumbColor = theme.textPrimary
-        pathControl.separatorColor = ChromeContrast.stateIndicatorColor(
-            preferred: theme.glyph,
-            fallback: theme.textSecondary,
-            on: background
-        )
+        pathControl.separatorColor = ChromeContrast.pathSeparator(for: theme)
         pathControl.needsDisplay = true
-    }
-
-    private func paneChromeBackgroundColor(for theme: Theme) -> NSColor {
-        theme.header
     }
 
     private func setupTabContainer() {

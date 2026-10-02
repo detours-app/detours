@@ -68,6 +68,7 @@ extension Theme {
     static let detoursAccentDark = NSColor(hex: "#2BA79B")
 
     static func resolve(isDark: Bool, increaseContrast: Bool, accent: Accent) -> Theme {
+        let content = isDark ? NSColor(hex: "#1E1D1C") : NSColor(hex: "#FBFBFA")
         let textPrimary = isDark ? NSColor(hex: "#ECEAE6") : NSColor(hex: "#1C1B1A")
         let glyph = isDark ? NSColor(hex: "#7A766F") : NSColor(hex: "#8A867F")
         let textSecondary: NSColor
@@ -103,7 +104,7 @@ extension Theme {
         return Theme(
             isDark: isDark,
             increaseContrast: increaseContrast,
-            content: isDark ? NSColor(hex: "#1E1D1C") : NSColor(hex: "#FBFBFA"),
+            content: content,
             sidebar: isDark ? NSColor(hex: "#181817") : NSColor(hex: "#F1F0EE"),
             header: isDark ? NSColor(hex: "#222120") : NSColor(hex: "#F6F5F3"),
             hairline: hairline,
@@ -121,7 +122,7 @@ extension Theme {
             hover: textPrimary.withAlphaComponent(isDark ? 0.06 : 0.04),
             stripe: textPrimary.withAlphaComponent(isDark ? 0.035 : 0.025),
             dropTarget: accentColor.withAlphaComponent(0.14),
-            textSelection: ChromeContrast.flatten(accentColor.withAlphaComponent(0.24), over: isDark ? NSColor(hex: "#1E1D1C") : NSColor(hex: "#FBFBFA")),
+            textSelection: ChromeContrast.flatten(accentColor.withAlphaComponent(0.24), over: content),
             gitModified: isDark ? NSColor(hex: "#E3A03A") : NSColor(hex: "#B86E00"),
             gitStaged: isDark ? NSColor(hex: "#5BBE7A") : NSColor(hex: "#2F8A4C"),
             gitUntracked: isDark ? NSColor(hex: "#8E8A83") : NSColor(hex: "#8A867F"),
@@ -151,15 +152,7 @@ extension Theme {
     }
 
     static func resolve(inputs: Inputs, appearance: NSAppearance) -> Theme {
-        let isDark: Bool
-        switch inputs.choice {
-        case .system:
-            isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        case .light:
-            isDark = false
-        case .dark:
-            isDark = true
-        }
+        let isDark = (inputs.choice.appearanceName ?? appearance.bestMatch(from: [.darkAqua, .aqua])) == .darkAqua
         let accent: Accent
         if inputs.usesDetoursAccent {
             accent = .detours

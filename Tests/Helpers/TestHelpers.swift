@@ -1,5 +1,6 @@
 import AppKit
 import QualificationSupport
+import XCTest
 @testable import Detours
 
 func createTempDirectory() throws -> URL {
@@ -83,6 +84,26 @@ func makeTemporaryQualificationRoot() throws -> (root: URL, parent: URL) {
     try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
     let descriptor = try QualificationRunRootGuard().create(provider: .local, allowlistedParent: parent)
     return (URL(fileURLWithPath: descriptor.rootPath, isDirectory: true), parent)
+}
+
+/// Renders `view` into a bitmap at `scale` and returns a lookup of its alpha at a point
+/// in the view's own coordinates.
+@MainActor
+func renderedAlpha(of view: NSView, scale: CGFloat) throws -> (NSPoint) -> CGFloat {
+    let width = Int(view.bounds.width * scale)
+    let height = Int(view.bounds.height * scale)
+    let bitmap = try XCTUnwrap(NSBitmapImageRep(
+        bitmapDataPlanes: nil, pixelsWide: width, pixelsHigh: height, bitsPerSample: 8, samplesPerPixel: 4,
+        hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+    ))
+    bitmap.size = view.bounds.size
+    view.cacheDisplay(in: view.bounds, to: bitmap)
+    return { point in
+        let fromTop = view.isFlipped ? point.y : view.bounds.height - point.y
+        let column = min(width - 1, max(0, Int(point.x * scale)))
+        let row = min(height - 1, max(0, Int(fromTop * scale)))
+        return bitmap.colorAt(x: column, y: row)?.alphaComponent ?? 0
+    }
 }
 
 extension Theme {

@@ -11,7 +11,6 @@ final class FileListCell: NSTableCellView, RowSelectionStyling {
     private var itemLocation: Location?
     private var isDropTarget: Bool = false
     private var isHiddenFile: Bool = false
-    private var isNavigableFolder: Bool = false
     private var isReadable: Bool = true
     private var gitStatus: GitStatus?
     private var iconLeadingConstraint: NSLayoutConstraint?
@@ -88,7 +87,6 @@ final class FileListCell: NSTableCellView, RowSelectionStyling {
         sharedLabel.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
         addSubview(sharedLabel)
 
-        gitMark.setContentCompressionResistancePriority(.required, for: .horizontal)
         addSubview(gitMark)
 
         // Layout
@@ -198,7 +196,6 @@ final class FileListCell: NSTableCellView, RowSelectionStyling {
         itemLocation = item.location
         self.isDropTarget = isDropTarget
         self.isHiddenFile = item.isHiddenFile
-        self.isNavigableFolder = item.isNavigableFolder
         self.isReadable = item.isReadable
         self.gitStatus = item.gitStatus
         iconView.image = item.icon
@@ -211,11 +208,8 @@ final class FileListCell: NSTableCellView, RowSelectionStyling {
         let density = SettingsManager.shared.fileListRowDensity
 
         // Adjust leading padding based on folder expansion and item type
-        // Folders never have git status, so they can use tighter spacing
         let folderExpansionEnabled = SettingsManager.shared.folderExpansionEnabled
         if folderExpansionEnabled {
-            // Folders: minimal spacing (no git bar needed)
-            // Files: slightly more space to accommodate git bar
             iconLeadingConstraint?.constant = item.isNavigableFolder ? density.expandedFolderIconLeading : density.expandedFileIconLeading
         } else {
             iconLeadingConstraint?.constant = density.standardIconLeading
@@ -225,8 +219,6 @@ final class FileListCell: NSTableCellView, RowSelectionStyling {
         updateThemeColors()
         // Update selection colors based on current background style
         updateColorsForBackgroundStyle()
-
-        updateGitMark()
 
         // iCloud status indicator
         switch item.iCloudStatus {

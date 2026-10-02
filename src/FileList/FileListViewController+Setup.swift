@@ -79,10 +79,8 @@ extension FileListViewController {
         updateColumnHeaderColors()
         tableView.needsDisplay = true
         clearQuickLookPreviewState()
-        // Reload directory to re-tint folder icons with new accent color
-        if let currentDirectory {
-            loadDirectory(currentDirectory, preserveExpansion: true)
-        }
+        // Name cells follow the theme themselves; the size and date cells take it when configured.
+        reloadVisibleRows()
     }
 
     private func applyThemeBackground() {
@@ -127,7 +125,10 @@ extension FileListViewController {
         guard tableView.numberOfRows > 0 else { return }
 
         tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integersIn: 0..<tableView.numberOfRows))
+        reloadVisibleRows()
+    }
 
+    private func reloadVisibleRows() {
         let visibleRange = tableView.rows(in: tableView.visibleRect)
         guard visibleRange.location != NSNotFound, visibleRange.length > 0 else { return }
 

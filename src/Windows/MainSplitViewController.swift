@@ -196,9 +196,6 @@ final class MainSplitViewController: NSSplitViewController {
             )
         }
 
-        splitView.isVertical = true
-        splitView.dividerStyle = .thin
-
         // A plain item keeps the sidebar opaque and edge to edge; the sidebar behaviour
         // makes it a floating inset card on macOS 26 and later.
         let sidebarItem = NSSplitViewItem(viewController: sidebarViewController)

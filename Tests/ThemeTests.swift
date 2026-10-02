@@ -76,11 +76,7 @@ final class ThemeTests: XCTestCase {
                     assertNormalTextContrast(ChromeContrast.fileListSelectedSecondaryForeground(for: theme, active: active), on: fill, "\(label) size and date")
                 }
                 assertNormalTextContrast(ChromeContrast.sidebarSelectedForeground(for: theme), on: theme.sidebarSelection, "\(mode) sidebar selection text")
-                assertStateIndicatorContrast(
-                    ChromeContrast.stateIndicatorColor(preferred: theme.accent, fallback: ChromeContrast.sidebarSelectedForeground(for: theme), on: theme.sidebarSelection),
-                    on: theme.sidebarSelection,
-                    "\(mode) sidebar selection glyph"
-                )
+                assertStateIndicatorContrast(ChromeContrast.sidebarSelectedGlyph(for: theme), on: theme.sidebarSelection, "\(mode) sidebar selection glyph")
 
                 for status in [GitStatus.modified, .staged, .untracked, .conflict] {
                     let placements: [(RowSelectionState, NSColor)] = [
@@ -101,16 +97,12 @@ final class ThemeTests: XCTestCase {
                     assertStateIndicatorContrast(color, on: theme.sidebar, "\(mode) sidebar status dot")
                 }
 
-                assertStateIndicatorContrast(
-                    ChromeContrast.stateIndicatorColor(preferred: theme.accent, fallback: theme.textPrimary, on: theme.header),
-                    on: theme.header,
-                    "\(mode) active tab underline"
-                )
-                assertStateIndicatorContrast(
-                    ChromeContrast.stateIndicatorColor(preferred: theme.glyph, fallback: theme.textSecondary, on: theme.header),
-                    on: theme.header,
-                    "\(mode) path separator"
-                )
+                // The chrome roles the path bar, tabs and status bar draw with
+                assertNormalTextContrast(ChromeContrast.chromeSecondaryText(for: theme), on: theme.header, "\(mode) chrome text")
+                assertNormalTextContrast(ChromeContrast.statusCompletionText(for: theme), on: theme.header, "\(mode) status completion text")
+                assertNormalTextContrast(ChromeContrast.statusErrorText(for: theme), on: theme.header, "\(mode) status error text")
+                assertStateIndicatorContrast(ChromeContrast.tabUnderline(for: theme), on: theme.header, "\(mode) active tab underline")
+                assertStateIndicatorContrast(ChromeContrast.pathSeparator(for: theme), on: theme.header, "\(mode) path separator")
 
                 // The inactive selection fill itself keeps the accepted native contrast (about 1.2:1);
                 // under Increase Contrast its outline carries the edge instead.

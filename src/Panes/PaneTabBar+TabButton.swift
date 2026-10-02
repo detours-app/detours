@@ -144,7 +144,7 @@ final class TabButton: NSView {
     private func updateAppearance() {
         let textColor: NSColor
         if isDropTarget || (isSelected && isPaneActive) {
-            textColor = ChromeContrast.readableTextColor(preferred: colors.textPrimary, fallback: colors.textPrimary, on: currentBackgroundColor())
+            textColor = colors.textPrimary
         } else {
             textColor = ChromeContrast.readableTextColor(preferred: colors.textSecondary, fallback: colors.textPrimary, on: currentBackgroundColor())
         }
@@ -159,10 +159,8 @@ final class TabButton: NSView {
         needsDisplay = true
     }
 
+    /// Behind the secondary title: never a drop target, which always takes primary text
     private func currentBackgroundColor() -> NSColor {
-        if isDropTarget {
-            return ChromeContrast.flatten(colors.dropTarget, over: colors.header)
-        }
         if isSelected {
             return colors.raised
         }
@@ -197,7 +195,7 @@ final class TabButton: NSView {
 
             // The active pane's current tab carries the accent underline.
             if isPaneActive {
-                ChromeContrast.stateIndicatorColor(preferred: colors.accent, fallback: colors.textPrimary, on: colors.header).setFill()
+                ChromeContrast.tabUnderline(for: colors).setFill()
                 let inset = Self.pillRadius
                 NSRect(x: inset, y: 0, width: bounds.width - inset * 2, height: Self.underlineHeight).fill()
             }

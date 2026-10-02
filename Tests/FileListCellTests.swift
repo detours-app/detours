@@ -135,10 +135,10 @@ final class FileListCellTests: XCTestCase {
         XCTAssertNil(GitMarkView.path(for: .clean, in: box))
 
         for status in [GitStatus.modified, .staged, .conflict] {
-            XCTAssertGreaterThan(try renderedMarkAlpha(status, at: center), 0.9, "\(status) mark is filled")
+            XCTAssertGreaterThan(try markAlpha(status, at: center), 0.9, "\(status) mark is filled")
         }
-        XCTAssertLessThan(try renderedMarkAlpha(.untracked, at: center), 0.1, "Untracked mark is a hollow ring")
-        XCTAssertGreaterThan(try renderedMarkAlpha(.untracked, at: NSPoint(x: box.midX, y: box.midY + 3.25)), 0.5, "Untracked ring is drawn")
+        XCTAssertLessThan(try markAlpha(.untracked, at: center), 0.1, "Untracked mark is a hollow ring")
+        XCTAssertGreaterThan(try markAlpha(.untracked, at: NSPoint(x: box.midX, y: box.midY + 3.25)), 0.5, "Untracked ring is drawn")
 
         let labels: [(GitStatus, String)] = [
             (.modified, "Modified in git"),
@@ -185,13 +185,10 @@ final class FileListCellTests: XCTestCase {
     }
 
     func testStockIconsUntinted() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("detours-stock-icons-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
-        let folder = root.appendingPathComponent("Projects", isDirectory: true)
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false)
-        let file = root.appendingPathComponent("notes.txt")
-        try "notes".write(to: file, atomically: true, encoding: .utf8)
+        let root = try createTempDirectory()
+        defer { cleanupTempDirectory(root) }
+        let folder = try createTestFolder(in: root, name: "Projects")
+        let file = try createTestFile(in: root, name: "notes.txt", content: "notes")
 
         for (url, isDirectory) in [(folder, true), (file, false)] {
             let name = url.lastPathComponent
@@ -239,20 +236,11 @@ final class FileListCellTests: XCTestCase {
         return (cell, mark)
     }
 
-    private func renderedMarkAlpha(_ status: GitStatus, at point: NSPoint) throws -> CGFloat {
-        let scale = 8
-        let side = Int(GitMarkView.markSize) * scale
+    private func markAlpha(_ status: GitStatus, at point: NSPoint) throws -> CGFloat {
         let view = GitMarkView(frame: NSRect(x: 0, y: 0, width: GitMarkView.markSize, height: GitMarkView.markSize))
         view.status = status
         view.color = .black
-        let rep = try XCTUnwrap(NSBitmapImageRep(
-            bitmapDataPlanes: nil, pixelsWide: side, pixelsHigh: side, bitsPerSample: 8, samplesPerPixel: 4,
-            hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
-        ))
-        rep.size = view.bounds.size
-        view.cacheDisplay(in: view.bounds, to: rep)
-        let color = try XCTUnwrap(rep.colorAt(x: Int(point.x * CGFloat(scale)), y: side - 1 - Int(point.y * CGFloat(scale))))
-        return color.alphaComponent
+        return try renderedAlpha(of: view, scale: 8)(point)
     }
 
     private func iconPixels(_ image: NSImage) throws -> Data {

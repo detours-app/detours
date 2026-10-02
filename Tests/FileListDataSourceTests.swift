@@ -113,7 +113,8 @@ final class FileListDataSourceTests: XCTestCase {
             // Drawn: clear gutters, a filled selection between them, and corners on the density radius.
             let row = InactiveHidingRowView(frame: bounds)
             row.isSelected = true
-            let alpha = try renderedAlpha(of: row)
+            let sample = try renderedAlpha(of: row, scale: 4)
+            let alpha = { (x: CGFloat, y: CGFloat) in sample(NSPoint(x: x, y: y)) }
             XCTAssertLessThan(alpha(inset / 2, height / 2), 0.05, "\(density) leading gutter is clear")
             XCTAssertLessThan(alpha(400 - inset / 2, height / 2), 0.05, "\(density) trailing gutter is clear")
             XCTAssertGreaterThan(alpha(inset + radius, height / 2), 0.95, "\(density) selection is filled")
@@ -124,24 +125,6 @@ final class FileListDataSourceTests: XCTestCase {
             let justOutside = (radius + 0.7) * diagonal
             XCTAssertGreaterThan(alpha(cornerCenter - justInside, radius - justInside), 0.6, "\(density) corner radius is not smaller than \(radius)")
             XCTAssertLessThan(alpha(cornerCenter - justOutside, radius - justOutside), 0.4, "\(density) corner radius is not larger than \(radius)")
-        }
-    }
-
-    /// Renders a view at 4x and returns its alpha at a point measured from the view's top-left.
-    private func renderedAlpha(of view: NSView) throws -> (CGFloat, CGFloat) -> CGFloat {
-        let scale: CGFloat = 4
-        let width = Int(view.bounds.width * scale)
-        let height = Int(view.bounds.height * scale)
-        let rep = try XCTUnwrap(NSBitmapImageRep(
-            bitmapDataPlanes: nil, pixelsWide: width, pixelsHigh: height, bitsPerSample: 8, samplesPerPixel: 4,
-            hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
-        ))
-        rep.size = view.bounds.size
-        view.cacheDisplay(in: view.bounds, to: rep)
-        return { x, y in
-            let column = min(width - 1, Int(x * scale))
-            let row = min(height - 1, Int(y * scale))
-            return rep.colorAt(x: column, y: row)?.alphaComponent ?? 0
         }
     }
 

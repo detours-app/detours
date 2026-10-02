@@ -41,7 +41,6 @@ final class StatusBarView: NSView {
     private var selectionSize: Int64 = 0
     private var availableSpace: Int64 = 0
     private var contextLabel: String?
-    private var isPaneActive: Bool = true
     private var completionWorkItem: DispatchWorkItem?
     let speedCalculator = TransferSpeedCalculator()
 
@@ -146,42 +145,18 @@ final class StatusBarView: NSView {
 
         switch mode {
         case .normal:
-            label.textColor = statusTextColor(for: theme)
+            label.textColor = ChromeContrast.chromeSecondaryText(for: theme)
         case .progress:
-            progressLabel.textColor = statusTextColor(for: theme)
+            progressLabel.textColor = ChromeContrast.chromeSecondaryText(for: theme)
         case .paused:
-            label.textColor = statusTextColor(for: theme)
+            label.textColor = ChromeContrast.chromeSecondaryText(for: theme)
         case .completion:
-            label.textColor = completionTextColor(for: theme)
+            label.textColor = ChromeContrast.statusCompletionText(for: theme)
         case .error:
-            label.textColor = errorTextColor(for: theme)
+            label.textColor = ChromeContrast.statusErrorText(for: theme)
         }
 
         needsDisplay = true
-    }
-
-    private func statusTextColor(for theme: Theme) -> NSColor {
-        ChromeContrast.readableTextColor(
-            preferred: theme.textSecondary,
-            fallback: theme.textPrimary,
-            on: statusBackgroundColor(for: theme)
-        )
-    }
-
-    private func completionTextColor(for theme: Theme) -> NSColor {
-        ChromeContrast.readableTextColor(
-            preferred: theme.accent,
-            fallback: theme.textPrimary,
-            on: statusBackgroundColor(for: theme)
-        )
-    }
-
-    private func errorTextColor(for theme: Theme) -> NSColor {
-        ChromeContrast.readableTextColor(
-            preferred: theme.gitConflict,
-            fallback: theme.textPrimary,
-            on: statusBackgroundColor(for: theme)
-        )
     }
 
     /// Shows or hides the trailing activity and lets the summary use the freed width
@@ -192,13 +167,9 @@ final class StatusBarView: NSView {
         labelTrailingToActivity?.isActive = visible
     }
 
-    private func statusBackgroundColor(for theme: Theme) -> NSColor {
-        theme.header
-    }
-
     override func draw(_ dirtyRect: NSRect) {
         let theme = ThemeManager.shared.currentTheme
-        statusBackgroundColor(for: theme).setFill()
+        theme.header.setFill()
         bounds.fill()
 
         // Draw top border
@@ -211,12 +182,6 @@ final class StatusBarView: NSView {
     }
 
     // MARK: - Public API
-
-    func setPaneActive(_ active: Bool) {
-        guard active != isPaneActive else { return }
-        isPaneActive = active
-        applyThemeColors()
-    }
 
     func showProgress(_ progress: FileOperationProgress, isDestination: Bool = false) {
         completionWorkItem?.cancel()
@@ -231,7 +196,7 @@ final class StatusBarView: NSView {
         setActivityVisible(true)
 
         applyThemeColors()
-        label.textColor = statusTextColor(for: ThemeManager.shared.currentTheme)
+        label.textColor = ChromeContrast.chromeSecondaryText(for: ThemeManager.shared.currentTheme)
         updateProgressViews(progress)
     }
 
@@ -249,7 +214,7 @@ final class StatusBarView: NSView {
         label.isHidden = false
 
         label.stringValue = message
-        label.textColor = statusTextColor(for: ThemeManager.shared.currentTheme)
+        label.textColor = ChromeContrast.chromeSecondaryText(for: ThemeManager.shared.currentTheme)
         label.lineBreakMode = .byTruncatingMiddle
         needsDisplay = true
 
@@ -264,7 +229,7 @@ final class StatusBarView: NSView {
         setActivityVisible(false)
         label.isHidden = false
         label.stringValue = result.summary
-        label.textColor = statusTextColor(for: ThemeManager.shared.currentTheme)
+        label.textColor = ChromeContrast.chromeSecondaryText(for: ThemeManager.shared.currentTheme)
         label.lineBreakMode = .byTruncatingMiddle
         needsDisplay = true
         if changed { postAccessibilityAnnouncement(result.summary) }
@@ -278,7 +243,7 @@ final class StatusBarView: NSView {
         label.isHidden = false
 
         label.stringValue = message
-        label.textColor = completionTextColor(for: ThemeManager.shared.currentTheme)
+        label.textColor = ChromeContrast.statusCompletionText(for: ThemeManager.shared.currentTheme)
         needsDisplay = true
 
         postAccessibilityAnnouncement("Operation complete")
@@ -300,7 +265,7 @@ final class StatusBarView: NSView {
         label.isHidden = false
 
         label.stringValue = message
-        label.textColor = errorTextColor(for: ThemeManager.shared.currentTheme)
+        label.textColor = ChromeContrast.statusErrorText(for: ThemeManager.shared.currentTheme)
         label.lineBreakMode = .byTruncatingMiddle
         needsDisplay = true
 
@@ -323,7 +288,7 @@ final class StatusBarView: NSView {
         setActivityVisible(false)
         label.isHidden = false
 
-        label.textColor = statusTextColor(for: ThemeManager.shared.currentTheme)
+        label.textColor = ChromeContrast.chromeSecondaryText(for: ThemeManager.shared.currentTheme)
         label.lineBreakMode = .byTruncatingMiddle
         updateLabel()
         applyThemeColors()

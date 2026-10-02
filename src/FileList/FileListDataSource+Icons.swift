@@ -54,11 +54,10 @@ extension FileListDataSource {
 
                 guard !Task.isCancelled else { return }
 
-                let resolvedIcon = icon
                 // An unchanged icon must not redraw the row (or recreate its
                 // cell under an active rename).
-                guard resolvedIcon !== item.icon else { return }
-                item.icon = resolvedIcon
+                guard icon !== item.icon else { return }
+                item.icon = icon
 
                 guard let self else { return }
                 self.requestRowRefresh(for: item, columns: IndexSet(integer: 0))

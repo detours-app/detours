@@ -7,25 +7,9 @@ private func chromePolishScopeText(_ element: XCUIElement) -> String {
 
 final class ChromePolishUITests: BaseUITest {
     private let quickNavCommandFileName = ".detours-quick-nav-command.json"
-    private let appearanceSettingsCommandFileName = ".detours-appearance-settings.json"
-    private let appearanceSettingsAcknowledgementFileName = ".detours-appearance-settings-applied.json"
     private let screenshotSparseBundleName = "Specs.sparsebundle"
     private let screenshotDiskImageName = "Detours.dmg"
     private let screenshotFileServerName = "Acme NAS"
-
-    private struct AppearanceSettingsCommand: Encodable {
-        let id: String
-        let theme: String
-        let fontSize: Int
-        let fileListRowDensity: String
-    }
-
-    private struct AppearanceSettingsAcknowledgement: Decodable {
-        let id: String
-        let applied: Bool
-        let checkedTextCount: Int
-        let failure: String?
-    }
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -218,69 +202,8 @@ final class ChromePolishUITests: BaseUITest {
         try? FileManager.default.removeItem(at: uiTestControlRootURL.appendingPathComponent(quickNavCommandFileName))
     }
 
-    private func removeAppearanceSettingsCommand() {
-        try? FileManager.default.removeItem(at: uiTestControlRootURL.appendingPathComponent(appearanceSettingsCommandFileName))
-        try? FileManager.default.removeItem(at: uiTestControlRootURL.appendingPathComponent(appearanceSettingsAcknowledgementFileName))
-    }
-
-    private func applyAppearanceSettings(theme: String, fontSize: Int, density: String) throws {
-        let command = AppearanceSettingsCommand(
-            id: UUID().uuidString,
-            theme: theme,
-            fontSize: fontSize,
-            fileListRowDensity: density
-        )
-        // Control files live in the runner's own control root, which the app reads through
-        // its control directory. The fixture root is not writable from the sandboxed runner.
-        let commandURL = uiTestControlRootURL.appendingPathComponent(appearanceSettingsCommandFileName)
-        let acknowledgementURL = uiTestControlRootURL.appendingPathComponent(appearanceSettingsAcknowledgementFileName)
-
-        try? FileManager.default.removeItem(at: acknowledgementURL)
-        try JSONEncoder().encode(command).write(to: commandURL, options: .atomic)
-
-        let deadline = Date().addingTimeInterval(4)
-        while Date() < deadline {
-            if let data = try? Data(contentsOf: acknowledgementURL),
-               let acknowledgement = try? JSONDecoder().decode(AppearanceSettingsAcknowledgement.self, from: data),
-               acknowledgement.id == command.id {
-                XCTAssertTrue(
-                    acknowledgement.applied,
-                    "App should apply appearance settings theme=\(theme) fontSize=\(fontSize) density=\(density): \(acknowledgement.failure ?? "unknown failure")"
-                )
-                XCTAssertGreaterThan(
-                    acknowledgement.checkedTextCount,
-                    8,
-                    "Expected visible text in file list, sidebar, tabs, path, and status for theme=\(theme) fontSize=\(fontSize) density=\(density)"
-                )
-                return
-            }
-            usleep(50_000)
-        }
-
-        XCTFail("Timed out applying appearance settings theme=\(theme) fontSize=\(fontSize) density=\(density)")
-    }
-
     private func setFileListDensity(_ displayName: String) {
-        pressCharKey(",", modifiers: .command)
-
-        let preferencesWindow = app.windows["Preferences"]
-        XCTAssertTrue(preferencesWindow.waitForExistence(timeout: 3), "Preferences window should open")
-
-        let appearanceSection = app.staticTexts["Appearance"]
-        XCTAssertTrue(appearanceSection.waitForExistence(timeout: 2), "Appearance settings section should exist")
-        appearanceSection.click()
-
-        let picker = app.descendants(matching: .any)["fileListDensityPicker"]
-        XCTAssertTrue(picker.waitForExistence(timeout: 2), "File list density picker should exist")
-        picker.click()
-
-        let menuItem = app.menuItems[displayName]
-        XCTAssertTrue(menuItem.waitForExistence(timeout: 2), "\(displayName) density menu item should exist")
-        menuItem.click()
-        sleep(1)
-
-        pressCharKey("w", modifiers: .command)
-        XCTAssertFalse(preferencesWindow.waitForExistence(timeout: 2), "Preferences window should close")
+        choosePreference(inPicker: "fileListDensityPicker", option: displayName)
         app.windows.firstMatch.click()
     }
 

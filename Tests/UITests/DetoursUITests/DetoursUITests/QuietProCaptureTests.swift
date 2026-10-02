@@ -4,30 +4,6 @@ import XCTest
 /// Screenshots for the Quiet Pro visual checks, kept in the run's result bundle. They are judged
 /// by eye against the mockup board; the assertions only prove each scene was really on screen.
 final class QuietProCaptureTests: BaseUITest {
-    private let appearanceCommandFileName = ".detours-appearance-settings.json"
-    private let appearanceAcknowledgementFileName = ".detours-appearance-settings-applied.json"
-    private let resizeCommandFileName = ".detours-resize-main-window.json"
-
-    private struct AppearanceCommand: Encodable {
-        let id: String
-        let theme: String
-        let fontSize: Int
-        let fileListRowDensity: String
-    }
-
-    private struct AppearanceAcknowledgement: Decodable {
-        let id: String
-        let applied: Bool
-        let checkedTextCount: Int
-        let failure: String?
-    }
-
-    private struct ResizeCommand: Encodable {
-        let id: String
-        let width: Double
-        let height: Double
-    }
-
     override func setUpWithError() throws {
         try super.setUpWithError()
         // One missing scene should not cost the rest of the captures.
@@ -38,11 +14,11 @@ final class QuietProCaptureTests: BaseUITest {
         try stageScene()
         try openScene()
         for theme in ["light", "dark"] {
-            try applyAppearance(theme)
+            try applyAppearanceSettings(theme: theme, fontSize: 13, density: "compact")
             try captureBothPanesActive(prefix: theme)
-            setRowStripes(true)
-            capture("\(theme)-stripes-on", app.windows.firstMatch)
-            setRowStripes(false)
+            setPreferenceToggle("rowStripesToggle", on: true)
+            attachScreenshot("\(theme)-stripes-on", of: app.windows.firstMatch)
+            setPreferenceToggle("rowStripesToggle", on: false)
             captureQuickNav(prefix: theme)
             captureSheet(prefix: theme)
             capturePreferences(prefix: theme)
@@ -51,16 +27,16 @@ final class QuietProCaptureTests: BaseUITest {
     }
 
     func testCaptureAccessibilityScenes() throws {
-        let state = try appearanceState()
-        XCTAssertTrue(state.increaseContrast, "The harness should have turned Increase Contrast on")
-        XCTAssertTrue(state.differentiateWithoutColor, "The harness should have turned Differentiate Without Color on")
-        XCTAssertTrue(state.reduceMotion, "The harness should have turned Reduce Motion on")
-        XCTAssertTrue(state.keyboardNavigation, "The harness should have turned keyboard navigation on")
+        // The guarded runner turns these on only when this test is the run's filter.
+        let state = try appAppearanceState()
+        guard state.increaseContrast, state.differentiateWithoutColor, state.reduceMotion, state.keyboardNavigation else {
+            throw XCTSkip("Accessibility settings were not seeded: \(state)")
+        }
 
         try stageScene()
         try openScene()
         for theme in ["light", "dark"] {
-            try applyAppearance(theme)
+            try applyAppearanceSettings(theme: theme, fontSize: 13, density: "compact")
             try captureBothPanesActive(prefix: "accessibility-\(theme)")
             captureQuickNav(prefix: "accessibility-\(theme)")
         }
@@ -74,7 +50,7 @@ final class QuietProCaptureTests: BaseUITest {
         let preferences = openPreferencesAppearance()
         pressKey(.tab)
         pressKey(.tab)
-        capture("accessibility-dark-preferences-keyboard-focus", preferences)
+        attachScreenshot("accessibility-dark-preferences-keyboard-focus", of: preferences)
         closePreferences(preferences)
     }
 
@@ -82,18 +58,18 @@ final class QuietProCaptureTests: BaseUITest {
         let dock = XCUIApplication(bundleIdentifier: "com.apple.dock")
         let dockItem = dock.descendants(matching: .dockItem)["Detours"]
         XCTAssertTrue(dockItem.waitForExistence(timeout: 5), "Detours should be in the Dock while it runs")
-        capture("dock-default-running", dockItem)
+        attachScreenshot("dock-default-running", of: dockItem)
 
-        setDockIcon("Deep sea")
-        XCTAssertTrue(waitForCondition(timeout: 3) { (try? self.appearanceState())?.dockImageIsDeepSea == true }, "Deep sea should be applied")
+        choosePreference(inPicker: "dockIconPicker", option: "Deep sea")
+        XCTAssertTrue(waitForCondition(timeout: 3) { (try? self.appAppearanceState())?.dockImageIsDeepSea == true }, "Deep sea should be applied")
         sleep(1)
-        capture("dock-deep-sea-running", dockItem)
+        attachScreenshot("dock-deep-sea-running", of: dockItem)
 
         app.activate()
         XCUIElement.perform(withKeyModifiers: .command) {
             self.app.typeKey(.tab, modifierFlags: [])
             sleep(1)
-            self.capture("app-switcher-deep-sea", nil)
+            self.attachScreenshot("app-switcher-deep-sea", of: nil)
         }
         app.activate()
 
@@ -108,7 +84,7 @@ final class QuietProCaptureTests: BaseUITest {
         app.terminate()
         XCTAssertTrue(dockItem.waitForExistence(timeout: 5), "A kept Detours stays in the Dock after quitting")
         sleep(1)
-        capture("dock-after-quit-deep-sea-chosen", dockItem)
+        attachScreenshot("dock-after-quit-deep-sea-chosen", of: dockItem)
         chooseDockMenuOption("Remove from Dock", item: dockItem)
         XCTAssertTrue(dockItem.doesNotExistOrWait(timeout: 5), "Detours should leave the Dock again")
         app.launch()
@@ -120,7 +96,7 @@ final class QuietProCaptureTests: BaseUITest {
         let applications = finder.windows["Applications"]
         if applications.waitForExistence(timeout: 5) {
             sleep(1)
-            capture("finder-applications", applications)
+            attachScreenshot("finder-applications", of: applications)
             finder.typeKey("w", modifierFlags: .command)
         } else {
             XCTFail("Finder did not open the Applications folder")
@@ -131,7 +107,7 @@ final class QuietProCaptureTests: BaseUITest {
         sleep(2)
         launcher.typeText("Detours")
         sleep(2)
-        capture("apps-launcher-search", nil)
+        attachScreenshot("apps-launcher-search", of: nil)
         launcher.typeKey(.escape, modifierFlags: [])
         launcher.typeKey(.escape, modifierFlags: [])
 
@@ -141,7 +117,7 @@ final class QuietProCaptureTests: BaseUITest {
         sleep(1)
         spotlight.typeText("Detours")
         sleep(2)
-        capture("spotlight-search", nil)
+        attachScreenshot("spotlight-search", of: nil)
         spotlight.typeKey(.escape, modifierFlags: [])
         spotlight.typeKey(.escape, modifierFlags: [])
         app.activate()
@@ -197,19 +173,13 @@ final class QuietProCaptureTests: BaseUITest {
         )
     }
 
-    private func clickRow(_ name: String, in outline: XCUIElement) {
-        let row = outline.outlineRow(withStaticText: name)
-        XCTAssertTrue(row.waitForExistence(timeout: 5), "\(name) should be listed")
-        row.staticTexts[name].click()
-    }
-
     private func captureBothPanesActive(prefix: String) throws {
         clickRow("Budget-2026.xlsx", in: app.leftPaneOutlineView)
         XCTAssertTrue(waitForCondition(timeout: 3) { (try? self.requestRemotePaneState(pane: "left"))?.activePane == true })
-        capture("\(prefix)-left-active", app.windows.firstMatch)
+        attachScreenshot("\(prefix)-left-active", of: app.windows.firstMatch)
         clickRow("tracked.txt", in: app.rightPaneOutlineView)
         XCTAssertTrue(waitForCondition(timeout: 3) { (try? self.requestRemotePaneState(pane: "right"))?.activePane == true })
-        capture("\(prefix)-right-active", app.windows.firstMatch)
+        attachScreenshot("\(prefix)-right-active", of: app.windows.firstMatch)
         clickRow("Budget-2026.xlsx", in: app.leftPaneOutlineView)
     }
 
@@ -217,7 +187,7 @@ final class QuietProCaptureTests: BaseUITest {
         openQuickNavForKeyboardInput()
         app.textFields["quickNavSearchField"].typeText("budget")
         XCTAssertTrue(app.descendants(matching: .any)["quickNavResultRow"].waitForExistence(timeout: 5), "Quick Nav should list a result")
-        capture("\(prefix)-quick-nav", app.windows.firstMatch)
+        attachScreenshot("\(prefix)-quick-nav", of: app.windows.firstMatch)
         pressKey(.escape)
     }
 
@@ -230,13 +200,13 @@ final class QuietProCaptureTests: BaseUITest {
         emptyFile.click()
         let sheet = app.sheets.firstMatch
         XCTAssertTrue(sheet.waitForExistence(timeout: 3), "New Empty File should show its sheet")
-        capture("\(prefix)-sheet", app.windows.firstMatch)
+        attachScreenshot("\(prefix)-sheet", of: app.windows.firstMatch)
         sheet.buttons["Cancel"].click()
     }
 
     private func capturePreferences(prefix: String) {
         let preferences = openPreferencesAppearance()
-        capture("\(prefix)-preferences-appearance", preferences)
+        attachScreenshot("\(prefix)-preferences-appearance", of: preferences)
         closePreferences(preferences)
     }
 
@@ -258,79 +228,14 @@ final class QuietProCaptureTests: BaseUITest {
             },
             "The copy should be running"
         )
-        capture("dark-copy-activity", app.windows.firstMatch)
+        attachScreenshot("dark-copy-activity", of: app.windows.firstMatch)
         XCTAssertTrue(
             waitForCondition(timeout: 60) { (try? self.requestRemotePaneState(pane: "left"))?.operationRunning == false },
             "The copy should finish"
         )
     }
 
-    // MARK: - Preferences
-
-    private func openPreferencesAppearance() -> XCUIElement {
-        pressCharKey(",", modifiers: .command)
-        let preferences = app.windows["Preferences"]
-        XCTAssertTrue(preferences.waitForExistence(timeout: 3), "Preferences should open")
-        let section = preferences.staticTexts["Appearance"]
-        XCTAssertTrue(section.waitForExistence(timeout: 2), "The Appearance section should exist")
-        section.click()
-        return preferences
-    }
-
-    private func closePreferences(_ preferences: XCUIElement) {
-        pressCharKey("w", modifiers: .command)
-        XCTAssertTrue(preferences.doesNotExistOrWait(timeout: 3), "Preferences should close")
-    }
-
-    private func setRowStripes(_ on: Bool) {
-        let preferences = openPreferencesAppearance()
-        let toggle = preferences.descendants(matching: .any).matching(identifier: "rowStripesToggle").firstMatch
-        XCTAssertTrue(toggle.waitForExistence(timeout: 3), "The row stripes toggle should exist")
-        let isOn = (toggle.value as? Int) == 1 || (toggle.value as? Bool) == true
-        if isOn != on {
-            toggle.click()
-        }
-        closePreferences(preferences)
-    }
-
-    private func setDockIcon(_ option: String) {
-        let preferences = openPreferencesAppearance()
-        let picker = preferences.descendants(matching: .any).matching(identifier: "dockIconPicker").firstMatch
-        XCTAssertTrue(picker.waitForExistence(timeout: 3), "The Dock icon picker should exist")
-        picker.click()
-        let item = app.menuItems[option]
-        XCTAssertTrue(item.waitForExistence(timeout: 2), "\(option) should be offered")
-        item.click()
-        closePreferences(preferences)
-    }
-
     // MARK: - App and Dock control
-
-    private func applyAppearance(_ theme: String) throws {
-        let command = AppearanceCommand(id: UUID().uuidString, theme: theme, fontSize: 13, fileListRowDensity: "compact")
-        let commandURL = uiTestControlRootURL.appendingPathComponent(appearanceCommandFileName)
-        let acknowledgementURL = uiTestControlRootURL.appendingPathComponent(appearanceAcknowledgementFileName)
-        try? FileManager.default.removeItem(at: acknowledgementURL)
-        try JSONEncoder().encode(command).write(to: commandURL, options: .atomic)
-        let applied = waitForCondition(timeout: 5) {
-            guard let data = try? Data(contentsOf: acknowledgementURL),
-                  let acknowledgement = try? JSONDecoder().decode(AppearanceAcknowledgement.self, from: data) else { return false }
-            return acknowledgement.id == command.id
-        }
-        XCTAssertTrue(applied, "The app should apply the \(theme) appearance")
-    }
-
-    private func resizeMainWindow(width: Double, height: Double) throws {
-        let command = ResizeCommand(id: UUID().uuidString, width: width, height: height)
-        let commandURL = uiTestControlRootURL.appendingPathComponent(resizeCommandFileName)
-        try JSONEncoder().encode(command).write(to: commandURL, options: .atomic)
-        defer { try? FileManager.default.removeItem(at: commandURL) }
-        let window = app.windows.firstMatch
-        XCTAssertTrue(
-            waitForCondition(timeout: 5) { abs(window.frame.width - width) < 2 && abs(window.frame.height - height) < 2 },
-            "The window should take the mockup size \(width) by \(height), was \(window.frame.size)"
-        )
-    }
 
     private func chooseDockMenuOption(_ title: String, item: XCUIElement) {
         guard item.exists else { return }
@@ -354,36 +259,10 @@ final class QuietProCaptureTests: BaseUITest {
     private func isRunning() -> Bool {
         app.state == .runningForeground || app.state == .runningBackground
     }
-
-    private func appearanceState() throws -> AppAppearanceState {
-        try requestRemotePaneState(pane: "left").appAppearance
-    }
-
-    private func capture(_ name: String, _ element: XCUIElement?) {
-        let screenshot = element?.screenshot() ?? XCUIScreen.main.screenshot()
-        let attachment = XCTAttachment(image: screenshot.image, quality: .original)
-        attachment.name = name
-        attachment.lifetime = .keepAlways
-        add(attachment)
-    }
 }
 
 /// The remote refresh-error banner and a remote pane's status bar, in both appearances.
 final class QuietProRemoteCaptureTests: BaseUITest {
-    private let appearanceCommandFileName = ".detours-appearance-settings.json"
-    private let appearanceAcknowledgementFileName = ".detours-appearance-settings-applied.json"
-
-    private struct AppearanceCommand: Encodable {
-        let id: String
-        let theme: String
-        let fontSize: Int
-        let fileListRowDensity: String
-    }
-
-    private struct AppearanceAcknowledgement: Decodable {
-        let id: String
-    }
-
     override func configureLaunchEnvironment(_ environment: inout [String: String]) {
         environment["DETOURS_UI_TEST_REMOTE"] = "connected"
     }
@@ -397,33 +276,14 @@ final class QuietProRemoteCaptureTests: BaseUITest {
         row.staticTexts["file1.txt"].click()
 
         for theme in ["light", "dark"] {
-            try applyAppearance(theme)
+            try applyAppearanceSettings(theme: theme, fontSize: 13, density: "compact")
             try forceNextRemoteFailure(operation: "list", count: 4)
             pressCharKey("r", modifiers: .command)
             let banner = app.descendants(matching: .any)["remoteRefreshErrorBanner"]
             XCTAssertTrue(banner.waitForExistence(timeout: 5), "The refresh error banner should show")
-            let attachment = XCTAttachment(image: app.windows.firstMatch.screenshot().image, quality: .original)
-            attachment.name = "\(theme)-remote-refresh-error"
-            attachment.lifetime = .keepAlways
-            add(attachment)
+            attachScreenshot("\(theme)-remote-refresh-error", of: app.windows.firstMatch)
             app.buttons["remoteRefreshRetryButton"].click()
             XCTAssertTrue(waitForCondition(timeout: 8) { !banner.exists }, "Retry should clear the banner")
         }
-    }
-
-    private func applyAppearance(_ theme: String) throws {
-        let command = AppearanceCommand(id: UUID().uuidString, theme: theme, fontSize: 13, fileListRowDensity: "compact")
-        let commandURL = uiTestControlRootURL.appendingPathComponent(appearanceCommandFileName)
-        let acknowledgementURL = uiTestControlRootURL.appendingPathComponent(appearanceAcknowledgementFileName)
-        try? FileManager.default.removeItem(at: acknowledgementURL)
-        try JSONEncoder().encode(command).write(to: commandURL, options: .atomic)
-        XCTAssertTrue(
-            waitForCondition(timeout: 5) {
-                guard let data = try? Data(contentsOf: acknowledgementURL),
-                      let acknowledgement = try? JSONDecoder().decode(AppearanceAcknowledgement.self, from: data) else { return false }
-                return acknowledgement.id == command.id
-            },
-            "The app should apply the \(theme) appearance"
-        )
     }
 }
