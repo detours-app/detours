@@ -406,7 +406,27 @@ final class WindowPaneGeometryUITests: XCTestCase {
                 return movedBoundaryX
             }
         }
+        probeSidebarDividerHitArea(dividerY: dividerY)
         throw NSError(domain: "WindowPaneGeometryUITests", code: 3)
+    }
+
+    // TEMPORARY diagnostic for the Xcode 27 / macOS 27 SDK drag failure; removed by the fix.
+    private func probeSidebarDividerHitArea(dividerY: CGFloat) {
+        let splitterFrames = splittersSortedByX().map { NSStringFromRect($0.frame) }.joined(separator: " ")
+        XCTContext.runActivity(named: "PROBE window \(NSStringFromRect(mainWindow().frame)) sidebar \(NSStringFromRect(sidebarOutline().frame)) left \(NSStringFromRect(leftPaneOutline().frame)) splitters \(splitterFrames)") { _ in }
+        for offset in [-12, -8, -6, -4, -2, 2, 4, 6, 8, 12] as [CGFloat] {
+            let before = sidebarDividerX()
+            let windowFrame = mainWindow().frame
+            let normalized = CGVector(
+                dx: (before + offset - windowFrame.minX) / windowFrame.width,
+                dy: (dividerY - windowFrame.minY) / windowFrame.height
+            )
+            let start = mainWindow().coordinate(withNormalizedOffset: normalized)
+            start.press(forDuration: 0.2, thenDragTo: start.withOffset(CGVector(dx: 60, dy: 0)))
+            RunLoop.current.run(until: Date().addingTimeInterval(0.8))
+            let after = sidebarDividerX()
+            XCTContext.runActivity(named: "PROBE offset \(offset) divider \(before) -> \(after)") { _ in }
+        }
     }
 
     @discardableResult
