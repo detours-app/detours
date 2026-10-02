@@ -20,7 +20,6 @@ final class SidebarViewController: NSViewController {
     let outlineView = SidebarOutlineView()
     private let scrollView = NSScrollView()
     private let effectView = NSView()
-    private var sidebarSeparator: NSView?
 
     weak var delegate: SidebarDelegate?
 
@@ -42,7 +41,6 @@ final class SidebarViewController: NSViewController {
         super.viewDidLoad()
         setupScrollView()
         setupOutlineView()
-        setupSidebarSeparator()
         applyTheme()
         observeNotifications()
         reloadRemoteConnectionStates()
@@ -50,25 +48,6 @@ final class SidebarViewController: NSViewController {
         DispatchQueue.main.async { [weak self] in
             self?.expandServersWithVolumes()
         }
-    }
-
-    private func setupSidebarSeparator() {
-        let separator = NSView()
-        separator.wantsLayer = true
-        separator.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(separator)
-        NSLayoutConstraint.activate([
-            separator.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            separator.topAnchor.constraint(equalTo: view.topAnchor),
-            separator.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            separator.widthAnchor.constraint(equalToConstant: 1),
-        ])
-        sidebarSeparator = separator
-        updateSeparatorColor()
-    }
-
-    private func updateSeparatorColor() {
-        sidebarSeparator?.layer?.backgroundColor = ThemeManager.shared.currentTheme.hairline.cgColor
     }
 
     private func setupScrollView() {
@@ -83,7 +62,8 @@ final class SidebarViewController: NSViewController {
         view.addSubview(scrollView)
 
         NSLayoutConstraint.activate([
-            scrollView.topAnchor.constraint(equalTo: view.topAnchor),
+            // The sidebar colour runs under the title bar; its items start below it.
+            scrollView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
@@ -231,7 +211,6 @@ final class SidebarViewController: NSViewController {
         effectView.layer?.isOpaque = true
         effectView.layer?.backgroundColor = theme.sidebar.cgColor
         outlineView.backgroundColor = .clear
-        updateSeparatorColor()
     }
 
     // MARK: - Public API

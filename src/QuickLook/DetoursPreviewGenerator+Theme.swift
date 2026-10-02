@@ -15,7 +15,7 @@ extension DetoursPreviewGenerator {
           --detours-text-secondary: \(cssHex(theme.textSecondary));
           --detours-text-tertiary: \(cssHex(theme.textSecondary));
           --detours-accent: \(cssHex(theme.accent));
-          --detours-selection: \(cssHex(theme.accent.withAlphaComponent(0.22)));
+          --detours-selection: \(cssHex(theme.textSelection));
           --detours-gutter: \(cssHex(theme.header));
           --detours-line-number: \(cssHex(theme.textSecondary));
           --detours-font-family: ui-monospace, "SF Mono", Menlo, monospace;
@@ -46,7 +46,7 @@ extension DetoursPreviewGenerator {
         add: String,
         delete: String
     ) {
-        if themeIsDark(theme) {
+        if theme.isDark {
             return (
                 keyword: "#569CD6",
                 string: "#CE9178",
@@ -75,15 +75,6 @@ extension DetoursPreviewGenerator {
         )
     }
 
-    private func themeIsDark(_ theme: Theme) -> Bool {
-        let rgb = theme.content.usingColorSpace(.sRGB) ?? theme.content
-        let red = rgb.redComponent
-        let green = rgb.greenComponent
-        let blue = rgb.blueComponent
-        let luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue
-        return luminance < 0.5
-    }
-
     func themeIdentity(_ theme: Theme) -> String {
         [
             cssHex(theme.content),
@@ -91,7 +82,9 @@ extension DetoursPreviewGenerator {
             cssHex(theme.hairline),
             cssHex(theme.textPrimary),
             cssHex(theme.textSecondary),
-            cssHex(theme.accent)
+            cssHex(theme.accent),
+            cssHex(theme.textSelection),
+            theme.isDark ? "dark" : "light"
         ].joined(separator: "-")
     }
 

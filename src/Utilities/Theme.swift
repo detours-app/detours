@@ -33,6 +33,7 @@ struct Theme: Equatable {
     var hover: NSColor
     var stripe: NSColor
     var dropTarget: NSColor
+    var textSelection: NSColor
 
     var gitModified: NSColor
     var gitStaged: NSColor
@@ -40,6 +41,9 @@ struct Theme: Equatable {
     var gitConflict: NSColor
     var warningFill: NSColor
     var errorFill: NSColor
+
+    /// Error text and marks share the conflict token
+    var errorText: NSColor { gitConflict }
 
     /// The font used for file lists at the given size
     func font(size: CGFloat) -> NSFont {
@@ -115,6 +119,7 @@ extension Theme {
             hover: textPrimary.withAlphaComponent(isDark ? 0.06 : 0.04),
             stripe: textPrimary.withAlphaComponent(isDark ? 0.035 : 0.025),
             dropTarget: accentColor.withAlphaComponent(0.14),
+            textSelection: ChromeContrast.flatten(accentColor.withAlphaComponent(0.24), over: isDark ? NSColor(hex: "#1E1D1C") : NSColor(hex: "#FBFBFA")),
             gitModified: isDark ? NSColor(hex: "#E3A03A") : NSColor(hex: "#B86E00"),
             gitStaged: isDark ? NSColor(hex: "#5BBE7A") : NSColor(hex: "#2F8A4C"),
             gitUntracked: isDark ? NSColor(hex: "#8E8A83") : NSColor(hex: "#8A867F"),

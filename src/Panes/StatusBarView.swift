@@ -1,10 +1,11 @@
 import AppKit
 
-/// Status bar view displayed at the bottom of each pane
-/// Shows: item count, selection info, selection size, hidden file count, available disk space
-/// Progress mode: inline progress bar + operation text during file operations
+/// One slim status line at the bottom of each pane
+/// Shows: host, item count, selection size, hidden file count, available disk space
+/// While an operation runs, its text and progress bar appear at the trailing edge
 final class StatusBarView: NSView {
-    static let preferredHeight: CGFloat = 24
+    static let preferredHeight: CGFloat = 26
+    static let fontSize: CGFloat = 11
 
     enum Mode {
         case normal
@@ -26,8 +27,12 @@ final class StatusBarView: NSView {
     private enum Metrics {
         static let horizontalInset: CGFloat = 12
         static let progressWidth: CGFloat = 104
-        static let progressSpacing: CGFloat = 10
+        static let progressSpacing: CGFloat = 8
+        static let activitySpacing: CGFloat = 16
     }
+
+    private var labelTrailingToEdge: NSLayoutConstraint?
+    private var labelTrailingToActivity: NSLayoutConstraint?
 
     // State
     private var itemCount: Int = 0
@@ -57,7 +62,7 @@ final class StatusBarView: NSView {
         let theme = ThemeManager.shared.currentTheme
 
         // Normal label
-        label.font = theme.numericFont(size: ThemeManager.shared.fontSize - 1)
+        label.font = theme.numericFont(size: Self.fontSize)
         label.textColor = theme.textSecondary
         label.lineBreakMode = .byTruncatingMiddle
         label.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -75,11 +80,12 @@ final class StatusBarView: NSView {
         addSubview(progressBar)
 
         // Progress label
-        progressLabel.font = theme.numericFont(size: ThemeManager.shared.fontSize - 1)
+        progressLabel.font = theme.numericFont(size: Self.fontSize)
         progressLabel.textColor = theme.textSecondary
+        progressLabel.alignment = .right
         progressLabel.lineBreakMode = .byTruncatingMiddle
-        progressLabel.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        progressLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        progressLabel.setContentHuggingPriority(.defaultHigh, for: .horizontal)
+        progressLabel.setContentCompressionResistancePriority(.defaultLow - 1, for: .horizontal)
         progressLabel.isHidden = true
         addSubview(progressLabel)
 
@@ -88,20 +94,25 @@ final class StatusBarView: NSView {
         progressBar.translatesAutoresizingMaskIntoConstraints = false
         progressLabel.translatesAutoresizingMaskIntoConstraints = false
 
+        labelTrailingToEdge = label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Metrics.horizontalInset)
+        labelTrailingToActivity = label.trailingAnchor.constraint(
+            lessThanOrEqualTo: progressLabel.leadingAnchor,
+            constant: -Metrics.activitySpacing
+        )
+
         NSLayoutConstraint.activate([
-            // Normal label
+            // Summary at the leading edge
             label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Metrics.horizontalInset),
-            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Metrics.horizontalInset),
+            labelTrailingToEdge!,
             label.centerYAnchor.constraint(equalTo: centerYAnchor),
 
-            // Progress bar at leading edge
-            progressBar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Metrics.horizontalInset),
+            // Activity at the trailing edge: text, then the bar
+            progressBar.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Metrics.horizontalInset),
             progressBar.widthAnchor.constraint(equalToConstant: Metrics.progressWidth),
             progressBar.centerYAnchor.constraint(equalTo: centerYAnchor),
 
-            // Progress label fills remaining space
-            progressLabel.leadingAnchor.constraint(equalTo: progressBar.trailingAnchor, constant: Metrics.progressSpacing),
-            progressLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Metrics.horizontalInset),
+            progressLabel.trailingAnchor.constraint(equalTo: progressBar.leadingAnchor, constant: -Metrics.progressSpacing),
+            progressLabel.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: Metrics.horizontalInset),
             progressLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
         ])
 
@@ -130,8 +141,8 @@ final class StatusBarView: NSView {
 
     private func applyThemeColors() {
         let theme = ThemeManager.shared.currentTheme
-        label.font = theme.numericFont(size: ThemeManager.shared.fontSize - 1)
-        progressLabel.font = theme.numericFont(size: ThemeManager.shared.fontSize - 1)
+        label.font = theme.numericFont(size: Self.fontSize)
+        progressLabel.font = theme.numericFont(size: Self.fontSize)
 
         switch mode {
         case .normal:
@@ -143,7 +154,7 @@ final class StatusBarView: NSView {
         case .completion:
             label.textColor = completionTextColor(for: theme)
         case .error:
-            label.textColor = .systemRed
+            label.textColor = errorTextColor(for: theme)
         }
 
         needsDisplay = true
@@ -163,6 +174,22 @@ final class StatusBarView: NSView {
             fallback: theme.textPrimary,
             on: statusBackgroundColor(for: theme)
         )
+    }
+
+    private func errorTextColor(for theme: Theme) -> NSColor {
+        ChromeContrast.readableTextColor(
+            preferred: theme.gitConflict,
+            fallback: theme.textPrimary,
+            on: statusBackgroundColor(for: theme)
+        )
+    }
+
+    /// Shows or hides the trailing activity and lets the summary use the freed width
+    private func setActivityVisible(_ visible: Bool) {
+        progressBar.isHidden = !visible
+        progressLabel.isHidden = !visible
+        labelTrailingToEdge?.isActive = !visible
+        labelTrailingToActivity?.isActive = visible
     }
 
     private func statusBackgroundColor(for theme: Theme) -> NSColor {
@@ -199,11 +226,12 @@ final class StatusBarView: NSView {
 
         speedCalculator.reset()
 
-        label.isHidden = true
-        progressBar.isHidden = false
-        progressLabel.isHidden = false
+        label.isHidden = false
+        updateLabel()
+        setActivityVisible(true)
 
         applyThemeColors()
+        label.textColor = statusTextColor(for: ThemeManager.shared.currentTheme)
         updateProgressViews(progress)
     }
 
@@ -217,8 +245,7 @@ final class StatusBarView: NSView {
         completionWorkItem = nil
         mode = .paused
 
-        progressBar.isHidden = true
-        progressLabel.isHidden = true
+        setActivityVisible(false)
         label.isHidden = false
 
         label.stringValue = message
@@ -234,8 +261,7 @@ final class StatusBarView: NSView {
         completionWorkItem?.cancel()
         completionWorkItem = nil
         mode = .paused
-        progressBar.isHidden = true
-        progressLabel.isHidden = true
+        setActivityVisible(false)
         label.isHidden = false
         label.stringValue = result.summary
         label.textColor = statusTextColor(for: ThemeManager.shared.currentTheme)
@@ -248,8 +274,7 @@ final class StatusBarView: NSView {
         completionWorkItem?.cancel()
         mode = .completion
 
-        progressBar.isHidden = true
-        progressLabel.isHidden = true
+        setActivityVisible(false)
         label.isHidden = false
 
         label.stringValue = message
@@ -271,12 +296,11 @@ final class StatusBarView: NSView {
         completionWorkItem = nil
         mode = .error
 
-        progressBar.isHidden = true
-        progressLabel.isHidden = true
+        setActivityVisible(false)
         label.isHidden = false
 
         label.stringValue = message
-        label.textColor = .systemRed
+        label.textColor = errorTextColor(for: ThemeManager.shared.currentTheme)
         label.lineBreakMode = .byTruncatingMiddle
         needsDisplay = true
 
@@ -296,8 +320,7 @@ final class StatusBarView: NSView {
         completionWorkItem = nil
         mode = .normal
 
-        progressBar.isHidden = true
-        progressLabel.isHidden = true
+        setActivityVisible(false)
         label.isHidden = false
 
         label.textColor = statusTextColor(for: ThemeManager.shared.currentTheme)
@@ -322,7 +345,7 @@ final class StatusBarView: NSView {
         self.availableSpace = availableSpace
         self.contextLabel = contextLabel
 
-        if case .normal = mode {
+        if mode == .normal || mode == .progress {
             updateLabel()
         }
     }

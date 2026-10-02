@@ -32,7 +32,7 @@ struct ConnectionErrorSheet: View {
             HStack(spacing: 12) {
                 Image(systemName: "xmark.octagon.fill")
                     .font(.system(size: 30))
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Color(ThemeManager.shared.currentTheme.errorText))
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Connection Failed")

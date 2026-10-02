@@ -57,9 +57,9 @@ final class QuickNavController {
 
         let hostingController = NSHostingController(rootView: quickNavView)
 
-        // Fixed size - don't rely on fittingSize since results are empty at creation
-        let panelWidth: CGFloat = 900
-        let panelHeight: CGFloat = 700
+        // Every result state has a fixed list height, so the fitting height is stable.
+        let panelWidth = QuickNavView.panelWidth
+        let panelHeight = ceil(hostingController.view.fittingSize.height)
 
         // Create borderless floating panel
         let panel = FloatingPanel(
@@ -71,14 +71,19 @@ final class QuickNavController {
         panel.isFloatingPanel = true
         panel.level = .floating
         panel.hasShadow = true
-        panel.backgroundColor = ThemeManager.shared.currentTheme.content
+        panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.contentViewController = hostingController
 
-        // Rounded corners
+        // Opaque rounded panel with a hairline edge; the window server adds the soft shadow.
         if let contentView = panel.contentView {
+            let theme = ThemeManager.shared.currentTheme
             contentView.wantsLayer = true
-            contentView.layer?.cornerRadius = 12
+            contentView.layer?.backgroundColor = theme.floatingPanel.cgColor
+            contentView.layer?.cornerRadius = QuickNavView.cornerRadius
+            contentView.layer?.cornerCurve = .continuous
+            contentView.layer?.borderWidth = 1
+            contentView.layer?.borderColor = theme.hairline.cgColor
             contentView.layer?.masksToBounds = true
         }
 

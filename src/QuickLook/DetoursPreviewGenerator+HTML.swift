@@ -218,7 +218,7 @@ extension DetoursPreviewGenerator {
         let controls = chrome.controls
         let criticalStyle = criticalBackgroundStyle(for: theme)
         let styleHash = Self.styleFingerprint(criticalStyle)
-        let isDarkTheme = theme.content.usingColorSpace(.deviceRGB).map { $0.brightnessComponent < 0.5 } ?? false
+        let isDarkTheme = theme.isDark
         let connectSource = chrome.allowsChunkRequests ? "\(DetoursPreviewChunkHandler.scheme):" : "'none'"
         // No third-party stylesheet is linked at all. Everything is coloured before it is written,
         // using the theme, and the one that used to be linked here paints code blocks solid white,

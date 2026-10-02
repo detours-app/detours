@@ -272,20 +272,17 @@ final class PaneViewController: NSViewController {
     func updatePathControlColors() {
         let theme = ThemeManager.shared.currentTheme
         let background = paneChromeBackgroundColor(for: theme)
-        let textColor = ChromeContrast.readableTextColor(
+        pathControl.crumbColor = ChromeContrast.readableTextColor(
             preferred: theme.textSecondary,
             fallback: theme.textPrimary,
             on: background
         )
-        // Update path item colors by rebuilding them with attributed titles
-        for item in pathControl.pathItems {
-            let attrs: [NSAttributedString.Key: Any] = [
-                .foregroundColor: textColor,
-                .font: theme.uiFont(size: 12)
-            ]
-            item.attributedTitle = NSAttributedString(string: item.title, attributes: attrs)
-        }
-        pathControl.alphaValue = 1.0
+        pathControl.currentCrumbColor = theme.textPrimary
+        pathControl.separatorColor = ChromeContrast.stateIndicatorColor(
+            preferred: theme.glyph,
+            fallback: theme.textSecondary,
+            on: background
+        )
         pathControl.needsDisplay = true
     }
 
@@ -395,7 +392,8 @@ final class PaneViewController: NSViewController {
 
         NSLayoutConstraint.activate([
             // Tab bar at top, 36px height
-            tabBar.topAnchor.constraint(equalTo: view.topAnchor),
+            // The title bar row above the tabs stays; content starts below it.
+            tabBar.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             tabBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tabBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             tabBar.heightAnchor.constraint(equalToConstant: PaneTabBar.barHeight),

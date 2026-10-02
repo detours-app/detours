@@ -62,7 +62,7 @@ struct AppearanceSettingsView: View {
                         }
                     if let error = validateDateFormat(dateFormatCurrentYear) {
                         Text(error)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(Color(ThemeManager.shared.currentTheme.errorText))
                             .font(.caption)
                     }
                 }
@@ -75,7 +75,7 @@ struct AppearanceSettingsView: View {
                         }
                     if let error = validateDateFormat(dateFormatOtherYears) {
                         Text(error)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(Color(ThemeManager.shared.currentTheme.errorText))
                             .font(.caption)
                     }
                 }

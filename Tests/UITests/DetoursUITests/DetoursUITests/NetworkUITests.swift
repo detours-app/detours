@@ -17,9 +17,9 @@ final class NetworkUITests: BaseUITest {
         XCTAssertTrue(sidebar.waitForExistence(timeout: 2), "Sidebar should exist")
 
         // Look for section headers
-        let devicesText = sidebar.staticTexts["DEVICES"]
-        let fileServersText = sidebar.staticTexts["FILE SERVERS"]
-        let favoritesText = sidebar.staticTexts["FAVORITES"]
+        let devicesText = sidebar.staticTexts["Devices"]
+        let fileServersText = sidebar.staticTexts["File servers"]
+        let favoritesText = sidebar.staticTexts["Favorites"]
 
         XCTAssertTrue(devicesText.waitForExistence(timeout: 2), "DEVICES section should exist")
         XCTAssertTrue(fileServersText.waitForExistence(timeout: 2), "FILE SERVERS section should exist")
@@ -43,7 +43,7 @@ final class NetworkUITests: BaseUITest {
         XCTAssertTrue(sidebar.waitForExistence(timeout: 2))
 
         let placeholderText = sidebar.staticTexts["No servers found"]
-        let fileServersText = sidebar.staticTexts["FILE SERVERS"]
+        let fileServersText = sidebar.staticTexts["File servers"]
 
         XCTAssertTrue(fileServersText.exists, "FILE SERVERS section should be present")
         XCTAssertTrue(

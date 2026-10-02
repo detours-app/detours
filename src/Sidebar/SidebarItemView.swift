@@ -54,6 +54,7 @@ final class SidebarItemView: NSTableCellView {
     private var normalCapacityTextColor: NSColor?
     private var normalProtocolBadgeTextColor: NSColor?
     private var normalAccessoryTintColor: NSColor?
+    private var normalNameFont: NSFont?
 
     var onEject: (() -> Void)?
 
@@ -222,7 +223,7 @@ final class SidebarItemView: NSTableCellView {
     private func configureAsSection(_ section: SidebarSection, theme: Theme) {
         iconView.isHidden = true
         nameLabel.stringValue = section.title
-        nameLabel.font = theme.uiFont(size: 10, weight: .semibold)
+        nameLabel.font = theme.uiFont(size: 11, weight: .semibold)
         nameLabel.textColor = theme.textSecondary
         capacityLabel.isHidden = true
         protocolBadge.isHidden = true
@@ -251,7 +252,7 @@ final class SidebarItemView: NSTableCellView {
             iconView.contentTintColor = nil
         } else {
             iconView.image = NSImage(systemSymbolName: displayKind.symbolName, accessibilityDescription: displayKind.name)
-            iconView.contentTintColor = theme.accent
+            iconView.contentTintColor = theme.textSecondary
         }
         nameLabel.stringValue = volume.name
         nameLabel.font = theme.uiFont(size: 13)
@@ -302,7 +303,7 @@ final class SidebarItemView: NSTableCellView {
 
     private func applyAccessoryTint(_ theme: Theme) {
         ejectButton.contentTintColor = theme.textSecondary
-        ejectButton.alphaValue = 0.82
+        ejectButton.alphaValue = 1.0
     }
 
     private func rememberNormalColors() {
@@ -312,12 +313,16 @@ final class SidebarItemView: NSTableCellView {
         normalCapacityTextColor = capacityLabel.textColor
         normalProtocolBadgeTextColor = protocolBadge.textColor
         normalAccessoryTintColor = ejectButton.contentTintColor
+        normalNameFont = nameLabel.font
     }
 
     private func applyBackgroundStyleColors() {
         guard backgroundStyle == .emphasized else {
             iconView.contentTintColor = normalIconTintColor
             nameLabel.textColor = normalNameTextColor
+            if let normalNameFont {
+                nameLabel.font = normalNameFont
+            }
             subtitleLabel.textColor = normalSubtitleTextColor
             capacityLabel.textColor = normalCapacityTextColor
             protocolBadge.textColor = normalProtocolBadgeTextColor
@@ -325,11 +330,17 @@ final class SidebarItemView: NSTableCellView {
             return
         }
 
+        // Selected: accent glyph and semibold name on the quiet sidebar selection fill.
         let selectedForeground = ChromeContrast.sidebarSelectedForeground(for: currentTheme)
         if normalIconTintColor != nil {
-            iconView.contentTintColor = selectedForeground
+            iconView.contentTintColor = ChromeContrast.stateIndicatorColor(
+                preferred: currentTheme.accent,
+                fallback: selectedForeground,
+                on: currentTheme.sidebarSelection
+            )
         }
         nameLabel.textColor = selectedForeground
+        nameLabel.font = currentTheme.uiFont(size: nameLabel.font?.pointSize ?? 13, weight: .semibold)
         subtitleLabel.textColor = selectedForeground
         capacityLabel.textColor = selectedForeground
         protocolBadge.textColor = selectedForeground
@@ -363,7 +374,7 @@ final class SidebarItemView: NSTableCellView {
         // Show protocol/status badge
         protocolBadge.isHidden = false
         protocolBadge.font = theme.uiFont(size: 9)
-        protocolBadge.textColor = isOffline ? theme.textSecondary : theme.accent.withAlphaComponent(0.85)
+        protocolBadge.textColor = theme.textSecondary
 
         // Show eject button when server has mounted volumes
         ejectButton.isHidden = !hasVolumes
@@ -398,7 +409,7 @@ final class SidebarItemView: NSTableCellView {
         statusDot.isHidden = isInProgress
         statusDot.layer?.backgroundColor = statusDotColor(for: state, theme: theme).cgColor
         statusDot.layer?.borderWidth = 1
-        statusDot.layer?.borderColor = theme.sidebar.withAlphaComponent(0.9).cgColor
+        statusDot.layer?.borderColor = theme.sidebar.cgColor
         statusSpinner.isHidden = !isInProgress
         if isInProgress {
             statusSpinner.startAnimation(nil)
@@ -431,13 +442,13 @@ final class SidebarItemView: NSTableCellView {
     private func statusDotColor(for state: SSHConnectionState, theme: Theme) -> NSColor {
         switch state {
         case .connected:
-            return NSColor.systemGreen
+            return theme.gitStaged
         case .connecting, .reconnecting:
-            return NSColor.systemYellow
+            return theme.gitModified
         case .disconnected:
             return theme.textSecondary
         case .failed:
-            return NSColor.systemRed
+            return theme.errorText
         }
     }
 
@@ -480,7 +491,7 @@ final class SidebarItemView: NSTableCellView {
         protocolBadge.stringValue = "manual"
 #endif
         protocolBadge.font = theme.uiFont(size: 9)
-        protocolBadge.textColor = theme.accent.withAlphaComponent(0.85)
+        protocolBadge.textColor = theme.textSecondary
 
         // Show eject button when server has mounted volumes
         ejectButton.isHidden = !hasVolumes
@@ -508,7 +519,7 @@ final class SidebarItemView: NSTableCellView {
         let displayKind = volumeDisplayKind(for: volume, isNetworkVolume: true)
         let shareIcon = NSImage(systemSymbolName: displayKind.symbolName, accessibilityDescription: displayKind.name)
         iconView.image = shareIcon
-        iconView.contentTintColor = theme.accent
+        iconView.contentTintColor = theme.textSecondary
         nameLabel.stringValue = volume.name
         nameLabel.font = theme.uiFont(size: 13)
         nameLabel.textColor = theme.textPrimary

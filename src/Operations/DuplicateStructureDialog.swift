@@ -89,7 +89,7 @@ struct DuplicateStructureDialog: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Source:")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color(ThemeManager.shared.currentTheme.textSecondary))
                 Text(model.sourceURL.lastPathComponent)
                     .font(.system(.body, design: .monospaced))
             }
@@ -98,10 +98,10 @@ struct DuplicateStructureDialog: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Location:")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color(ThemeManager.shared.currentTheme.textSecondary))
                 Text(model.parentDirectory.path)
                     .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color(ThemeManager.shared.currentTheme.textSecondary))
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
@@ -110,14 +110,14 @@ struct DuplicateStructureDialog: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("New folder name:")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color(ThemeManager.shared.currentTheme.textSecondary))
                 TextField("Folder name", text: $model.folderName)
                     .textFieldStyle(.roundedBorder)
 
                 if let error = model.validationError {
                     Text(error)
                         .font(.caption)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Color(ThemeManager.shared.currentTheme.errorText))
                 }
             }
 
@@ -132,7 +132,7 @@ struct DuplicateStructureDialog: View {
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 60)
                         Text("→")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color(ThemeManager.shared.currentTheme.textSecondary))
                         TextField("To", text: $model.toYear)
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 60)

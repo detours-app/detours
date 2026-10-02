@@ -69,6 +69,13 @@ struct RemoteHomeDirectoryProbe {
     }
 }
 
+/// Split view whose dividers are hairlines in the theme's hairline colour
+final class HairlineSplitView: NSSplitView {
+    override var dividerColor: NSColor {
+        ThemeManager.shared.currentTheme.hairline
+    }
+}
+
 final class MainSplitViewController: NSSplitViewController {
     static let splitViewAutosaveName = "Detours.MainSplitView.AppKitV1"
 
@@ -156,6 +163,22 @@ final class MainSplitViewController: NSSplitViewController {
         }
     }
 
+    override init(nibName nibNameOrNil: NSNib.Name?, bundle nibBundleOrNil: Bundle?) {
+        super.init(nibName: nibNameOrNil, bundle: nibBundleOrNil)
+        // Configured like the split view the controller would create for itself.
+        let hairlineSplitView = HairlineSplitView()
+        hairlineSplitView.arrangesAllSubviews = false
+        hairlineSplitView.translatesAutoresizingMaskIntoConstraints = false
+        hairlineSplitView.isVertical = true
+        hairlineSplitView.dividerStyle = .thin
+        splitView = hairlineSplitView
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
 
@@ -176,7 +199,11 @@ final class MainSplitViewController: NSSplitViewController {
         splitView.isVertical = true
         splitView.dividerStyle = .thin
 
-        let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarViewController)
+        // A plain item keeps the sidebar opaque and edge to edge; the sidebar behaviour
+        // makes it a floating inset card on macOS 26 and later.
+        let sidebarItem = NSSplitViewItem(viewController: sidebarViewController)
+        sidebarItem.canCollapse = true
+        sidebarItem.holdingPriority = NSLayoutConstraint.Priority(260)
         sidebarItem.minimumThickness = 150
         sidebarItem.maximumThickness = 320
         sidebarItem.preferredThicknessFraction = SplitLayout.sidebarPreferredFraction

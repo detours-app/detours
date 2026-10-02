@@ -12,7 +12,7 @@ struct HostKeyChangeDialog: View {
             HStack(spacing: 12) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 30))
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Color(ThemeManager.shared.currentTheme.errorText))
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Host Key Changed")

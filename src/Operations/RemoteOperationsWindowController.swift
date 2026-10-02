@@ -42,7 +42,7 @@ private struct RemoteOperationsView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(8)
                                 .background(selected?.presentation.id == snapshot.record.operation
-                                    ? Color.accentColor.opacity(0.15) : Color.clear)
+                                    ? Color(ThemeManager.shared.currentTheme.sidebarSelection) : Color.clear)
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)

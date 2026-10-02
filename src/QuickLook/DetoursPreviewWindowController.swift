@@ -448,8 +448,7 @@ final class DetoursPreviewWindowController: NSWindowController {
         currentTheme = theme
         // The spinner takes its contrast from the appearance of the view it sits in, and the theme
         // can be dark while the system is light, so the container is told which it is.
-        let isDark = theme.content.usingColorSpace(.deviceRGB).map { $0.brightnessComponent < 0.5 } ?? false
-        window?.contentView?.appearance = NSAppearance(named: isDark ? .darkAqua : .aqua)
+        window?.contentView?.appearance = NSAppearance(named: theme.isDark ? .darkAqua : .aqua)
         spinnerPlate.apply(theme: theme)
         snapshotCover.backgroundColor = theme.content
         for web in [visibleWebView, loadingWebView] {
