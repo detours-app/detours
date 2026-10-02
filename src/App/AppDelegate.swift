@@ -34,6 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Reduce tooltip delay from default ~1000ms to 200ms
         UserDefaults.standard.set(200, forKey: "NSInitialToolTipDelay")
 
+        DockIconManager.shared.apply()
         setupMainMenu(target: self)
 
         mainWindowController = MainWindowController()
