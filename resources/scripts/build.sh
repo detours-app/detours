@@ -15,6 +15,8 @@ DARWIN_SERVER_HASH_FILE="$SERVER_DIR/.cache-hash-darwin"
 LINUX_SERVER_BINARY="$SERVER_DIR/detours-server-x86_64-linux"
 DARWIN_SERVER_BINARY="$SERVER_DIR/detours-server-x86_64-darwin"
 PREVIEW_ASSETS_DIR="resources/PreviewAssets"
+APP_ICON_NAME="Detours"
+ACCENT_COLOR_NAME="AccentColor"
 
 # Colors
 RED='\033[0;31m'
@@ -86,6 +88,18 @@ check_preview_assets() {
             exit 1
         fi
     done
+}
+
+require_plist_value() {
+    local ACTUAL_VALUE
+    ACTUAL_VALUE="$(/usr/libexec/PlistBuddy -c "Print :$2" "$1" 2>/dev/null)" || {
+        log_error "$1 has no $2"
+        exit 1
+    }
+    if [ "$ACTUAL_VALUE" != "$3" ]; then
+        log_error "$1 has $2 = $ACTUAL_VALUE, expected $3"
+        exit 1
+    fi
 }
 
 # Parse arguments
@@ -240,6 +254,31 @@ cp "$DARWIN_SERVER_BINARY" "$APP_DIR/Contents/Resources/Servers/"
 cp -R "$PREVIEW_ASSETS_DIR" "$APP_DIR/Contents/Resources/PreviewAssets"
 mkdir -p "$APP_DIR/Contents/Resources/SevenZip"
 cp SevenZip/README.md SevenZip/License.txt SevenZip/copying.txt SevenZip/unRarLicense.txt "$APP_DIR/Contents/Resources/SevenZip/"
+
+# actool needs a partial Info.plist path to compile an app icon, and it can exit 0
+# having written nothing, so check that the asset catalog really holds the icon,
+# its pre-26 renditions and the accent.
+log_info "Compile app icon and accent colour"
+xcrun actool resources/icons/Assets.xcassets "resources/icons/$APP_ICON_NAME.icon" \
+    --compile "$APP_DIR/Contents/Resources" \
+    --platform macosx \
+    --minimum-deployment-target "$DEPLOYMENT_TARGET.0" \
+    --app-icon "$APP_ICON_NAME" \
+    --accent-color "$ACCENT_COLOR_NAME" \
+    --output-partial-info-plist build/actool-partial-info.plist \
+    --output-format human-readable-text --errors --warnings >&2
+ASSET_CATALOG="$APP_DIR/Contents/Resources/Assets.car"
+[ -s "$ASSET_CATALOG" ] || { log_error "actool wrote no $ASSET_CATALOG"; exit 1; }
+ASSET_CATALOG_INFO="$(xcrun assetutil --info "$ASSET_CATALOG")"
+for ASSET in "IconImageStack:$APP_ICON_NAME" "Icon Image:$APP_ICON_NAME" "Color:$ACCENT_COLOR_NAME"; do
+    if ! jq -e --arg type "${ASSET%%:*}" --arg name "${ASSET#*:}" \
+        'any(.[]; .AssetType == $type and .Name == $name)' <<< "$ASSET_CATALOG_INFO" >/dev/null; then
+        log_error "$ASSET_CATALOG has no ${ASSET%%:*} named ${ASSET#*:}"
+        exit 1
+    fi
+done
+log_ok "App icon and accent colour compiled"
+
 echo -n "APPL????" > "$APP_DIR/Contents/PkgInfo"
 
 cat > "$APP_DIR/Contents/Info.plist" << EOF
@@ -275,6 +314,10 @@ cat > "$APP_DIR/Contents/Info.plist" << EOF
     <string>NSApplication</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
+    <key>CFBundleIconName</key>
+    <string>$APP_ICON_NAME</string>
+    <key>NSAccentColorName</key>
+    <string>$ACCENT_COLOR_NAME</string>
     <key>NSAppleEventsUsageDescription</key>
     <string>Detours needs to control Finder to open Get Info windows and close them when quitting.</string>
     <key>NSDesktopFolderUsageDescription</key>
@@ -292,6 +335,8 @@ cat > "$APP_DIR/Contents/Info.plist" << EOF
 </dict>
 </plist>
 EOF
+require_plist_value "$APP_DIR/Contents/Info.plist" CFBundleIconName "$APP_ICON_NAME"
+require_plist_value "$APP_DIR/Contents/Info.plist" NSAccentColorName "$ACCENT_COLOR_NAME"
 log_ok "App bundle created"
 
 # Codesign
