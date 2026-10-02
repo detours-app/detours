@@ -8,7 +8,9 @@ Make Detours look elegant, professional and at home on macOS 27 Golden Gate, in 
 
 ## Chosen direction
 
-Marco chose Quiet Pro on 2026-10-02, with blue as the Detours accent (used when macOS is set to Multicolor). The Quiet Pro icon is the strongest concept but not yet acceptable; five slight variations are being explored before it is redrawn as layers. The icon is finished before the implementation spec is written.
+Marco chose Quiet Pro on 2026-10-02, with blue as the Detours accent (used when macOS is set to Multicolor). The icon is finished before the implementation spec is written.
+
+Icon: the teal-on-charcoal two-pane concept (`resources/icons/concepts/quiet-pro-teal/`). Teal 1 is the default icon, shipped as the layered macOS 27 icon that Finder, Launchpad and Spotlight show. Teal 4 (deep sea) is an alternate the user can pick in preferences; Detours applies it to the Dock and app switcher while it runs, and the Dock returns to Teal 1 when Detours quits. macOS has no supported way to change a signed app's Finder icon, and rewriting the bundle would break the code signature and reset permissions. The alternate is a flat image without the dark, clear and tinted appearances.
 
 ## Decisions
 
