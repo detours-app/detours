@@ -11,7 +11,7 @@ final class DockIconManager {
 
     private(set) var appliedChoice: DockIcon?
     private lazy var deepSeaImage = Bundle.main.image(forResource: Self.deepSeaImageName)
-    private lazy var deepSeaPixels = deepSeaImage.flatMap(Self.thumbnailPixels)
+    private lazy var deepSeaPixels = deepSeaImage.flatMap { Self.thumbnailPixels($0) }
     private lazy var standardPixels = Self.thumbnailPixels(NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath))
 
     private init() {
@@ -53,7 +53,8 @@ final class DockIconManager {
 
     /// Mean per-channel difference, 0 to 1, between the app icon AppKit reports and each icon it can show
     var shownImageDifferences: (deepSea: Double, standard: Double)? {
-        guard let shown = NSApplication.shared.applicationIconImage.flatMap(Self.thumbnailPixels),
+        guard let shownImage = NSApplication.shared.applicationIconImage,
+              let shown = Self.thumbnailPixels(shownImage),
               let deepSeaPixels,
               let standardPixels else { return nil }
         return (Self.difference(shown, deepSeaPixels), Self.difference(shown, standardPixels))
