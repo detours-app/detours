@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry guarded `ChromePolishUITests/testPaneChromePreservesNavigation` | `911b3696` | FAIL before build or test: matrix source census omitted the completed Quiet Pro redesign spec; add its source reference before rerunning. |
 | Foundry guarded `QuietProCaptureTests/testCaptureQuietProScenes`, looked at | `f1be2cfa` | PASS, now with a selected-folder scene. Seen in dark and light: unselected folders filled with the accent, a selected folder in a pale accent clearly visible on the accent row, Favorites first with monochrome sidebar symbols, and the sort arrow right after "Name". Put beside the mockup board for Marco. |
 | Foundry `swift test --filter FileListCellTests` | `3f91a563` | PASS: 5 tests, 0 failures. Folders in rows, Quick Nav and on an active selection take the accent hue, the selected one clearly lighter; files keep the workspace icon. |
 | Foundry `swift test --filter "FileListCellTests\|SidebarTests\|QuickNavTests"` | `8c7834e7` | FAIL 2 of 41: `SidebarTests` (including the new section order and monochrome symbol test) and `QuickNavTests` pass; `FileListCellTests.testFolderIconsTakeAccent` failed only on its hue tolerance: tinted folders in the row and in Quick Nav read 0.047 from the accent hue against a 0.04 limit. Judged next from a capture before changing tint or tolerance. |

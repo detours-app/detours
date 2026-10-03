@@ -179,6 +179,7 @@ The census is mechanically audited by `qualification.sh audit-matrix`: main-menu
 | `260625-secure-password-archives` | FILE-009..010, REMOTE-004 |
 | `260625-windows-remote-browsing` and `260626-windows-remote-hardening` | REMOTE-003..005, XFER-003, SAFETY-002..003 |
 | `260707-chrome-polish` | PREF-009, SIDEBAR-001..002, CHROME-001..002, ACCESS-001 |
+| `261002-quiet-pro-redesign` | APP-003, PREF-006..010, SIDEBAR-001..002, CHROME-001..002, ACCESS-001 |
 | `260715-file-opening-and-remote-operations` | NAV-008..009, VIEW-011, FILE-011, REMOTE-001..005 |
 | `260717-pane-refresh-authority` | FILE-017, NAV-005, REFRESH-001..004, XFER-001..002 |
 | `260811-data-and-document-previews` | VIEW-009..010 |

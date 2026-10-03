@@ -28,7 +28,7 @@ Restyle the whole app in the Quiet Pro direction Marco chose on 2 October 2026: 
 - A selected file row is a rounded highlight inset from the pane edges. In the inactive pane the highlight turns grey.
 - The active pane's current tab carries a thin accent underline, so the active pane is clear even when nothing is selected.
 - Tabs are compact rounded pills; the current tab looks raised. Switching tabs never shifts the other tabs.
-- Back and forward sit at the start of the path bar. Path separators are visible in light and dark mode, and the current folder stands out.
+- Back and forward sit at the far right of the path bar. Path separators are visible in light and dark mode, and the current folder stands out.
 - File icons are the standard macOS icons. Folder icons take the accent colour (Detours teal under Multicolor), so a selected folder sits in harmony with the teal selection instead of clashing with it.
 - Sidebar items use monochrome symbols; only the selected item takes the accent. Favorites come first, then devices, remote hosts and file servers.
 - In the column header the sort arrow sits right after the column name.
