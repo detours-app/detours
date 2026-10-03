@@ -2,7 +2,7 @@
 
 ## Meta
 
-- Status: Implemented
+- Status: Reviewed
 - Branch: feature/quiet-pro-redesign
 
 ---
@@ -30,7 +30,7 @@ Restyle the whole app in the Quiet Pro direction Marco chose on 2 October 2026: 
 - Tabs are compact rounded pills; the current tab looks raised. Switching tabs never shifts the other tabs.
 - Back and forward sit at the start of the path bar. Path separators are visible in light and dark mode, and the current folder stands out.
 - File and folder icons are the standard macOS icons, without the teal tint.
-- Rows have no zebra stripes by default, and the empty space below the last file is plain. Stripes remain available as a preference.
+- Rows have no zebra stripes by default, and the empty space below the last file is plain. Stripes remain available as a preference; turned on, they run the full height of the pane, through the empty space below the last file, as in Finder.
 - Git status shows as a small mark after the file name, with a different shape per state, so it does not depend on colour. VoiceOver reads the state aloud.
 - The status bar is one slim line per pane: item count, selection size and free space, plus the host for remote panes. Activity appears only while something runs.
 - Quick Nav is a calm floating panel in the same colours, fully keyboard driven.
@@ -47,7 +47,7 @@ Restyle the whole app in the Quiet Pro direction Marco chose on 2 October 2026: 
 - [x] **A4** After upgrading, a user who had Foolscap or Drafting sees Light, a user who had a custom theme sees System, and all their other preferences are unchanged.
 - [x] **A5** The active pane is recognisable with and without a selection, and switching panes with the keyboard shows the change immediately.
 - [x] **A6** A selected row is a rounded, inset highlight in every density, all its columns stay readable, and it turns grey in the inactive pane.
-- [x] **A7** No zebra stripes appear by default, the space below the last row is plain, and turning stripes on in Preferences shows them on file rows only.
+- [ ] **A7** No zebra stripes appear by default and the space below the last row is plain; turning stripes on in Preferences runs them the full height of each pane, below the last row too.
 - [x] **A8** The four git states can be told apart without colour, stay visible on a selected row, and are read aloud by VoiceOver.
 - [x] **A9** Path separators are visible in both appearances and the current folder name stands out.
 - [x] **A10** Folder and file icons appear in their standard macOS colours in the file lists, sidebar favourites and Quick Nav.
@@ -126,7 +126,7 @@ Metrics: rows 24/28/32 pt (Compact/Comfortable/Spacious) with selection radius 5
 | ---- | ---------- |
 | The restyle changes a working command or navigation flow | Visual tasks never touch command handlers; the existing ChromePolish navigation and Quick Nav UI tests rerun on Foundry |
 | Removing themes surprises users who chose Foolscap, Drafting or a custom theme | Explicit migration to Light or System with a one-time log line; release notes name the change |
-| Banding was turned off once before and brought back in chrome polish | Stripes stay one preference away and draw on file rows only; Marco chose stripes off by default on 2 October 2026 |
+| Banding was turned off once before and brought back in chrome polish | Stripes stay one preference away and, when on, run the full pane height as macOS lists do; Marco chose stripes off by default on 2 October 2026 |
 | White selection text is unreadable on light system accents such as yellow | System accents use AppKit's own selection colours; only the Detours teal uses the teal fill; T7 covers all eight accents |
 | The inactive selection is faint (about 1.2:1), matching macOS behaviour | Kept as native behaviour Marco chose; under Increase Contrast it gains a 1 px outline in the glyph token |
 | The macOS 27 SDK makes the sidebar float as an inset card | The sidebar split item is configured for an opaque full-height layout and T16 screenshots confirm it on macOS 27 |
@@ -187,6 +187,11 @@ Metrics: rows 24/28/32 pt (Compact/Comfortable/Spacious) with selection radius 5
 - [x] **C29** Replace the App Icon section and the themes cell of the competition table in `AGENTS.md` (which `CLAUDE.md` links to) with the new icon pipeline and Quiet Pro.
 - [x] **C30** Update `resources/docs/USER_GUIDE.md` (Themes and Appearance, Preferences) and `README.md` feature line for appearance, accent, stripes and the Dock icon.
 
+**Phase 8: Corrections after Marco's review**
+
+- [ ] **C31** In `src/FileList/BandedOutlineView.swift` continue the inset rounded stripes below the last row to the bottom of the visible area when `fileListBanding` is on, at the row height plus intercell spacing, keeping the alternation of the real rows.
+- [ ] **C32** Remove the bright white vertical lines at the sidebar and pane dividers in dark mode, so every divider draws in the `hairline` token.
+
 ---
 
 ## Testing
@@ -217,6 +222,8 @@ All tests run on Foundry. Installed-app tests run one at a time through `resourc
 
 - [x] **T15** Build with `resources/scripts/build.sh`; confirm `Assets.car`, `Detours.icns`, `CFBundleIconName`, `CFBundleIconFile`, `NSAccentColorName` and a valid code signature; inspect default, dark, clear and tinted icons and capture Finder and Dock icons, including the Dock returning to default after quitting with deep sea selected. Launchpad and Spotlight are not captured: on macOS 27 both are Siri AI panels that UI tests cannot drive or close. The app switcher is not captured either: XCTest delivers Cmd-Tab to Detours rather than to macOS, and the switcher shows the same running-app icon as the Dock tile.
 - [x] **T16** Capture light and dark screenshots with left and right pane active through the guarded launcher and compare them with the Quiet Pro mockup board, using this spec for its stated overrides; inspect stripes on/off and plain empty space, tabs, path separators, sidebar, status/activity, banners, sheets and Quick Nav, then exercise Increase Contrast, Reduce Motion, Differentiate Without Color and Full Keyboard Access against A15.
+- [ ] **T18** `QuietProUITests.testStripesFillPaneHeight` - with stripes on and a short listing, the area below the last row alternates in the stripe colour down to the bottom of the pane, and with stripes off it is plain.
+- [ ] **T19** `QuietProUITests.testDividersUseHairline` - in Dark and Light, the sidebar and pane dividers sampled from a screenshot match the `hairline` token, never near-white.
 - [x] **T17** Run the full Foundry unit suite over SSH once at the end, excluding `ClipboardManagerTests` and `DroppablePathControlTests` from that invocation and running those two classes through `resources/scripts/gui-test.sh` with a narrow filter, as required by the testing runbook.
 
 ---

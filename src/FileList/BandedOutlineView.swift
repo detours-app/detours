@@ -370,10 +370,24 @@ final class BandedOutlineView: NSOutlineView {
         if SettingsManager.shared.fileListBanding {
             let density = SettingsManager.shared.fileListRowDensity
             theme.stripe.setFill()
+            let radius = density.selectionRadius
             let visibleRows = rows(in: clipRect)
             for row in visibleRows.location..<NSMaxRange(visibleRows) where row % 2 == 1 {
                 let stripeRect = InactiveHidingRowView.highlightRect(in: rect(ofRow: row))
-                NSBezierPath(roundedRect: stripeRect, xRadius: density.selectionRadius, yRadius: density.selectionRadius).fill()
+                NSBezierPath(roundedRect: stripeRect, xRadius: radius, yRadius: radius).fill()
+            }
+
+            // Like macOS lists, the stripes carry on below the last row to the bottom of the pane.
+            let pitch = rowHeight + intercellSpacing.height
+            var row = numberOfRows
+            var y = numberOfRows > 0 ? rect(ofRow: numberOfRows - 1).maxY : 0
+            while pitch > 0, y < clipRect.maxY {
+                if row % 2 == 1, y + pitch > clipRect.minY {
+                    let stripeRect = InactiveHidingRowView.highlightRect(in: NSRect(x: bounds.minX, y: y, width: bounds.width, height: pitch))
+                    NSBezierPath(roundedRect: stripeRect, xRadius: radius, yRadius: radius).fill()
+                }
+                row += 1
+                y += pitch
             }
         }
 

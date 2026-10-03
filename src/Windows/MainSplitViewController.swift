@@ -71,8 +71,14 @@ struct RemoteHomeDirectoryProbe {
 
 /// Split view whose dividers are hairlines in the theme's hairline colour
 final class HairlineSplitView: NSSplitView {
+    /// Resolved against the appearance each time AppKit draws the divider, so a divider drawn
+    /// before the app turned dark does not keep the light hairline.
+    private static let hairline = NSColor(name: nil) { appearance in
+        Theme.resolve(inputs: Theme.currentInputs, appearance: appearance).hairline
+    }
+
     override var dividerColor: NSColor {
-        ThemeManager.shared.currentTheme.hairline
+        Self.hairline
     }
 }
 

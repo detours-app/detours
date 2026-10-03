@@ -184,6 +184,74 @@ final class QuietProUITests: BaseUITest {
         return count > 0 ? total / CGFloat(count) : -1
     }
 
+    func testStripesFillPaneHeight() throws {
+        addTeardownBlock { @MainActor in
+            self.setPreferenceToggle("rowStripesToggle", on: false)
+            try? self.applyAppearanceSettings(theme: "system", fontSize: 13, density: "compact")
+        }
+        try applyAppearanceSettings(theme: "dark", fontSize: 13, density: "compact")
+
+        setPreferenceToggle("rowStripesToggle", on: true)
+        let striped = try luminancesBelowLastRow()
+        let bands = Set(striped.map { ($0 * 100).rounded() })
+        let changes = zip(striped, striped.dropFirst()).filter { abs($0 - $1) > 0.01 }.count
+        XCTAssertGreaterThanOrEqual(bands.count, 2, "Stripes should continue below the last row; the empty area read \(bands.sorted())")
+        XCTAssertGreaterThanOrEqual(changes, 4, "The empty area should alternate band by band to the bottom; it changed \(changes) times")
+
+        setPreferenceToggle("rowStripesToggle", on: false)
+        let plain = try luminancesBelowLastRow()
+        let spread = (plain.max() ?? 0) - (plain.min() ?? 0)
+        XCTAssertLessThan(spread, 0.01, "With stripes off the empty area should be plain; its luminance spread was \(spread)")
+    }
+
+    func testDividersUseHairline() throws {
+        addTeardownBlock { @MainActor in
+            try? self.applyAppearanceSettings(theme: "system", fontSize: 13, density: "compact")
+        }
+        for (theme, dark) in [("light", false), ("dark", true)] {
+            try applyAppearanceSettings(theme: theme, fontSize: 13, density: "compact")
+            let window = app.windows.firstMatch
+            let bitmap = try windowBitmap(window)
+            let scale = CGFloat(bitmap.pixelsWide) / max(window.frame.width, 1)
+            // Below the short fixture listing and above the status bar: only surfaces and dividers.
+            let y = Int((window.frame.height - 60) * scale)
+            let line = (0..<bitmap.pixelsWide).compactMap { luminance(bitmap.colorAt(x: $0, y: y)) }
+            if dark {
+                XCTAssertLessThan(line.max() ?? 1, 0.35, "Dark: a divider or surface drew near-white (luminance \(line.max() ?? -1))")
+            } else {
+                XCTAssertGreaterThan(line.min() ?? 0, 0.6, "Light: a divider or surface drew dark (luminance \(line.min() ?? -1))")
+            }
+        }
+    }
+
+    /// Luminance down a column 40 pt into the left file list, from just below its last row to just above its bottom edge.
+    private func luminancesBelowLastRow() throws -> [CGFloat] {
+        let outline = leftPaneOutlineView
+        let rows = outline.outlineRows
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5), "The left pane should list the fixture")
+        let lastRow = rows.element(boundBy: rows.count - 1).frame
+        let window = app.windows.firstMatch
+        let bitmap = try windowBitmap(window)
+        let scale = CGFloat(bitmap.pixelsWide) / max(window.frame.width, 1)
+        let top = lastRow.maxY + 2
+        let bottom = outline.frame.maxY - 4
+        XCTAssertGreaterThan(bottom - top, lastRow.height * 4, "The left pane needs empty space below its rows for this check")
+        let x = Int((outline.frame.minX + 40 - window.frame.minX) * scale)
+        return stride(from: top, to: bottom, by: 1).compactMap { point in
+            luminance(bitmap.colorAt(x: x, y: Int((point - window.frame.minY) * scale)))
+        }
+    }
+
+    private func windowBitmap(_ window: XCUIElement) throws -> NSBitmapImageRep {
+        let tiff = try XCTUnwrap(window.screenshot().image.tiffRepresentation)
+        return try XCTUnwrap(NSBitmapImageRep(data: tiff))
+    }
+
+    private func luminance(_ color: NSColor?) -> CGFloat? {
+        guard let pixel = rgb(color) else { return nil }
+        return 0.2126 * pixel[0] + 0.7152 * pixel[1] + 0.0722 * pixel[2]
+    }
+
     // MARK: - Selection checks
 
     private func assertSelection(inRowNamed name: String, fill expectedHex: String, label: String) throws {
