@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry guarded `ChromePolishUITests/testPaneChromePreservesNavigation`, looked at | `9a33c1fe` | PASS: 1 passed, 0 failed, 0 skipped, no runtime warnings. Inspected all four light/dark captures: arrows at the right edge; remote host breadcrumb at the left margin with local shortcuts hidden; local shortcuts and breadcrumb aligned at the left. Matrix audit and guarded cleanup passed. |
 | Foundry guarded `ChromePolishUITests/testPaneChromePreservesNavigation` | `22f203d3` | PASS: 1 passed, 0 failed, 0 skipped. Seen in light/dark: local path arrows at the far right. Remote captures showed Home/iCloud and `/` because the simulated tab bypassed pane host setup; correct the fixture and recapture. Matrix audit and guarded cleanup passed. |
 | Foundry guarded `ChromePolishUITests/testPaneChromePreservesNavigation` | `911b3696` | FAIL before build or test: matrix source census omitted the completed Quiet Pro redesign spec; add its source reference before rerunning. |
 | Foundry guarded `QuietProCaptureTests/testCaptureQuietProScenes`, looked at | `f1be2cfa` | PASS, now with a selected-folder scene. Seen in dark and light: unselected folders filled with the accent, a selected folder in a pale accent clearly visible on the accent row, Favorites first with monochrome sidebar symbols, and the sort arrow right after "Name". Put beside the mockup board for Marco. |
