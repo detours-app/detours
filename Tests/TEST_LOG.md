@@ -2,6 +2,8 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry guarded `QuietProCaptureTests/testCaptureQuietProScenes`, looked at | `f1be2cfa` | PASS, now with a selected-folder scene. Seen in dark and light: unselected folders filled with the accent, a selected folder in a pale accent clearly visible on the accent row, Favorites first with monochrome sidebar symbols, and the sort arrow right after "Name". Put beside the mockup board for Marco. |
+| Foundry `swift test --filter FileListCellTests` | `3f91a563` | PASS: 5 tests, 0 failures. Folders in rows, Quick Nav and on an active selection take the accent hue, the selected one clearly lighter; files keep the workspace icon. |
 | Foundry `swift test --filter "FileListCellTests\|SidebarTests\|QuickNavTests"` | `8c7834e7` | FAIL 2 of 41: `SidebarTests` (including the new section order and monochrome symbol test) and `QuickNavTests` pass; `FileListCellTests.testFolderIconsTakeAccent` failed only on its hue tolerance: tinted folders in the row and in Quick Nav read 0.047 from the accent hue against a 0.04 limit. Judged next from a capture before changing tint or tolerance. |
 | Foundry guarded `QuietProCaptureTests/testCaptureQuietProScenes`, looked at | `f5a674a6` | PASS, 13 screenshots. Inspected: with stripes on, the inset stripes run the full height of both panes in dark and light, continuing the alternation below the last row; the sidebar and pane dividers measure `#2F2D2B` in dark and `#E6E4E0` in light, their hairline tokens. |
 | Foundry guarded `QuietProUITests/testStripesFillPaneHeight` | `1ddefe8b` | PASS: 1 passed, 0 failed, 0 skipped. Stripes alternate below the last row to the bottom of the pane; with stripes off that area is plain. |
