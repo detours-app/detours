@@ -102,25 +102,22 @@ final class SidebarRowView: NSTableRowView {
         }
     }
 
+    /// Sidebar rows highlight as inset rounded rects, like the file list
+    private var highlightPath: NSBezierPath {
+        NSBezierPath(roundedRect: bounds.insetBy(dx: 8, dy: 1), xRadius: 6, yRadius: 6)
+    }
+
     override func drawBackground(in dirtyRect: NSRect) {
         if isHovered && !isSelected {
-            Theme.currentSnapshot().textPrimary.withAlphaComponent(0.055).setFill()
-            bounds.fill()
+            Theme.currentSnapshot().hover.setFill()
+            highlightPath.fill()
         }
     }
 
     override func drawSelection(in dirtyRect: NSRect) {
         guard isSelected else { return }
-        let theme = Theme.currentSnapshot()
-        theme.accent.withAlphaComponent(ChromeContrast.sidebarSelectionAlpha).setFill()
-        bounds.fill()
-
-        ChromeContrast.stateIndicatorColor(
-            preferred: theme.accent,
-            fallback: theme.textPrimary,
-            on: ChromeContrast.sidebarSelectionFill(for: theme)
-        ).setFill()
-        NSRect(x: bounds.minX, y: bounds.minY, width: 2, height: bounds.height).fill()
+        Theme.currentSnapshot().sidebarSelection.setFill()
+        highlightPath.fill()
     }
 
     override func didAddSubview(_ subview: NSView) {

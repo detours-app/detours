@@ -14,7 +14,7 @@ Detours shows two file panes side-by-side, each with independent tabs. One pane 
 
 - **Switch pane**: Press `Tab` (without modifiers)
 - **Active pane**: Has accent-colored underline on selected tab
-- **Inactive pane**: Has a dimmed accent underline and a subdued selection highlight
+- **Inactive pane**: No underline; its selection turns grey
 
 ### Tabs
 
@@ -33,11 +33,12 @@ Tabs can be reordered by dragging, and moved between panes by dragging to the ot
 
 ### Path Bar
 
-Back and Forward buttons sit in the tab bar row. Below the tabs, the path bar shows:
+Below the tabs, the path bar shows:
 
+- **Back and Forward buttons**: Go back and forward in the tab's history
 - **Home button**: Go to home directory
 - **iCloud button**: Go to iCloud Drive
-- **Path**: Click any segment to navigate
+- **Path**: Click any segment to navigate; the current folder is shown in a heavier weight
 
 **Path bar tips:**
 
@@ -47,13 +48,14 @@ Back and Forward buttons sit in the tab bar row. Below the tabs, the path bar sh
 
 ### Status Bar
 
-At the bottom of each pane (toggle with View menu):
+One line at the bottom of each pane (toggle with View menu):
 
+- Host name, for a remote pane
 - Item count and selection count
 - Size of selected items
 - Hidden file count (if any hidden)
 - Available disk space
-- File operation progress, transfer speed, completion, and error states during active operations
+- While a file operation runs, its progress, transfer speed, completion and error states appear at the right end
 
 ### Sidebar
 
@@ -70,9 +72,9 @@ The sidebar shows remote hosts, mounted volumes, network shares, and favorite fo
 | Connect to network share | File → Connect to Network Share... |
 | Toggle sidebar | Cmd-0 |
 
-**Remote hosts:** The sidebar has a dedicated Remote Hosts section for SSH targets added in Detours. Selecting a connected host opens that host in the active pane. Unreachable hosts remain visible with a reconnect state.
+**Remote hosts:** The sidebar has a dedicated Remote hosts section for SSH targets added in Detours. Selecting a connected host opens that host in the active pane. Unreachable hosts remain visible with a reconnect state.
 
-**Network shares:** The sidebar has a dedicated FILE SERVERS section showing servers discovered via Bonjour. Servers group their mounted volumes underneath. Offline servers appear dimmed. Use File → Connect to Network Share... to connect to a server manually (SMB/AFP). Connecting runs in the background, so the window stays usable while the server answers, and a failed attempt shows one message. When a sidebar server asks for a name and password, macOS shows its share picker after the login so you can choose the share to mount.
+**Network shares:** The sidebar has a dedicated File servers section showing servers discovered via Bonjour. Servers group their mounted volumes underneath. Offline servers appear dimmed. Use File → Connect to Network Share... to connect to a server manually (SMB/AFP). Connecting runs in the background, so the window stays usable while the server answers, and a failed attempt shows one message. When a sidebar server asks for a name and password, macOS shows its share picker after the login so you can choose the share to mount.
 
 ---
 
@@ -269,7 +271,7 @@ Detours can browse supported remote machines directly over SSH without mounting 
 2. Enter an SSH target such as `build-linux`, `intel-mac`, or `user@example-host`.
 3. Confirm the host. Detours connects with the system `/usr/bin/ssh`, using the same SSH config, known-hosts files, and agent as Terminal.
 
-The Add Remote Host sheet suggests entries from `~/.ssh/config`. Adding a host saves it in the Remote Hosts section and opens it in the active pane.
+The Add Remote Host sheet suggests entries from `~/.ssh/config`. Adding a host saves it in the Remote hosts section and opens it in the active pane.
 
 ### Supported Remote Hosts
 
@@ -388,46 +390,47 @@ To disable folder expansion (removes disclosure triangles), open Preferences →
 
 ## Git Status Indicators
 
-When viewing a Git repository, files show colored status bars in the left gutter:
+When viewing a Git repository, a small mark after a file's name shows its git state. Each state has its own shape, so the marks can be told apart without colour:
 
-| Color | Status |
+| Mark | Status |
 | ------ | -------- |
-| Amber | Modified (changed since last commit) |
-| Green | Staged (added to index) |
-| Gray | Untracked (new file, not in git) |
-| Red | Conflict (merge conflict) |
+| Amber filled circle | Modified (changed since last commit) |
+| Green filled rounded square | Staged (added to the index) |
+| Grey hollow ring | Untracked (new file, not in git) |
+| Red filled diamond | Conflict (merge conflict) |
 
-Git status indicators work for files inside expanded folders too.
+Clean files have no mark. Hover over a mark to see its state; VoiceOver reads it as part of the file name. Git status indicators work for files inside expanded folders too.
 
 ### Configuration
 
 Preferences → Git:
 
 - Toggle git status indicators on/off
-- Preview status colors
+- A legend of the four marks
 
 ---
 
 ## Themes and Appearance
 
-### Built-in Themes
+Detours uses calm warm-grey surfaces and keeps colour for meaning: the selection, the active pane, git marks, warnings and errors.
 
-Preferences → Appearance offers four themes:
+### Appearance
 
-- **Light**: Light background, dark text
-- **Dark**: Dark background, light text
-- **Foolscap**: Warm cream background, Courier font
-- **Drafting**: Cool blue-gray background, JetBrains Mono NL font
+Preferences → Appearance offers **System**, **Light** and **Dark**. System follows macOS dark and light mode. The choice applies to the whole app at once, including right-click menus, alerts, Preferences and Quick Look. The menus in the menu bar follow macOS's own light or dark mode.
 
-Select **System** to automatically follow macOS dark/light mode.
+Earlier versions offered Foolscap, Drafting and a custom theme editor. Those are gone: Foolscap and Drafting open as Light, a custom theme opens as System, and every other preference is kept.
 
-### Custom Theme
+### Accent Colour
 
-Select "Custom" to create your own theme with:
+Selections, focus rings and the active tab's underline use the accent colour chosen in System Settings → Appearance. With **Multicolor**, Detours uses its own teal, the same teal as its app icon.
 
-- 8 customizable colors (background, surface, border, text colors, accent)
-- Font selection (SF Mono, Menlo, Courier, or proportional fonts like SF Pro)
-- Font size (10-16px)
+### Row Stripes
+
+File lists have no stripes by default. Turn on **Row stripes** in Preferences → Appearance to shade every other file row.
+
+### Dock Icon
+
+Preferences → Appearance → **Dock icon** offers Default and **Deep sea**. Deep sea replaces the icon in the Dock and the app switcher while Detours runs. Finder, Launchpad and Spotlight always show the default icon, and the Dock shows it again after Detours quits.
 
 ### Date Formats
 
@@ -455,11 +458,12 @@ Open with **Cmd-,** (or Detours menu → Preferences)
 
 ### Appearance
 
-- Theme selection
-- Custom theme editor
+- Appearance: System, Light or Dark
 - Font size
 - File-list density: Compact, Comfortable, or Spacious
+- Row stripes
 - Date format customization
+- Dock icon: Default or Deep sea
 
 ### Shortcuts
 

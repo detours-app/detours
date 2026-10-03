@@ -1,167 +1,182 @@
 import AppKit
+import os
 
-/// Theme definition with all color and font properties
+/// Quiet Pro token roles, resolved once per appearance.
 struct Theme: Equatable {
-    var background: NSColor
-    var surface: NSColor
-    var border: NSColor
+    enum Accent: Equatable {
+        /// macOS is set to Multicolor: Detours teal with the teal selection fill.
+        case detours
+        /// Any other macOS accent: AppKit's own selection colours.
+        case system(accent: NSColor, selectionFill: NSColor, selectionText: NSColor)
+    }
+
+    var isDark: Bool
+    var increaseContrast: Bool
+
+    var content: NSColor
+    var sidebar: NSColor
+    var header: NSColor
+    var hairline: NSColor
+    var raised: NSColor
+    var floatingPanel: NSColor
+
     var textPrimary: NSColor
     var textSecondary: NSColor
-    var textTertiary: NSColor
-    var accent: NSColor
-    var accentText: NSColor
-    var fontName: String
-    var uiFontName: String
+    var glyph: NSColor
 
-    // Legacy accessor for compatibility
-    var monoFont: String { fontName }
+    var accent: NSColor
+    var usesDetoursAccent: Bool
+    var selectionFill: NSColor
+    var selectionText: NSColor
+    var inactiveSelection: NSColor
+    var sidebarSelection: NSColor
+    var hover: NSColor
+    var stripe: NSColor
+    var dropTarget: NSColor
+    var textSelection: NSColor
+
+    var gitModified: NSColor
+    var gitStaged: NSColor
+    var gitUntracked: NSColor
+    var gitConflict: NSColor
+    var warningFill: NSColor
+    var errorFill: NSColor
+
+    /// Error text and marks share the conflict token
+    var errorText: NSColor { gitConflict }
 
     /// The font used for file lists at the given size
     func font(size: CGFloat) -> NSFont {
-        // Handle SF system fonts specially
-        if fontName == "SF Pro" || fontName == "SF Pro Text" {
-            return NSFont.systemFont(ofSize: size, weight: .regular)
-        }
-        if fontName == "SF Mono" {
-            return NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
-        }
-        // Try to get the specified font
-        if let font = NSFont(name: fontName, size: size) {
-            return font
-        }
-        // Fallback to system font
-        return NSFont.systemFont(ofSize: size, weight: .regular)
+        NSFont.systemFont(ofSize: size, weight: .regular)
     }
 
-    /// The proportional font used for UI chrome (tabs, sidebar, headers, status bar)
+    /// System font with tabular digits for size, date and status numbers
+    func numericFont(size: CGFloat, weight: NSFont.Weight = .regular) -> NSFont {
+        NSFont.monospacedDigitSystemFont(ofSize: size, weight: weight)
+    }
+
+    /// The font used for UI chrome (tabs, sidebar, headers, status bar)
     func uiFont(size: CGFloat, weight: NSFont.Weight = .regular) -> NSFont {
-        if uiFontName == "SF Pro" || uiFontName == "SF Pro Text" {
-            return NSFont.systemFont(ofSize: size, weight: weight)
-        }
-        // Non-system fonts ignore weight parameter
-        if let font = NSFont(name: uiFontName, size: size) {
-            return font
-        }
-        return NSFont.systemFont(ofSize: size, weight: weight)
+        NSFont.systemFont(ofSize: size, weight: weight)
     }
 }
 
-// MARK: - Built-in Themes
+// MARK: - Resolution
 
 extension Theme {
-    static func currentSnapshot() -> Theme {
-        let settings: Settings
-        if let data = UserDefaults.standard.data(forKey: "Detours.Settings"),
-           let decoded = try? JSONDecoder().decode(Settings.self, from: data) {
-            settings = decoded
+    static let detoursAccentLight = NSColor(hex: "#0F766E")
+    static let detoursAccentDark = NSColor(hex: "#2BA79B")
+
+    static func resolve(isDark: Bool, increaseContrast: Bool, accent: Accent) -> Theme {
+        let content = isDark ? NSColor(hex: "#1E1D1C") : NSColor(hex: "#FBFBFA")
+        let textPrimary = isDark ? NSColor(hex: "#ECEAE6") : NSColor(hex: "#1C1B1A")
+        let glyph = isDark ? NSColor(hex: "#7A766F") : NSColor(hex: "#8A867F")
+        let textSecondary: NSColor
+        let hairline: NSColor
+        if increaseContrast {
+            textSecondary = isDark ? NSColor(hex: "#BDB9B2") : NSColor(hex: "#4F4C48")
+            hairline = glyph
         } else {
-            settings = Settings()
+            textSecondary = isDark ? NSColor(hex: "#9A968F") : NSColor(hex: "#6E6B66")
+            hairline = isDark ? NSColor(hex: "#2F2D2B") : NSColor(hex: "#E6E4E0")
         }
 
-        return snapshot(for: settings)
-    }
-
-    private static func snapshot(for settings: Settings) -> Theme {
-        switch settings.theme {
-        case .system:
-            return currentDrawingAppearanceIsDark ? .dark : .light
-        case .light:
-            return .light
-        case .dark:
-            return .dark
-        case .foolscap:
-            return .foolscap
-        case .drafting:
-            return .drafting
-        case .custom:
-            if let customTheme = settings.customTheme {
-                return .custom(from: customTheme)
-            }
-            return .light
+        let accentColor: NSColor
+        let selectionFill: NSColor
+        let selectionText: NSColor
+        switch accent {
+        case .detours:
+            accentColor = isDark ? detoursAccentDark : detoursAccentLight
+            selectionFill = isDark ? NSColor(hex: "#14827A") : NSColor(hex: "#0F766E")
+            selectionText = .white
+        case let .system(systemAccent, fill, text):
+            accentColor = systemAccent
+            selectionFill = fill
+            // AppKit draws white on every accent, which misses 4.5:1 on the orange, green, pink
+            // and graphite fills; black reaches it on all of them.
+            selectionText = ChromeContrast.readableTextColor(
+                preferred: text,
+                fallback: .black,
+                on: fill
+            )
         }
-    }
 
-    private static var currentDrawingAppearanceIsDark: Bool {
-        NSAppearance.currentDrawing().bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-    }
-
-    static func currentFolderAccentColor() -> NSColor {
-        var accentColor = currentSnapshot().accent
-        if currentDrawingAppearanceIsDark {
-            accentColor = accentColor.brighterForDarkMode()
-        }
-        return accentColor
-    }
-
-    /// Light theme: neutral warm gray, teal accent, system font
-    static let light = Theme(
-        background: NSColor(hex: "#FAFAF8"),
-        surface: NSColor(hex: "#F5F5F3"),
-        border: NSColor(hex: "#E8E6E3"),
-        textPrimary: NSColor(hex: "#1A1918"),
-        textSecondary: NSColor(hex: "#6B6965"),
-        textTertiary: NSColor(hex: "#706D66"),
-        accent: NSColor(hex: "#1F4D4D"),
-        accentText: NSColor(hex: "#FFFFFF"),
-        fontName: "SF Pro",
-        uiFontName: "SF Pro"
-    )
-
-    /// Dark theme: neutral dark, teal accent, system font
-    static let dark = Theme(
-        background: NSColor(hex: "#262626"),
-        surface: NSColor(hex: "#242322"),
-        border: NSColor(hex: "#3D3A38"),
-        textPrimary: NSColor(hex: "#FAFAF8"),
-        textSecondary: NSColor(hex: "#9C9990"),
-        textTertiary: NSColor(hex: "#928E86"),
-        accent: NSColor(hex: "#3D8A8A"),
-        accentText: NSColor(hex: "#FFFFFF"),
-        fontName: "SF Pro",
-        uiFontName: "SF Pro"
-    )
-
-    /// Foolscap theme: warm cream, terracotta accent, Courier - analog comfort
-    static let foolscap = Theme(
-        background: NSColor(hex: "#F5F1E8"),
-        surface: NSColor(hex: "#EBE6DA"),
-        border: NSColor(hex: "#D4CDBF"),
-        textPrimary: NSColor(hex: "#3D3730"),
-        textSecondary: NSColor(hex: "#675F54"),
-        textTertiary: NSColor(hex: "#6B6358"),
-        accent: NSColor(hex: "#B85C38"),
-        accentText: NSColor(hex: "#FFFFFF"),
-        fontName: "Courier",
-        uiFontName: "SF Pro"
-    )
-
-    /// Drafting theme: cool blue-white, blue accent, JetBrains Mono - technical precision
-    static let drafting = Theme(
-        background: NSColor(hex: "#F8FAFC"),
-        surface: NSColor(hex: "#E8EEF5"),
-        border: NSColor(hex: "#CBD5E1"),
-        textPrimary: NSColor(hex: "#1E293B"),
-        textSecondary: NSColor(hex: "#475569"),
-        textTertiary: NSColor(hex: "#59677C"),
-        accent: NSColor(hex: "#2563EB"),
-        accentText: NSColor(hex: "#FFFFFF"),
-        fontName: "JetBrains Mono NL",
-        uiFontName: "SF Pro"
-    )
-
-    /// Create a theme from custom colors stored in settings
-    static func custom(from colors: CustomThemeColors) -> Theme {
-        Theme(
-            background: colors.background.nsColor,
-            surface: colors.surface.nsColor,
-            border: colors.border.nsColor,
-            textPrimary: colors.textPrimary.nsColor,
-            textSecondary: colors.textSecondary.nsColor,
-            textTertiary: colors.textTertiary.nsColor,
-            accent: colors.accent.nsColor,
-            accentText: colors.accentText.nsColor,
-            fontName: colors.fontName,
-            uiFontName: colors.uiFontName
+        return Theme(
+            isDark: isDark,
+            increaseContrast: increaseContrast,
+            content: content,
+            sidebar: isDark ? NSColor(hex: "#181817") : NSColor(hex: "#F1F0EE"),
+            header: isDark ? NSColor(hex: "#222120") : NSColor(hex: "#F6F5F3"),
+            hairline: hairline,
+            raised: isDark ? NSColor(hex: "#2E2D2B") : NSColor(hex: "#FFFFFF"),
+            floatingPanel: isDark ? NSColor(hex: "#252423") : NSColor(hex: "#FBFBFA"),
+            textPrimary: textPrimary,
+            textSecondary: textSecondary,
+            glyph: glyph,
+            accent: accentColor,
+            usesDetoursAccent: accent == .detours,
+            selectionFill: selectionFill,
+            selectionText: selectionText,
+            inactiveSelection: isDark ? NSColor(hex: "#33312F") : NSColor(hex: "#E9E7E3"),
+            sidebarSelection: isDark ? NSColor(hex: "#2B2A28") : NSColor(hex: "#E4E2DE"),
+            hover: textPrimary.withAlphaComponent(isDark ? 0.06 : 0.04),
+            stripe: textPrimary.withAlphaComponent(isDark ? 0.035 : 0.025),
+            dropTarget: accentColor.withAlphaComponent(0.14),
+            textSelection: ChromeContrast.flatten(accentColor.withAlphaComponent(0.24), over: content),
+            gitModified: isDark ? NSColor(hex: "#E3A03A") : NSColor(hex: "#B86E00"),
+            gitStaged: isDark ? NSColor(hex: "#5BBE7A") : NSColor(hex: "#2F8A4C"),
+            gitUntracked: isDark ? NSColor(hex: "#8E8A83") : NSColor(hex: "#8A867F"),
+            gitConflict: isDark ? NSColor(hex: "#FF6B5E") : NSColor(hex: "#C42B1C"),
+            warningFill: isDark ? NSColor(hex: "#2E2514") : NSColor(hex: "#FBEFD0"),
+            errorFill: isDark ? NSColor(hex: "#3A1F1B") : NSColor(hex: "#FCE9E6")
         )
+    }
+
+    /// Inputs shared by `ThemeManager` and drawing code that runs outside the main actor.
+    struct Inputs: Equatable, Sendable {
+        var choice: ThemeChoice = .system
+        var increaseContrast = false
+        var usesDetoursAccent = true
+    }
+
+    private static let sharedInputs = OSAllocatedUnfairLock(initialState: Inputs())
+
+    static var currentInputs: Inputs {
+        get { sharedInputs.withLock { $0 } }
+        set { sharedInputs.withLock { $0 = newValue } }
+    }
+
+    /// The theme for the appearance currently drawing, from the same inputs as `ThemeManager`.
+    static func currentSnapshot() -> Theme {
+        resolve(inputs: currentInputs, appearance: NSAppearance.currentDrawing())
+    }
+
+    static func resolve(inputs: Inputs, appearance: NSAppearance) -> Theme {
+        let isDark = (inputs.choice.appearanceName ?? appearance.bestMatch(from: [.darkAqua, .aqua])) == .darkAqua
+        let accent: Accent
+        if inputs.usesDetoursAccent {
+            accent = .detours
+        } else {
+            let resolvedAppearance = NSAppearance(named: isDark ? .darkAqua : .aqua) ?? appearance
+            accent = systemAccent(in: resolvedAppearance)
+        }
+        return resolve(isDark: isDark, increaseContrast: inputs.increaseContrast, accent: accent)
+    }
+
+    private static func systemAccent(in appearance: NSAppearance) -> Accent {
+        var resolved: (NSColor, NSColor, NSColor) = (.controlAccentColor, .selectedContentBackgroundColor, .selectedTextColor)
+        appearance.performAsCurrentDrawingAppearance {
+            resolved = (
+                concrete(NSColor.controlAccentColor),
+                concrete(NSColor.selectedContentBackgroundColor),
+                concrete(NSColor.alternateSelectedControlTextColor)
+            )
+        }
+        return .system(accent: resolved.0, selectionFill: resolved.1, selectionText: resolved.2)
+    }
+
+    private static func concrete(_ color: NSColor) -> NSColor {
+        guard let srgb = color.usingColorSpace(.sRGB) else { return color }
+        return NSColor(red: srgb.redComponent, green: srgb.greenComponent, blue: srgb.blueComponent, alpha: srgb.alphaComponent)
     }
 }

@@ -5,8 +5,6 @@ private let dragLogger = Logger(subsystem: "com.detours", category: "drag")
 
 final class PaneTabBar: NSView {
     private var tabButtons: [TabButton] = []
-    private let backButton = NSButton()
-    private let forwardButton = NSButton()
     private let newTabButton = NSButton()
     private let scrollView = NSScrollView()
     private let tabContainer = NSView()
@@ -24,32 +22,6 @@ final class PaneTabBar: NSView {
     private var dropIndicatorIndex: Int?
     private var fileDropTargetTabIndex: Int?
 
-    // MARK: - Colors (from theme)
-
-    private var surfaceColor: NSColor {
-        ThemeManager.shared.currentTheme.surface
-    }
-
-    private var backgroundColor: NSColor {
-        ThemeManager.shared.currentTheme.background
-    }
-
-    private var accentColor: NSColor {
-        ThemeManager.shared.currentTheme.accent
-    }
-
-    private var textPrimaryColor: NSColor {
-        ThemeManager.shared.currentTheme.textPrimary
-    }
-
-    private var textSecondaryColor: NSColor {
-        ThemeManager.shared.currentTheme.textSecondary
-    }
-
-    private var borderColor: NSColor {
-        ThemeManager.shared.currentTheme.border
-    }
-
     // MARK: - Initialization
 
     override init(frame frameRect: NSRect) {
@@ -63,7 +35,6 @@ final class PaneTabBar: NSView {
     }
 
     private func setup() {
-        setupNavigationButtons()
         setupScrollView()
         setupNewTabButton()
         setupDragAndDrop()
@@ -88,30 +59,6 @@ final class PaneTabBar: NSView {
         updateNewTabButtonColor()
         // Re-pass colors to tabs
         paneViewController?.refreshTabBar()
-    }
-
-    private func setupNavigationButtons() {
-        backButton.bezelStyle = .inline
-        backButton.image = NSImage(systemSymbolName: "chevron.left", accessibilityDescription: "Back")
-        backButton.imagePosition = .imageOnly
-        backButton.target = self
-        backButton.action = #selector(backClicked)
-        backButton.toolTip = "Back"
-        backButton.setAccessibilityIdentifier("paneBackButton")
-
-        forwardButton.bezelStyle = .inline
-        forwardButton.image = NSImage(systemSymbolName: "chevron.right", accessibilityDescription: "Forward")
-        forwardButton.imagePosition = .imageOnly
-        forwardButton.target = self
-        forwardButton.action = #selector(forwardClicked)
-        forwardButton.toolTip = "Forward"
-        forwardButton.setAccessibilityIdentifier("paneForwardButton")
-
-        addSubview(backButton)
-        addSubview(forwardButton)
-
-        backButton.translatesAutoresizingMaskIntoConstraints = false
-        forwardButton.translatesAutoresizingMaskIntoConstraints = false
     }
 
     private func setupScrollView() {
@@ -141,22 +88,12 @@ final class PaneTabBar: NSView {
 
         newTabButton.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            backButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6),
-            backButton.centerYAnchor.constraint(equalTo: centerYAnchor),
-            backButton.widthAnchor.constraint(equalToConstant: 24),
-            backButton.heightAnchor.constraint(equalToConstant: 24),
-
-            forwardButton.leadingAnchor.constraint(equalTo: backButton.trailingAnchor, constant: 2),
-            forwardButton.centerYAnchor.constraint(equalTo: centerYAnchor),
-            forwardButton.widthAnchor.constraint(equalToConstant: 24),
-            forwardButton.heightAnchor.constraint(equalToConstant: 24),
-
             newTabButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
             newTabButton.centerYAnchor.constraint(equalTo: centerYAnchor),
             newTabButton.widthAnchor.constraint(equalToConstant: 28),
             newTabButton.heightAnchor.constraint(equalToConstant: 28),
 
-            scrollView.leadingAnchor.constraint(equalTo: forwardButton.trailingAnchor, constant: 6),
+            scrollView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
             scrollView.topAnchor.constraint(equalTo: topAnchor),
             scrollView.bottomAnchor.constraint(equalTo: bottomAnchor),
             scrollView.trailingAnchor.constraint(equalTo: newTabButton.leadingAnchor, constant: -4),
@@ -167,20 +104,22 @@ final class PaneTabBar: NSView {
         registerForDraggedTypes([Self.tabPasteboardType, .fileURL])
     }
 
+    static let barHeight: CGFloat = 40
+    static let tabGap: CGFloat = 2
+
     override var intrinsicContentSize: NSSize {
-        NSSize(width: NSView.noIntrinsicMetric, height: 32)
+        NSSize(width: NSView.noIntrinsicMetric, height: Self.barHeight)
     }
 
     override var isOpaque: Bool { true }
 
     override func draw(_ dirtyRect: NSRect) {
         let theme = ThemeManager.shared.currentTheme
-        let fillColor = isActive ? theme.surface : (theme.surface.blended(withFraction: 0.50, of: theme.background) ?? theme.surface)
-        fillColor.setFill()
+        theme.header.setFill()
         bounds.fill()
 
         // Bottom separator
-        (isActive ? theme.border : theme.border.withAlphaComponent(0.65)).setFill()
+        theme.hairline.setFill()
         NSRect(x: 0, y: 0, width: bounds.width, height: 1).fill()
 
         // Draw drop indicator if needed
@@ -208,14 +147,7 @@ final class PaneTabBar: NSView {
                 title: tab.title,
                 symbolName: symbolName,
                 isSelected: index == selectedIndex,
-                colors: TabButton.Colors(
-                    surface: surfaceColor,
-                    background: backgroundColor,
-                    border: borderColor,
-                    accent: accentColor,
-                    textPrimary: textPrimaryColor,
-                    textSecondary: textSecondaryColor
-                )
+                theme: ThemeManager.shared.currentTheme
             )
             button.toolTip = tab.displayPath
             button.tabAction = { [weak self] in self?.tabClicked(index) }
@@ -242,14 +174,6 @@ final class PaneTabBar: NSView {
         scrollToTab(at: index)
     }
 
-    func updateNavigationState(canGoBack: Bool, canGoForward: Bool) {
-        backButton.isEnabled = canGoBack
-        backButton.alphaValue = canGoBack ? 1.0 : 0.4
-
-        forwardButton.isEnabled = canGoForward
-        forwardButton.alphaValue = canGoForward ? 1.0 : 0.4
-    }
-
     func setActive(_ active: Bool) {
         isActive = active
         for button in tabButtons {
@@ -267,35 +191,19 @@ final class PaneTabBar: NSView {
 
     private func layoutTabButtons() {
         var xOffset: CGFloat = 0
-        let height: CGFloat = 32
+        let height = Self.barHeight
 
-        for button in tabButtons {
+        for (index, button) in tabButtons.enumerated() {
             let width = button.idealWidth
             button.frame = NSRect(x: xOffset, y: 0, width: width, height: height)
-            xOffset += width
+            xOffset += width + (index < tabButtons.count - 1 ? Self.tabGap : 0)
         }
 
         tabContainer.frame = NSRect(x: 0, y: 0, width: xOffset, height: height)
     }
 
     private func updateNewTabButtonColor() {
-        let background = isActive ? surfaceColor : (surfaceColor.blended(withFraction: 0.50, of: backgroundColor) ?? surfaceColor)
-        let color = ChromeContrast.readableTextColor(
-            preferred: textSecondaryColor,
-            fallback: textPrimaryColor,
-            on: background
-        )
-        let config = NSImage.SymbolConfiguration(paletteColors: [color])
-
-        if let backImage = NSImage(systemSymbolName: "chevron.left", accessibilityDescription: "Back")?
-            .withSymbolConfiguration(config) {
-            backButton.image = backImage
-        }
-        if let forwardImage = NSImage(systemSymbolName: "chevron.right", accessibilityDescription: "Forward")?
-            .withSymbolConfiguration(config) {
-            forwardButton.image = forwardImage
-        }
-
+        let color = ChromeContrast.chromeSecondaryText(for: ThemeManager.shared.currentTheme)
         // New tab button uses text, set attributed title
         let attrs: [NSAttributedString.Key: Any] = [
             .foregroundColor: color,
@@ -362,14 +270,6 @@ final class PaneTabBar: NSView {
 
     @objc func newTabClicked() {
         delegate?.tabBarDidRequestNewTab()
-    }
-
-    @objc private func backClicked() {
-        delegate?.tabBarDidRequestBack()
-    }
-
-    @objc private func forwardClicked() {
-        delegate?.tabBarDidRequestForward()
     }
 
     // MARK: - Drag Source
@@ -544,13 +444,8 @@ final class PaneTabBar: NSView {
     private func tabIndexAt(x: CGFloat) -> Int? {
         // Convert x from tab bar coordinates to tab container coordinates
         let locationInContainer = tabContainer.convert(NSPoint(x: x, y: 0), from: self)
-        var xOffset: CGFloat = 0
-
-        for (index, button) in tabButtons.enumerated() {
-            if locationInContainer.x >= xOffset && locationInContainer.x < xOffset + button.frame.width {
-                return index
-            }
-            xOffset += button.frame.width
+        for (index, button) in tabButtons.enumerated() where locationInContainer.x < button.frame.maxX + Self.tabGap {
+            return index
         }
 
         return nil
@@ -558,9 +453,11 @@ final class PaneTabBar: NSView {
 
     private func xPositionForIndex(_ index: Int) -> CGFloat {
         // Calculate x position in tab container coordinates
-        var xInContainer: CGFloat = 0
-        for i in 0..<min(index, tabButtons.count) {
-            xInContainer += tabButtons[i].frame.width
+        let xInContainer: CGFloat
+        if index < tabButtons.count {
+            xInContainer = tabButtons[index].frame.minX - (index > 0 ? Self.tabGap / 2 : 0)
+        } else {
+            xInContainer = tabButtons.last?.frame.maxX ?? 0
         }
         // Convert to tab bar coordinates for drawing
         let pointInTabBar = convert(NSPoint(x: xInContainer, y: 0), from: tabContainer)

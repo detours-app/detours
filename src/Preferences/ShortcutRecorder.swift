@@ -18,11 +18,11 @@ struct ShortcutRecorder: View {
                 .frame(minWidth: 80, alignment: .trailing)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(isRecording ? Color(ThemeManager.shared.currentTheme.accent).opacity(0.2) : Color(ThemeManager.shared.currentTheme.surface))
+                .background(isRecording ? Color(ThemeManager.shared.currentTheme.accent).opacity(0.2) : Color(ThemeManager.shared.currentTheme.header))
                 .cornerRadius(6)
                 .overlay(
                     RoundedRectangle(cornerRadius: 6)
-                        .stroke(isRecording ? Color(ThemeManager.shared.currentTheme.accent) : Color(ThemeManager.shared.currentTheme.border), lineWidth: 1)
+                        .stroke(isRecording ? Color(ThemeManager.shared.currentTheme.accent) : Color(ThemeManager.shared.currentTheme.hairline), lineWidth: 1)
                 )
         }
         .buttonStyle(.plain)

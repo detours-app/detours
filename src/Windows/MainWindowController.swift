@@ -64,7 +64,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
 
         let window = MainWindow(
             contentRect: NSRect(origin: .zero, size: contentSize),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -137,7 +137,8 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func applyThemeBackground() {
-        window?.backgroundColor = ThemeManager.shared.currentTheme.background
+        window?.backgroundColor = ThemeManager.shared.currentTheme.content
+        splitViewController.splitView.needsDisplay = true
     }
 
     func resizeForUITest(to size: NSSize) {

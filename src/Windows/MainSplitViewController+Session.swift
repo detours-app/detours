@@ -98,6 +98,36 @@ extension MainSplitViewController {
         restorePane(rightPane, keys: .right)
     }
 
+    /// Renames and moves on the fake remote run through recorded operations, so they need an
+    /// operation service: the bundled helper, run locally.
+    private func registerUITestRemoteProvider(_ provider: UITestRemoteProvider, host: RemoteHost, helper: UITestLocalHelper) {
+        Task {
+            await provider.bindOperationService(
+                request: { try await helper.operationRequest($0) },
+                upload: { try await helper.prepareUpload($0, identity: $1) }
+            )
+        }
+        FileOperationQueue.shared.registerRemoteFileProvider(
+            provider,
+            for: host.id,
+            displayName: host.displayName,
+            operationEndpoint: helper.endpoint()
+        )
+    }
+
+    private static func makeUITestLocalHelper() -> UITestLocalHelper {
+        guard let controlDirectory = UITestEnvironment.controlDirectory else {
+            fatalError("The UI-test remote needs a control directory for its local helper")
+        }
+        do {
+            return try UITestLocalHelper(
+                operationHome: controlDirectory.appendingPathComponent(".detours-operation-home", isDirectory: true)
+            )
+        } catch {
+            fatalError("The UI-test local helper did not start: \(error.localizedDescription)")
+        }
+    }
+
     /// UI-test seam: turn the left pane's active tab into a remote tab backed by the test root,
     /// so the remote-aware Quick Open tests can run without a live SSH server.
     private func installUITestRemoteTab(root: URL, mode: UITestEnvironment.RemoteMode) {
@@ -110,11 +140,8 @@ extension MainSplitViewController {
             kind: isWindowsFailureMode ? .windows : nil
         )
         let provider = UITestRemoteProvider(hostID: host.id, base: root)
-        FileOperationQueue.shared.registerRemoteFileProvider(
-            provider,
-            for: host.id,
-            displayName: host.displayName
-        )
+        let operationHelper = Self.makeUITestLocalHelper()
+        registerUITestRemoteProvider(provider, host: host, helper: operationHelper)
         guard let tab = leftPane.selectedTab else { return }
         tab.fileListViewController.loadRemoteDirectory(host: host, path: "/", provider: provider)
         if UITestEnvironment.mirrorsRemoteInBothPanes,
@@ -131,11 +158,7 @@ extension MainSplitViewController {
                 sshTarget: "uitest-2@localhost"
             )
             let secondProvider = UITestRemoteProvider(hostID: secondHost.id, base: root)
-            FileOperationQueue.shared.registerRemoteFileProvider(
-                secondProvider,
-                for: secondHost.id,
-                displayName: secondHost.displayName
-            )
+            registerUITestRemoteProvider(secondProvider, host: secondHost, helper: operationHelper)
             rightTab.fileListViewController.loadRemoteDirectory(
                 host: secondHost,
                 path: "/",

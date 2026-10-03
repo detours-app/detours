@@ -7,25 +7,8 @@ private func chromePolishScopeText(_ element: XCUIElement) -> String {
 
 final class ChromePolishUITests: BaseUITest {
     private let quickNavCommandFileName = ".detours-quick-nav-command.json"
-    private let appearanceSettingsCommandFileName = ".detours-appearance-settings.json"
-    private let appearanceSettingsAcknowledgementFileName = ".detours-appearance-settings-applied.json"
     private let screenshotSparseBundleName = "Specs.sparsebundle"
     private let screenshotDiskImageName = "Detours.dmg"
-    private let screenshotFileServerName = "Acme NAS"
-
-    private struct AppearanceSettingsCommand: Encodable {
-        let id: String
-        let theme: String
-        let fontSize: Int
-        let fileListRowDensity: String
-    }
-
-    private struct AppearanceSettingsAcknowledgement: Decodable {
-        let id: String
-        let applied: Bool
-        let checkedTextCount: Int
-        let failure: String?
-    }
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -79,6 +62,13 @@ final class ChromePolishUITests: BaseUITest {
 
     func testPaneChromePreservesNavigation() throws {
         launchChromePolishApp()
+        // The test folder's long generated name only fits the path bar, which also holds Back and
+        // Forward, in a wide window; otherwise it folds into the ellipsis, which cannot be clicked.
+        let originalSize = app.windows.firstMatch.frame.size
+        try resizeMainWindow(width: 1700, height: originalSize.height)
+        addTeardownBlock { @MainActor [self] in
+            try? resizeMainWindow(width: originalSize.width, height: originalSize.height)
+        }
 
         openFolderB()
         clickPathCrumb(named: testFolderName)
@@ -140,10 +130,12 @@ final class ChromePolishUITests: BaseUITest {
         assertPaneHasKeyboardFocus("right", after: "clicking the titlebar above the right pane")
     }
 
+    /// The guarded runner attaches Foundry's screenshot demo disk images for this test. The file
+    /// server eject button is covered by `SidebarTests.testMountedVolumeAccessoryLabels`.
     func testSidebarMountedVolumesExposeEject() throws {
-        // Needs the mounted demo volumes staged by screenshot-setup.sh, which a guarded
-        // qualification root does not provide.
-        try skipWithoutScreenshotVolumes()
+        for name in [screenshotSparseBundleName, screenshotDiskImageName] {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: "/Volumes/\(name)"), "The runner should have mounted \(name)")
+        }
         launchChromePolishApp()
 
         assertSidebarRow(
@@ -154,10 +146,6 @@ final class ChromePolishUITests: BaseUITest {
             named: screenshotDiskImageName,
             exposesEjectButton: "Eject \(screenshotDiskImageName)"
         )
-        assertSidebarRow(
-            named: screenshotFileServerName,
-            exposesEjectButton: "Eject mounted shares from \(screenshotFileServerName)"
-        )
     }
 
     func testNoTextOverlapAcrossDensitiesAndThemes() throws {
@@ -166,7 +154,7 @@ final class ChromePolishUITests: BaseUITest {
             try? applyAppearanceSettings(theme: "system", fontSize: 13, density: "compact")
         }
 
-        let themes = ["system", "light", "dark", "foolscap", "drafting"]
+        let themes = ["system", "light", "dark"]
         let densities = ["compact", "comfortable", "spacious"]
 
         for theme in themes {
@@ -175,14 +163,6 @@ final class ChromePolishUITests: BaseUITest {
                     try applyAppearanceSettings(theme: theme, fontSize: fontSize, density: density)
                 }
             }
-        }
-    }
-
-    private func skipWithoutScreenshotVolumes() throws {
-        let mounted = ["/Volumes/\(screenshotSparseBundleName)", "/Volumes/\(screenshotDiskImageName)"]
-        let missing = mounted.filter { !FileManager.default.fileExists(atPath: $0) }
-        guard missing.isEmpty else {
-            throw XCTSkip("Screenshot demo volumes are not mounted: " + missing.joined(separator: ", "))
         }
     }
 
@@ -218,69 +198,8 @@ final class ChromePolishUITests: BaseUITest {
         try? FileManager.default.removeItem(at: uiTestControlRootURL.appendingPathComponent(quickNavCommandFileName))
     }
 
-    private func removeAppearanceSettingsCommand() {
-        try? FileManager.default.removeItem(at: uiTestControlRootURL.appendingPathComponent(appearanceSettingsCommandFileName))
-        try? FileManager.default.removeItem(at: uiTestControlRootURL.appendingPathComponent(appearanceSettingsAcknowledgementFileName))
-    }
-
-    private func applyAppearanceSettings(theme: String, fontSize: Int, density: String) throws {
-        let command = AppearanceSettingsCommand(
-            id: UUID().uuidString,
-            theme: theme,
-            fontSize: fontSize,
-            fileListRowDensity: density
-        )
-        // Control files live in the runner's own control root, which the app reads through
-        // its control directory. The fixture root is not writable from the sandboxed runner.
-        let commandURL = uiTestControlRootURL.appendingPathComponent(appearanceSettingsCommandFileName)
-        let acknowledgementURL = uiTestControlRootURL.appendingPathComponent(appearanceSettingsAcknowledgementFileName)
-
-        try? FileManager.default.removeItem(at: acknowledgementURL)
-        try JSONEncoder().encode(command).write(to: commandURL, options: .atomic)
-
-        let deadline = Date().addingTimeInterval(4)
-        while Date() < deadline {
-            if let data = try? Data(contentsOf: acknowledgementURL),
-               let acknowledgement = try? JSONDecoder().decode(AppearanceSettingsAcknowledgement.self, from: data),
-               acknowledgement.id == command.id {
-                XCTAssertTrue(
-                    acknowledgement.applied,
-                    "App should apply appearance settings theme=\(theme) fontSize=\(fontSize) density=\(density): \(acknowledgement.failure ?? "unknown failure")"
-                )
-                XCTAssertGreaterThan(
-                    acknowledgement.checkedTextCount,
-                    8,
-                    "Expected visible text in file list, sidebar, tabs, path, and status for theme=\(theme) fontSize=\(fontSize) density=\(density)"
-                )
-                return
-            }
-            usleep(50_000)
-        }
-
-        XCTFail("Timed out applying appearance settings theme=\(theme) fontSize=\(fontSize) density=\(density)")
-    }
-
     private func setFileListDensity(_ displayName: String) {
-        pressCharKey(",", modifiers: .command)
-
-        let preferencesWindow = app.windows["Preferences"]
-        XCTAssertTrue(preferencesWindow.waitForExistence(timeout: 3), "Preferences window should open")
-
-        let appearanceSection = app.staticTexts["Appearance"]
-        XCTAssertTrue(appearanceSection.waitForExistence(timeout: 2), "Appearance settings section should exist")
-        appearanceSection.click()
-
-        let picker = app.descendants(matching: .any)["fileListDensityPicker"]
-        XCTAssertTrue(picker.waitForExistence(timeout: 2), "File list density picker should exist")
-        picker.click()
-
-        let menuItem = app.menuItems[displayName]
-        XCTAssertTrue(menuItem.waitForExistence(timeout: 2), "\(displayName) density menu item should exist")
-        menuItem.click()
-        sleep(1)
-
-        pressCharKey("w", modifiers: .command)
-        XCTAssertFalse(preferencesWindow.waitForExistence(timeout: 2), "Preferences window should close")
+        choosePreference(inPicker: "fileListDensityPicker", option: displayName)
         app.windows.firstMatch.click()
     }
 
@@ -314,11 +233,23 @@ final class ChromePolishUITests: BaseUITest {
         let pathControl = app.descendants(matching: .any)
             .matching(identifier: "panePathControl")
             .element(boundBy: 0)
-        XCTAssertTrue(pathControl.waitForExistence(timeout: 3), "Path control should exist")
+        if !pathControl.waitForExistence(timeout: 3) {
+            logAccessibilityTree(of: app.windows.firstMatch, because: "the path control is missing")
+        }
+        XCTAssertTrue(pathControl.exists, "Path control should exist")
 
         let crumb = pathControl.staticTexts[title]
-        XCTAssertTrue(crumb.waitForExistence(timeout: 3), "\(title) breadcrumb should exist")
+        if !crumb.waitForExistence(timeout: 3) {
+            logAccessibilityTree(of: pathControl, because: "the \(title) breadcrumb is missing")
+        }
+        XCTAssertTrue(crumb.exists, "\(title) breadcrumb should exist")
         crumb.click()
+    }
+
+    /// Standard error is unbuffered, so the tree reaches the run's log even when the guarded
+    /// runner stops the run at the failure that follows.
+    private func logAccessibilityTree(of element: XCUIElement, because reason: String) {
+        FileHandle.standardError.write(Data("Accessibility tree because \(reason):\n\(element.debugDescription)\n".utf8))
     }
 
     private func assertPaneHasKeyboardFocus(

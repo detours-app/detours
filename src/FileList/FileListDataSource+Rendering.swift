@@ -13,7 +13,7 @@ extension FileListDataSource {
         case "Size":
             return makeSizeCell(for: fileItem, outlineView: outlineView)
         case "Date":
-            return makeTextCell(text: fileItem.formattedDate, outlineView: outlineView, identifier: "DateCell", alignment: .right, leadingPadding: 12, trailingPadding: 12)
+            return makeTextCell(text: fileItem.formattedDate, outlineView: outlineView, identifier: "DateCell", alignment: .right)
         default:
             return nil
         }
@@ -142,15 +142,15 @@ extension FileListDataSource {
         return cell
     }
 
-    private func makeTextCell(text: String, outlineView: NSOutlineView, identifier: String, alignment: NSTextAlignment, leadingPadding: CGFloat = 4, trailingPadding: CGFloat = 4) -> NSView {
+    private func makeTextCell(text: String, outlineView: NSOutlineView, identifier: String, alignment: NSTextAlignment, leadingPadding: CGFloat = FileListRowMetrics.cellPadding, trailingPadding: CGFloat = FileListRowMetrics.cellPadding) -> NSView {
         let id = NSUserInterfaceItemIdentifier(identifier)
         let theme = ThemeManager.shared.currentTheme
 
         if let cell = outlineView.makeView(withIdentifier: id, owner: nil) as? ThemedTextCell {
             cell.textField?.stringValue = text
             // Always update theme colors on reused cells
-            cell.textField?.font = theme.font(size: ThemeManager.shared.fontSize - 1)
-            cell.textField?.textColor = theme.textSecondary
+            cell.textField?.font = theme.numericFont(size: ThemeManager.shared.fontSize - 1)
+            cell.updateTextColor()
             return cell
         }
 
@@ -158,7 +158,7 @@ extension FileListDataSource {
         cell.identifier = id
 
         let textField = NSTextField(labelWithString: text)
-        textField.font = theme.font(size: ThemeManager.shared.fontSize - 1)
+        textField.font = theme.numericFont(size: ThemeManager.shared.fontSize - 1)
         textField.textColor = theme.textSecondary
         textField.alignment = alignment
         textField.lineBreakMode = .byTruncatingTail

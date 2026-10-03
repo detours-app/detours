@@ -74,7 +74,7 @@ struct ConnectToServerView: View {
                 if !model.urlString.isEmpty && !model.isValidURL {
                     Text("Enter a valid smb:// or nfs:// URL")
                         .font(.caption)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Color(ThemeManager.shared.currentTheme.errorText))
                 }
             }
 
@@ -106,7 +106,7 @@ struct ConnectToServerView: View {
                                 .padding(.horizontal, 8)
                                 .background(
                                     RoundedRectangle(cornerRadius: 6)
-                                        .fill(Color(ThemeManager.shared.currentTheme.surface))
+                                        .fill(Color(ThemeManager.shared.currentTheme.sidebar))
                                 )
                             }
                         }

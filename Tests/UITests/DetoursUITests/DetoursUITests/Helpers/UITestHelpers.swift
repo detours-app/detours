@@ -122,6 +122,26 @@ extension BaseUITest {
         /// app rather than from a log stream, so taking it costs nothing.
         let lastRefreshMilliseconds: Double?
         let listingMutationCount: Int
+        let dragBeginCount: Int
+        let lastDrop: String?
+        let appAppearance: AppAppearanceState
+    }
+
+    /// App-wide appearance, accent and Dock icon as the app reports them.
+    struct AppAppearanceState: Decodable {
+        let appearance: String?
+        let effectiveAppearance: String
+        let windowAppearances: [String]
+        let usesDetoursAccent: Bool
+        let selectionFill: String
+        let dockIcon: String?
+        let dockImageIsDeepSea: Bool
+        let dockImageDeepSeaDifference: Double?
+        let dockImageStandardDifference: Double?
+        let increaseContrast: Bool
+        let differentiateWithoutColor: Bool
+        let reduceMotion: Bool
+        let keyboardNavigation: Bool
     }
 
     struct RemoteProviderCall: Decodable {

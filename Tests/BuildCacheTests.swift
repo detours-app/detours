@@ -2,21 +2,23 @@ import Foundation
 import XCTest
 
 final class BuildCacheTests: XCTestCase {
-    func testWholeUIRunIncludesSeparatelySeededGeometryCases() throws {
+    func testWholeUIRunIncludesSeparatelySeededCases() throws {
         let script = try String(contentsOfFile: "resources/scripts/qualification-workflows.sh", encoding: .utf8)
         let start = try XCTUnwrap(script.range(of: "run_installed_all() {"))
         let end = try XCTUnwrap(script.range(of: "run_installed_qualification_batch() {"))
         let runner = String(script[start.lowerBound..<end.lowerBound])
         for test in [
-            "testOversizedSavedWindowFrameComesBackAtItsSavedSize",
-            "testPoisonedSavedWindowFrameFallsBackWithoutJump",
-            "testPoisonedSplitDefaultsFallBackWithoutUnusablePanes",
+            "WindowPaneGeometryUITests/testOversizedSavedWindowFrameComesBackAtItsSavedSize",
+            "WindowPaneGeometryUITests/testPoisonedSavedWindowFrameFallsBackWithoutJump",
+            "WindowPaneGeometryUITests/testPoisonedSplitDefaultsFallBackWithoutUnusablePanes",
+            "ChromePolishUITests/testSidebarMountedVolumesExposeEject",
+            "QuietProCaptureTests/testCaptureAccessibilityScenes",
         ] {
-            XCTAssertTrue(runner.contains("-skip-testing:DetoursUITests/WindowPaneGeometryUITests/\(test)"))
-            XCTAssertEqual(runner.components(separatedBy: test).count, 3, "Each case must also run with its seed")
+            XCTAssertTrue(runner.contains("-skip-testing:DetoursUITests/\(test)"), "\(test) must be left out of the shared batch")
+            XCTAssertEqual(runner.components(separatedBy: test).count, 3, "\(test) must also run with its seed")
         }
         XCTAssertTrue(runner.contains("run_installed_once session LOCAL_ROOT 1"))
-        XCTAssertTrue(runner.contains("WindowPaneGeometryUITests/$DETOURS_GEOMETRY_CASE"))
+        XCTAssertTrue(runner.contains("\"\" LOCAL_ROOT \"$DETOURS_SEEDED_CASE\""))
     }
 
     func testBundleUsesTheExecutableReportedByTheCurrentBuild() throws {

@@ -251,7 +251,8 @@ extension FileListViewController {
 
         let overlay = NSView()
         overlay.wantsLayer = true
-        overlay.layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.88).cgColor
+        let theme = ThemeManager.shared.currentTheme
+        overlay.layer?.backgroundColor = theme.content.cgColor
         overlay.translatesAutoresizingMaskIntoConstraints = false
 
         let progress = NSProgressIndicator()
@@ -265,7 +266,8 @@ extension FileListViewController {
 
         let label = NSTextField(labelWithString: "Downloading remote preview...")
         label.alignment = .center
-        label.textColor = .secondaryLabelColor
+        label.font = theme.uiFont(size: 12)
+        label.textColor = theme.textSecondary
         label.translatesAutoresizingMaskIntoConstraints = false
 
         overlay.addSubview(progress)

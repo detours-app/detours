@@ -125,7 +125,8 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         field.stringValue = item.name
         let theme = ThemeManager.shared.currentTheme
         field.font = ThemeManager.shared.currentFont
-        field.textColor = ChromeContrast.fileListSelectedForeground(for: theme)
+        // An opaque field keeps the edited name and its text selection readable on any selection fill.
+        field.textColor = theme.textPrimary
         field.isEditable = true
         field.isSelectable = true
         field.isBezeled = false
@@ -133,8 +134,8 @@ final class RenameController: NSObject, NSTextFieldDelegate {
         field.refusesFirstResponder = false
         field.focusRingType = .none
         field.delegate = self
-        field.drawsBackground = false
-        field.backgroundColor = .clear
+        field.drawsBackground = true
+        field.backgroundColor = theme.content
         field.cell?.usesSingleLineMode = true
         field.cell?.wraps = false
         field.lineBreakMode = .byTruncatingTail

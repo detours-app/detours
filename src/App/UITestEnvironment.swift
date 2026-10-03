@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 
 enum UITestEnvironment {
     static let commandReadyNotificationName = Notification.Name("com.detours.uitest.command-ready")
@@ -209,6 +209,53 @@ enum UITestEnvironment {
         let refreshRequestCount: Int
         let listingMutationCount: Int
         let lastRefreshMilliseconds: Double?
+        let dragBeginCount: Int
+        let lastDrop: String?
+        let appAppearance: AppAppearanceState
+    }
+
+    /// App-wide appearance, accent and Dock icon, which XCUI cannot read from pixels alone.
+    struct AppAppearanceState: Encodable {
+        let appearance: String?
+        let effectiveAppearance: String
+        let windowAppearances: [String]
+        let usesDetoursAccent: Bool
+        let selectionFill: String
+        let dockIcon: String?
+        let dockImageIsDeepSea: Bool
+        let dockImageDeepSeaDifference: Double?
+        let dockImageStandardDifference: Double?
+        let increaseContrast: Bool
+        let differentiateWithoutColor: Bool
+        let reduceMotion: Bool
+        let keyboardNavigation: Bool
+
+        @MainActor
+        static func current() -> AppAppearanceState {
+            let theme = ThemeManager.shared.currentTheme
+            let dockImageDifferences = DockIconManager.shared.shownImageDifferences
+            return AppAppearanceState(
+                appearance: NSApplication.shared.appearance?.name.rawValue,
+                effectiveAppearance: appearanceName(NSApplication.shared.effectiveAppearance),
+                windowAppearances: NSApplication.shared.windows.filter(\.isVisible).map {
+                    "\($0.title.isEmpty ? String(describing: type(of: $0)) : $0.title)=\(appearanceName($0.effectiveAppearance))"
+                },
+                usesDetoursAccent: theme.usesDetoursAccent,
+                selectionFill: theme.selectionFill.hexString,
+                dockIcon: DockIconManager.shared.appliedChoice?.rawValue,
+                dockImageIsDeepSea: DockIconManager.shared.showsDeepSeaImage,
+                dockImageDeepSeaDifference: dockImageDifferences?.deepSea,
+                dockImageStandardDifference: dockImageDifferences?.standard,
+                increaseContrast: theme.increaseContrast,
+                differentiateWithoutColor: NSWorkspace.shared.accessibilityDisplayShouldDifferentiateWithoutColor,
+                reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
+                keyboardNavigation: NSApplication.shared.isFullKeyboardAccessEnabled
+            )
+        }
+
+        private static func appearanceName(_ appearance: NSAppearance) -> String {
+            appearance.bestMatch(from: [.aqua, .darkAqua])?.rawValue ?? appearance.name.rawValue
+        }
     }
 
     static var isEnabled: Bool {

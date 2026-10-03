@@ -7,7 +7,7 @@ import Glibc
 #endif
 
 extension ServerOperationService {
-    static func live() async throws -> ServerOperationService {
+    static func live(homeDirectory: URL? = nil) async throws -> ServerOperationService {
         let hostIdentity: String
         #if canImport(Darwin)
         var hostUUID = UUID().uuid
@@ -20,8 +20,9 @@ extension ServerOperationService {
         hostIdentity = machineID.lowercased()
         #endif
         let account = OperationAccount(hostIdentity: hostIdentity, accountIdentity: "uid:\(getuid())")
-        let root = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".detours-server/operations")
-        return try await ServerOperationService(root: root, account: account)
+        let home = homeDirectory ?? FileManager.default.homeDirectoryForCurrentUser
+        let root = home.appendingPathComponent(".detours-server/operations")
+        return try await ServerOperationService(root: root, account: account, homeDirectory: home)
     }
 
     func reply(to request: OperationRequest) async throws -> OperationReply {
@@ -119,10 +120,11 @@ final class ServerOperationReplyBridge: @unchecked Sendable {
     private let lock = NSLock()
     private var result: Result<OperationReply, Error>?
 
-    static func reply(to request: OperationRequest, service: ServerOperationService?) throws -> OperationReply {
+    static func reply(to request: OperationRequest, service: ServerOperationService?,
+                      homeDirectory: URL? = nil) throws -> OperationReply {
         try perform {
             let active: ServerOperationService
-            if let service { active = service } else { active = try await ServerOperationService.live() }
+            if let service { active = service } else { active = try await ServerOperationService.live(homeDirectory: homeDirectory) }
             return try await active.reply(to: request)
         }
     }

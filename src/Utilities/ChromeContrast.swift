@@ -3,42 +3,52 @@ import AppKit
 enum ChromeContrast {
     static let minimumNormalTextContrast: CGFloat = 4.5
     static let minimumStateIndicatorContrast: CGFloat = 3.0
-    static let fileListSelectionAlpha: CGFloat = 0.28
-    static let sidebarSelectionAlpha: CGFloat = 0.24
 
-    static func fileListSelectionFill(for theme: Theme) -> NSColor {
-        blend(theme.accent, alpha: fileListSelectionAlpha, over: theme.background)
+    static func fileListSelectionFill(for theme: Theme, active: Bool = true) -> NSColor {
+        active ? theme.selectionFill : theme.inactiveSelection
     }
 
-    static func sidebarSelectionFill(for theme: Theme) -> NSColor {
-        blend(theme.accent, alpha: sidebarSelectionAlpha, over: theme.surface)
+    static func fileListSelectedForeground(for theme: Theme, active: Bool = true) -> NSColor {
+        active ? theme.selectionText : theme.textPrimary
     }
 
-    static func fileListSelectedForeground(for theme: Theme) -> NSColor {
-        let background = fileListSelectionFill(for: theme)
-        return readableTextColor(
-            preferred: theme.accentText,
-            fallback: theme.textPrimary,
-            on: background
-        )
-    }
-
-    static func fileListSelectedSecondaryForeground(for theme: Theme) -> NSColor {
-        let background = fileListSelectionFill(for: theme)
-        let foreground = fileListSelectedForeground(for: theme)
-        let mutedForeground = foreground.withAlphaComponent(0.8)
-        if contrastRatio(foreground: mutedForeground, background: background) >= minimumNormalTextContrast {
-            return mutedForeground
+    static func fileListSelectedSecondaryForeground(for theme: Theme, active: Bool = true) -> NSColor {
+        if active {
+            return theme.selectionText
         }
-        return foreground
+        return readableTextColor(preferred: theme.textSecondary, fallback: theme.textPrimary, on: theme.inactiveSelection)
     }
 
     static func sidebarSelectedForeground(for theme: Theme) -> NSColor {
-        readableTextColor(
-            preferred: theme.textPrimary,
-            fallback: theme.accentText,
-            on: sidebarSelectionFill(for: theme)
-        )
+        theme.textPrimary
+    }
+
+    // MARK: - Chrome on the header surface
+
+    /// Path crumbs, tab titles, status text and the path bar's buttons
+    static func chromeSecondaryText(for theme: Theme) -> NSColor {
+        readableTextColor(preferred: theme.textSecondary, fallback: theme.textPrimary, on: theme.header)
+    }
+
+    static func pathSeparator(for theme: Theme) -> NSColor {
+        stateIndicatorColor(preferred: theme.glyph, fallback: theme.textSecondary, on: theme.header)
+    }
+
+    /// The active pane's current-tab underline
+    static func tabUnderline(for theme: Theme) -> NSColor {
+        stateIndicatorColor(preferred: theme.accent, fallback: theme.textPrimary, on: theme.header)
+    }
+
+    static func statusCompletionText(for theme: Theme) -> NSColor {
+        readableTextColor(preferred: theme.accent, fallback: theme.textPrimary, on: theme.header)
+    }
+
+    static func statusErrorText(for theme: Theme) -> NSColor {
+        readableTextColor(preferred: theme.errorText, fallback: theme.textPrimary, on: theme.header)
+    }
+
+    static func sidebarSelectedGlyph(for theme: Theme) -> NSColor {
+        stateIndicatorColor(preferred: theme.accent, fallback: sidebarSelectedForeground(for: theme), on: theme.sidebarSelection)
     }
 
     static func readableTextColor(preferred: NSColor, fallback: NSColor, on background: NSColor) -> NSColor {
@@ -80,6 +90,11 @@ enum ChromeContrast {
         let green = foreground.green * alpha + backdrop.green * (1 - alpha)
         let blue = foreground.blue * alpha + backdrop.blue * (1 - alpha)
         return NSColor(red: red, green: green, blue: blue, alpha: 1)
+    }
+
+    /// Composites a translucent token over an opaque surface, keeping the token's own alpha
+    static func flatten(_ color: NSColor, over background: NSColor) -> NSColor {
+        blend(color, alpha: rgba(color).alpha, over: background)
     }
 
     private static func rgba(_ color: NSColor) -> (red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) {

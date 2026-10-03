@@ -319,6 +319,9 @@ run_report() {
 run_cleanup() {
     local descriptors_dir descriptor fixture_file guard_binary
     local progress_dir progress_marker progress_tmp recorded_root root_path
+    # First, so a cleanup that fails on a leftover process still puts macOS settings back.
+    restore_accessibility_settings
+    detach_demo_volumes
     pkill -x Detours >/dev/null 2>&1 || true
     local _
     for _ in {1..50}; do

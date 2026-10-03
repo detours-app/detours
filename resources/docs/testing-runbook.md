@@ -188,6 +188,8 @@ Purpose: prove that production behavior is connected to visible and accessible U
 - Run a focused provider-specific XCUI boundary only when a changed UI adapter   cannot be proved by the local journey and that provider's Layer 2 contract.
 - Reuse one build and the minimum safe app/session setup.
 - Use immediate condition checks followed by bounded condition-based waits;   fixed sleeps are prohibited.
+- Drag with `click(forDuration:thenDragTo:)`. On macOS 27 `press(forDuration:thenDragTo:)` posts no mouse events, so no drag begins, and a test asserting that a drop is refused passes without dragging.
+- The fake remote (`DETOURS_UI_TEST_REMOTE`) lists through `UITestRemoteProvider` and sends renames and moves to the app's bundled helper, started locally with `--operation-home` inside the control folder so its operation records stay in the run root.
 
 Blocking wall-clock budget: 140 seconds for the single eight-journey whole-app batch. A focused one-journey gate retains its 90-second ceiling.
 
@@ -206,7 +208,9 @@ Disabling the sandbox on the UI test target would lift the write restriction. It
 
 `qualification.sh installed-all LOCAL_ROOT` runs the whole XCUI target once under the same preflight, sentry, outside-root comparison and cleanup as the workflow campaigns.
 
-The shared batch excludes only the three cases that require distinct saved preferences: oversized window, off-screen window, and unusable split frames. After that batch passes, the runner executes each through the seeded single-case launcher, reusing the build and writing a separate result bundle for each. These cases remain part of whole-target qualification; they are not omitted from coverage. Tests requiring a live host or screenshot fixture can still skip in `LOCAL_ROOT`, so that run does not replace a required provider-specific check.
+The shared batch excludes only the five cases that need state seeded before launch: the three that require distinct saved preferences (oversized window, off-screen window, and unusable split frames), the sidebar eject check, for which the runner attaches the two screenshot demo disk images that `resources/scripts/screenshot-setup.sh` leaves in `~/Projects/Volumes` on Foundry and detaches them afterwards, and the accessibility capture, for which it turns on Increase Contrast, Differentiate Without Color, Reduce Motion and keyboard navigation and puts the recorded values back afterwards. After that batch passes, the runner executes each through the seeded single-case launcher, reusing the build and writing a separate result bundle for each. These cases remain part of whole-target qualification; they are not omitted from coverage. Tests requiring a live host or screenshot fixture can still skip in `LOCAL_ROOT`, so that run does not replace a required provider-specific check.
+
+The full unit suite includes live Windows tests that need `detours-windows` (VM 707 on atticus) running, and its 7-Zip test needs `DETOURS_7ZIP_FIXTURE` set to a folder holding the Windows `7z.exe` and `7z.dll`, which `7zz e` extracts from the official 7-Zip x64 installer.
 
 Run the unit suite and installed UI qualification sequentially. Installed cleanup rejects a remaining `xctest` process, including one from a concurrent unit run. The prompt guard explicitly stops its detectors before returning from live monitoring and clears its exit trap during cleanup.
 

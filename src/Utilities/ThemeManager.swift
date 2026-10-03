@@ -14,23 +14,38 @@ final class ThemeManager {
 
     /// The currently active theme
     private(set) var currentTheme: Theme
-
-    private var appearanceObserver: NSKeyValueObservation?
+    private var appliedFontSize = CGFloat(SettingsManager.shared.fontSize)
 
     private init() {
         // Resolve theme immediately from saved settings
-        currentTheme = Self.resolveTheme(for: SettingsManager.shared.theme)
+        Theme.currentInputs = Self.inputs()
+        Self.applyAppAppearance()
+        currentTheme = Self.resolveTheme()
 
-        // Observe settings changes
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleSettingsChange),
             name: SettingsManager.settingsDidChange,
             object: nil
         )
-
-        // Observe system appearance changes for "System" theme
-        observeSystemAppearance()
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(handleSystemAppearanceChange),
+            name: NSNotification.Name("AppleInterfaceThemeChangedNotification"),
+            object: nil
+        )
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(handleSystemAppearanceChange),
+            name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleSystemAppearanceChange),
+            name: NSColor.systemColorsDidChangeNotification,
+            object: nil
+        )
 
         logger.info("ThemeManager initialized with theme: \(SettingsManager.shared.theme.rawValue)")
     }
@@ -39,57 +54,47 @@ final class ThemeManager {
         updateTheme()
     }
 
-    private func observeSystemAppearance() {
-        // Use distributed notifications for system appearance changes
-        DistributedNotificationCenter.default().addObserver(
-            self,
-            selector: #selector(handleSystemAppearanceChange),
-            name: NSNotification.Name("AppleInterfaceThemeChangedNotification"),
-            object: nil
-        )
-    }
-
     @objc private func handleSystemAppearanceChange() {
-        // Only update if using system theme
-        if SettingsManager.shared.theme == .system {
-            updateTheme()
-        }
+        updateTheme()
     }
 
     /// Update the current theme based on settings and notify observers
     func updateTheme() {
-        let choice = SettingsManager.shared.theme
-        currentTheme = Self.resolveTheme(for: choice)
-        logger.debug("Theme updated to: \(choice.rawValue)")
+        Theme.currentInputs = Self.inputs()
+        Self.applyAppAppearance()
+        let theme = Self.resolveTheme()
+        // Most settings writes change neither the tokens nor the font size; leave the views alone then.
+        guard theme != currentTheme || fontSize != appliedFontSize else { return }
+        currentTheme = theme
+        appliedFontSize = fontSize
+        logger.debug("Theme updated to: \(SettingsManager.shared.theme.rawValue)")
         NotificationCenter.default.post(name: Self.themeDidChange, object: nil)
     }
 
-    /// Resolve a theme choice to an actual theme
-    private static func resolveTheme(for choice: ThemeChoice) -> Theme {
-        switch choice {
-        case .system:
-            return systemAppearanceIsDark() ? .dark : .light
-        case .light:
-            return .light
-        case .dark:
-            return .dark
-        case .foolscap:
-            return .foolscap
-        case .drafting:
-            return .drafting
-        case .custom:
-            if let customColors = SettingsManager.shared.customTheme {
-                return .custom(from: customColors)
-            }
-            // Fall back to light if no custom theme configured
-            return .light
+    /// Light or Dark pins the whole app, so stock controls, menus and alerts follow; System clears it.
+    private static func applyAppAppearance() {
+        let appearance = Theme.currentInputs.choice.appearanceName.flatMap { NSAppearance(named: $0) }
+        if NSApplication.shared.appearance != appearance {
+            NSApplication.shared.appearance = appearance
         }
     }
 
-    /// Check if system is in dark mode
-    private static func systemAppearanceIsDark() -> Bool {
-        let appearance = NSApp.effectiveAppearance
-        return appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+    private static func inputs() -> Theme.Inputs {
+        Theme.Inputs(
+            choice: SettingsManager.shared.theme,
+            increaseContrast: NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast,
+            usesDetoursAccent: systemAccentIsMulticolor()
+        )
+    }
+
+    /// macOS stores no `AppleAccentColor` when the user picks Multicolor; the app's own accent applies then.
+    private static func systemAccentIsMulticolor() -> Bool {
+        UserDefaults.standard.object(forKey: "AppleAccentColor") == nil
+    }
+
+    /// Resolve the shared inputs against the app's effective appearance
+    private static func resolveTheme() -> Theme {
+        Theme.resolve(inputs: Theme.currentInputs, appearance: NSApplication.shared.effectiveAppearance)
     }
 
     /// Font size from settings
@@ -97,23 +102,13 @@ final class ThemeManager {
         CGFloat(SettingsManager.shared.fontSize)
     }
 
-    /// The current mono font at the configured size
+    /// The file list font at the configured size
     var currentFont: NSFont {
         currentTheme.font(size: fontSize)
     }
 
-    /// The current mono font at a custom size
-    func font(size: CGFloat) -> NSFont {
-        currentTheme.font(size: size)
-    }
-
-    /// The current UI (proportional) font at the configured size
+    /// The chrome font at the configured size
     var currentUIFont: NSFont {
         currentTheme.uiFont(size: fontSize)
-    }
-
-    /// The current UI (proportional) font at a custom size
-    func uiFont(size: CGFloat) -> NSFont {
-        currentTheme.uiFont(size: size)
     }
 }

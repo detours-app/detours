@@ -75,7 +75,6 @@ struct ArchiveDialog: View {
     var onConfirm: (ArchiveModel) -> Void
     var onCancel: () -> Void
 
-    private let themeFontName = ThemeManager.shared.currentTheme.fontName
     private let themeFontSize = ThemeManager.shared.fontSize
 
     private var titleFont: Font {
@@ -103,7 +102,7 @@ struct ArchiveDialog: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Items:")
                     .font(labelFont)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color(ThemeManager.shared.currentTheme.textSecondary))
                 if model.sourceURLs.count == 1 {
                     Text(model.sourceURLs[0].lastPathComponent)
                         .font(monoFont)
@@ -119,20 +118,20 @@ struct ArchiveDialog: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Archive name:")
                     .font(labelFont)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color(ThemeManager.shared.currentTheme.textSecondary))
                 HStack(spacing: 4) {
                     TextField("Archive name", text: $model.archiveName)
                         .textFieldStyle(.roundedBorder)
                         .font(monoFont)
                     Text(".\(model.format.fileExtension)")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color(ThemeManager.shared.currentTheme.textSecondary))
                         .font(monoFont)
                 }
 
                 if let error = model.validationError {
                     Text(error)
                         .font(smallFont)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Color(ThemeManager.shared.currentTheme.errorText))
                 }
             }
 
@@ -140,7 +139,7 @@ struct ArchiveDialog: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Format:")
                     .font(labelFont)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color(ThemeManager.shared.currentTheme.textSecondary))
                 Picker("", selection: $model.format) {
                     ForEach(ArchiveFormat.allCases, id: \.self) { format in
                         if CompressionTools.isFormatAvailable(format) {
@@ -149,7 +148,7 @@ struct ArchiveDialog: View {
                                 .accessibilityIdentifier("archiveFormat-\(format.rawValue)")
                         } else {
                             Text("\(format.displayName) (not installed)")
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color(ThemeManager.shared.currentTheme.textSecondary))
                                 .tag(format)
                                 .accessibilityIdentifier("archiveFormat-\(format.rawValue)")
                         }
@@ -169,7 +168,7 @@ struct ArchiveDialog: View {
             // Format info
             Text(model.format.description)
                 .font(smallFont)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color(ThemeManager.shared.currentTheme.textSecondary))
 
             // Password
             VStack(alignment: .leading, spacing: 8) {

@@ -8,240 +8,152 @@ final class ThemeTests: XCTestCase {
         resetSettingsForTests()
     }
 
-    // MARK: - UI Font Tests
+    // MARK: - Fonts
 
-    func test_uiFontReturnsProportionalFont() throws {
-        // All built-in themes default to "SF Pro" which resolves to system font
-        let theme = Theme.light
-        let font = theme.uiFont(size: 13)
-
-        // Should return a valid font at the requested size
-        XCTAssertEqual(font.pointSize, 13)
-
-        // SF Pro should resolve to the system font (proportional, not monospaced)
+    func test_fontsAreSystemFontWithTabularDigits() throws {
+        let theme = Theme.resolve(isDark: false, increaseContrast: false, accent: .detours)
         let systemFont = NSFont.systemFont(ofSize: 13)
-        XCTAssertEqual(font.fontName, systemFont.fontName, "SF Pro should resolve to system font")
-
-        // Verify weight parameter works
-        let boldFont = theme.uiFont(size: 13, weight: .bold)
-        let systemBold = NSFont.systemFont(ofSize: 13, weight: .bold)
-        XCTAssertEqual(boldFont.fontName, systemBold.fontName, "Weight parameter should be respected")
-
-        let semiboldFont = theme.uiFont(size: 14, weight: .semibold)
-        let systemSemibold = NSFont.systemFont(ofSize: 14, weight: .semibold)
-        XCTAssertEqual(semiboldFont.fontName, systemSemibold.fontName, "Semibold weight should work")
-    }
-
-    func test_uiFontFallsBackToSystemFont() throws {
-        // Create a theme with a nonexistent uiFontName
-        let theme = Theme(
-            background: .white,
-            surface: .white,
-            border: .gray,
-            textPrimary: .black,
-            textSecondary: .gray,
-            textTertiary: .lightGray,
-            accent: .blue,
-            accentText: .white,
-            fontName: "SF Mono",
-            uiFontName: "NonExistentFont12345"
+        XCTAssertEqual(theme.font(size: 13).fontName, systemFont.fontName)
+        XCTAssertEqual(theme.uiFont(size: 13).fontName, systemFont.fontName)
+        XCTAssertEqual(
+            theme.uiFont(size: 14, weight: .semibold).fontName,
+            NSFont.systemFont(ofSize: 14, weight: .semibold).fontName
         )
 
-        let font = theme.uiFont(size: 13)
-        let systemFont = NSFont.systemFont(ofSize: 13)
-
-        // Should fall back to system font
-        XCTAssertEqual(font.fontName, systemFont.fontName, "Unknown uiFontName should fall back to system font")
-        XCTAssertEqual(font.pointSize, 13)
-
-        // Weight should also work in fallback
-        let boldFont = theme.uiFont(size: 13, weight: .bold)
-        let systemBold = NSFont.systemFont(ofSize: 13, weight: .bold)
-        XCTAssertEqual(boldFont.fontName, systemBold.fontName, "Fallback should respect weight")
-    }
-
-    func test_existingFontMethodUnchanged() throws {
-        // Light/dark themes now use SF Pro (system font) for file names, matching Finder
-        let lightFont = Theme.light.font(size: 13)
-        let systemFont = NSFont.systemFont(ofSize: 13)
-        XCTAssertEqual(lightFont.fontName, systemFont.fontName, "Light theme font() should return system font")
-
-        // Foolscap uses Courier
-        let foolscapFont = Theme.foolscap.font(size: 13)
-        XCTAssertEqual(foolscapFont.fontName, NSFont(name: "Courier", size: 13)!.fontName, "Foolscap font() should return Courier")
-
-        // Drafting uses JetBrains Mono NL
-        let draftingFont = Theme.drafting.font(size: 13)
-        if NSFont(name: "JetBrains Mono NL", size: 13) != nil {
-            XCTAssertTrue(draftingFont.fontName.contains("JetBrains"), "Drafting font() should return JetBrains Mono NL")
+        let numeric = theme.numericFont(size: 11)
+        XCTAssertEqual(numeric.pointSize, 11)
+        let digitWidths = (0...9).map { digit in
+            NSAttributedString(string: "\(digit)", attributes: [.font: numeric]).size().width
         }
-
-        // Foolscap has different font() vs uiFont() (Courier vs SF Pro)
-        let foolscapUIFont = Theme.foolscap.uiFont(size: 13)
-        XCTAssertNotEqual(foolscapFont.fontName, foolscapUIFont.fontName, "font() and uiFont() should differ for Foolscap theme")
+        XCTAssertEqual(Set(digitWidths.map { ($0 * 100).rounded() }).count, 1, "Digits should share one advance width")
     }
 
-    func test_allBuiltInThemesHaveUIFont() throws {
-        let themes: [(String, Theme)] = [
-            ("light", .light),
-            ("dark", .dark),
-            ("foolscap", .foolscap),
-            ("drafting", .drafting),
+    // MARK: - Resolution
+
+    func test_snapshotAndManagerShareResolution() throws {
+        let manager = ThemeManager.shared
+        SettingsManager.shared.theme = .dark
+        manager.updateTheme()
+        XCTAssertEqual(Theme.currentInputs.choice, .dark)
+        XCTAssertEqual(Theme.currentSnapshot(), manager.currentTheme)
+        XCTAssertTrue(manager.currentTheme.isDark)
+
+        SettingsManager.shared.theme = .light
+        manager.updateTheme()
+        XCTAssertEqual(Theme.currentSnapshot(), manager.currentTheme)
+        XCTAssertFalse(manager.currentTheme.isDark)
+    }
+
+    // MARK: - Contrast
+
+    func testQuietProTokenContrast() throws {
+        for increaseContrast in [false, true] {
+            for isDark in [false, true] {
+                let theme = Theme.resolve(isDark: isDark, increaseContrast: increaseContrast, accent: .detours)
+                let mode = (isDark ? "dark" : "light") + (increaseContrast ? " with Increase Contrast" : "")
+                let surfaces: [(String, NSColor)] = [
+                    ("content", theme.content),
+                    ("sidebar", theme.sidebar),
+                    ("header", theme.header),
+                    ("raised tab", theme.raised),
+                    ("Quick Nav", theme.floatingPanel),
+                ]
+
+                for (name, surface) in surfaces {
+                    assertNormalTextContrast(theme.textPrimary, on: surface, "\(mode) text primary on \(name)")
+                    assertNormalTextContrast(theme.textSecondary, on: surface, "\(mode) text secondary on \(name)")
+                    assertNormalTextContrast(theme.errorText, on: surface, "\(mode) error text on \(name)")
+                    assertStateIndicatorContrast(theme.glyph, on: surface, "\(mode) glyph on \(name)")
+                }
+                assertNormalTextContrast(theme.textPrimary, on: theme.warningFill, "\(mode) warning banner text")
+                assertNormalTextContrast(theme.textPrimary, on: theme.errorFill, "\(mode) error banner text")
+
+                // Selected rows: every column and the git mark, on the fill they sit on.
+                for active in [true, false] {
+                    let fill = ChromeContrast.fileListSelectionFill(for: theme, active: active)
+                    let label = "\(mode) \(active ? "active" : "inactive") selection"
+                    assertNormalTextContrast(ChromeContrast.fileListSelectedForeground(for: theme, active: active), on: fill, "\(label) name")
+                    assertNormalTextContrast(ChromeContrast.fileListSelectedSecondaryForeground(for: theme, active: active), on: fill, "\(label) size and date")
+                }
+                assertNormalTextContrast(ChromeContrast.sidebarSelectedForeground(for: theme), on: theme.sidebarSelection, "\(mode) sidebar selection text")
+                assertStateIndicatorContrast(ChromeContrast.sidebarSelectedGlyph(for: theme), on: theme.sidebarSelection, "\(mode) sidebar selection glyph")
+
+                for status in [GitStatus.modified, .staged, .untracked, .conflict] {
+                    let placements: [(RowSelectionState, NSColor)] = [
+                        (.none, theme.content),
+                        (.active, theme.selectionFill),
+                        (.inactive, theme.inactiveSelection),
+                    ]
+                    for (selection, surface) in placements {
+                        assertStateIndicatorContrast(
+                            FileListCell.gitMarkColor(for: status, theme: theme, selection: selection),
+                            on: surface,
+                            "\(mode) \(status) mark, selection \(selection)"
+                        )
+                    }
+                }
+                // Remote host status dots in the sidebar
+                for color in [theme.gitStaged, theme.gitModified, theme.gitConflict] {
+                    assertStateIndicatorContrast(color, on: theme.sidebar, "\(mode) sidebar status dot")
+                }
+
+                // The chrome roles the path bar, tabs and status bar draw with
+                assertNormalTextContrast(ChromeContrast.chromeSecondaryText(for: theme), on: theme.header, "\(mode) chrome text")
+                assertNormalTextContrast(ChromeContrast.statusCompletionText(for: theme), on: theme.header, "\(mode) status completion text")
+                assertNormalTextContrast(ChromeContrast.statusErrorText(for: theme), on: theme.header, "\(mode) status error text")
+                assertStateIndicatorContrast(ChromeContrast.tabUnderline(for: theme), on: theme.header, "\(mode) active tab underline")
+                assertStateIndicatorContrast(ChromeContrast.pathSeparator(for: theme), on: theme.header, "\(mode) path separator")
+
+                // The inactive selection fill itself keeps the accepted native contrast (about 1.2:1);
+                // under Increase Contrast its outline carries the edge instead.
+                if increaseContrast {
+                    XCTAssertEqual(theme.hairline, theme.glyph, "\(mode) hairline should be the glyph token")
+                    let outline = ChromeContrast.stateIndicatorColor(preferred: theme.glyph, fallback: theme.textPrimary, on: theme.inactiveSelection)
+                    assertStateIndicatorContrast(outline, on: theme.inactiveSelection, "\(mode) inactive selection outline on its fill")
+                    assertStateIndicatorContrast(outline, on: theme.content, "\(mode) inactive selection outline on the list")
+                }
+            }
+        }
+    }
+
+    func testSelectionTextReadableForSystemAccents() throws {
+        // AppKit's selectedContentBackgroundColor for each macOS accent, light and dark,
+        // read on macOS 27 by launching a probe with -AppleAccentColor.
+        let accentFills: [(name: String, light: String, dark: String)] = [
+            ("Red", "#C4262B", "#D13539"),
+            ("Orange", "#D96B0A", "#C96003"),
+            ("Yellow", "#E1AC15", "#D19E00"),
+            ("Green", "#4DA033", "#43932A"),
+            ("Blue", "#0064E1", "#0059D1"),
+            ("Purple", "#7D2A7E", "#803482"),
+            ("Pink", "#D93B86", "#C93379"),
+            ("Graphite", "#808080", "#696969"),
         ]
-
-        for (name, theme) in themes {
-            // All built-in themes should have a valid uiFontName
-            XCTAssertFalse(theme.uiFontName.isEmpty, "\(name) theme should have a non-empty uiFontName")
-
-            // uiFont() should return a valid font
-            let font = theme.uiFont(size: 13)
-            XCTAssertEqual(font.pointSize, 13, "\(name) theme uiFont should have correct size")
-
-            // All built-in themes use "SF Pro" as UI font
-            XCTAssertEqual(theme.uiFontName, "SF Pro", "\(name) theme should use SF Pro as UI font")
+        for accent in accentFills {
+            for (isDark, hex) in [(false, accent.light), (true, accent.dark)] {
+                let fill = NSColor(hex: hex)
+                let theme = Theme.resolve(
+                    isDark: isDark,
+                    increaseContrast: false,
+                    accent: .system(accent: fill, selectionFill: fill, selectionText: .white)
+                )
+                let label = "\(accent.name) \(isDark ? "dark" : "light")"
+                XCTAssertFalse(theme.usesDetoursAccent, label)
+                XCTAssertEqual(theme.selectionFill, fill, "\(label) should keep AppKit's own selection fill")
+                assertNormalTextContrast(ChromeContrast.fileListSelectedForeground(for: theme), on: theme.selectionFill, "\(label) selection text")
+                assertNormalTextContrast(ChromeContrast.fileListSelectedSecondaryForeground(for: theme), on: theme.selectionFill, "\(label) selection size and date")
+                assertStateIndicatorContrast(
+                    FileListCell.gitMarkColor(for: .modified, theme: theme, selection: .active),
+                    on: theme.selectionFill,
+                    "\(label) git mark on the selection"
+                )
+            }
         }
-    }
 
-    func test_customThemeUIFont() throws {
-        // Create a custom theme with Avenir as UI font
-        let customColors = CustomThemeColors(
-            background: CodableColor(hex: "#FFFFFF"),
-            surface: CodableColor(hex: "#F0F0F0"),
-            border: CodableColor(hex: "#CCCCCC"),
-            textPrimary: CodableColor(hex: "#000000"),
-            textSecondary: CodableColor(hex: "#666666"),
-            textTertiary: CodableColor(hex: "#999999"),
-            accent: CodableColor(hex: "#0066CC"),
-            accentText: CodableColor(hex: "#FFFFFF"),
-            fontName: "Menlo",
-            uiFontName: "Avenir"
-        )
-
-        let theme = Theme.custom(from: customColors)
-
-        // uiFontName should propagate
-        XCTAssertEqual(theme.uiFontName, "Avenir")
-
-        // uiFont() should return Avenir
-        let font = theme.uiFont(size: 13)
-        XCTAssertTrue(font.fontName.contains("Avenir"), "Custom theme uiFont should return Avenir, got \(font.fontName)")
-        XCTAssertEqual(font.pointSize, 13)
-
-        // fontName (monospace) should still be Menlo
-        XCTAssertEqual(theme.fontName, "Menlo")
-        let monoFont = theme.font(size: 13)
-        XCTAssertTrue(monoFont.fontName.contains("Menlo"), "Custom theme font() should return Menlo")
-    }
-
-    func test_customThemeDecodesWithoutUIFontName() throws {
-        // Simulate JSON from before the uiFontName field was added
-        let legacyJSON = """
-        {
-            "background": {"red": 1.0, "green": 1.0, "blue": 1.0, "alpha": 1.0},
-            "surface": {"red": 0.95, "green": 0.95, "blue": 0.95, "alpha": 1.0},
-            "border": {"red": 0.8, "green": 0.8, "blue": 0.8, "alpha": 1.0},
-            "textPrimary": {"red": 0.0, "green": 0.0, "blue": 0.0, "alpha": 1.0},
-            "textSecondary": {"red": 0.4, "green": 0.4, "blue": 0.4, "alpha": 1.0},
-            "textTertiary": {"red": 0.6, "green": 0.6, "blue": 0.6, "alpha": 1.0},
-            "accent": {"red": 0.0, "green": 0.4, "blue": 0.8, "alpha": 1.0},
-            "accentText": {"red": 1.0, "green": 1.0, "blue": 1.0, "alpha": 1.0},
-            "fontName": "Menlo"
-        }
-        """
-
-        let data = legacyJSON.data(using: .utf8)!
-        let decoded = try JSONDecoder().decode(CustomThemeColors.self, from: data)
-
-        // Should decode successfully with default uiFontName
-        XCTAssertEqual(decoded.uiFontName, "SF Pro", "Missing uiFontName should default to SF Pro")
-        XCTAssertEqual(decoded.fontName, "Menlo", "fontName should still decode correctly")
-
-        // The decoded theme should produce a valid UI font
-        let theme = Theme.custom(from: decoded)
-        let font = theme.uiFont(size: 13)
-        let systemFont = NSFont.systemFont(ofSize: 13)
-        XCTAssertEqual(font.fontName, systemFont.fontName, "Default SF Pro should resolve to system font")
-    }
-
-    func testChromeContrastForBuiltInAndCustomThemes() throws {
-        let themes: [(String, Theme)] = [
-            ("light", .light),
-            ("dark", .dark),
-            ("foolscap", .foolscap),
-            ("drafting", .drafting),
-            ("custom high contrast", Self.customTheme(ThemeHexPalette(
-                background: "#101214",
-                surface: "#171A1D",
-                border: "#5E6770",
-                textPrimary: "#F7F8F8",
-                textSecondary: "#C7CDD3",
-                textTertiary: "#AAB2BB",
-                accent: "#88D4C3",
-                accentText: "#071010"
-            ))),
-            ("custom restrained contrast", Self.customTheme(ThemeHexPalette(
-                background: "#F7F5EF",
-                surface: "#ECE8DD",
-                border: "#BDB5A5",
-                textPrimary: "#26231E",
-                textSecondary: "#59544B",
-                textTertiary: "#655F55",
-                accent: "#526B35",
-                accentText: "#FFFFFF"
-            ))),
-        ]
-
-        for (name, theme) in themes {
-            let inactivePaneSurface = theme.surface.blended(withFraction: 0.45, of: theme.background) ?? theme.surface
-            let inactiveTabSurface = theme.surface.blended(withFraction: 0.50, of: theme.background) ?? theme.surface
-            let fileHoverFill = ChromeContrast.blend(theme.textPrimary, alpha: 0.06, over: theme.background)
-            let sidebarHoverFill = ChromeContrast.blend(theme.textPrimary, alpha: 0.055, over: theme.surface)
-            let fileSelectionFill = ChromeContrast.fileListSelectionFill(for: theme)
-            let sidebarSelectionFill = ChromeContrast.sidebarSelectionFill(for: theme)
-
-            assertNormalTextContrast(theme.textPrimary, on: theme.background, "\(name) primary file text")
-            assertNormalTextContrast(theme.textSecondary, on: theme.surface, "\(name) secondary chrome text")
-            assertNormalTextContrast(theme.textTertiary, on: theme.surface, "\(name) tertiary sidebar text")
-            assertNormalTextContrast(theme.textPrimary, on: fileHoverFill, "\(name) file hover text")
-            assertNormalTextContrast(theme.textPrimary, on: sidebarHoverFill, "\(name) sidebar hover text")
-
-            assertNormalTextContrast(
-                ChromeContrast.readableTextColor(preferred: theme.textSecondary, fallback: theme.textPrimary, on: inactivePaneSurface),
-                on: inactivePaneSurface,
-                "\(name) inactive status/path text"
-            )
-            assertNormalTextContrast(
-                ChromeContrast.readableTextColor(preferred: theme.textSecondary, fallback: theme.textPrimary, on: inactiveTabSurface),
-                on: inactiveTabSurface,
-                "\(name) inactive tab text"
-            )
-
-            assertNormalTextContrast(
-                ChromeContrast.fileListSelectedForeground(for: theme),
-                on: fileSelectionFill,
-                "\(name) selected file name text"
-            )
-            assertNormalTextContrast(
-                ChromeContrast.fileListSelectedSecondaryForeground(for: theme),
-                on: fileSelectionFill,
-                "\(name) selected file metadata/accessory text"
-            )
-            assertStateIndicatorContrast(
-                ChromeContrast.stateIndicatorColor(preferred: theme.accent, fallback: theme.textPrimary, on: fileSelectionFill),
-                on: fileSelectionFill,
-                "\(name) selected file accent rail"
-            )
-
-            assertNormalTextContrast(
-                ChromeContrast.sidebarSelectedForeground(for: theme),
-                on: sidebarSelectionFill,
-                "\(name) selected sidebar row text"
-            )
-            assertStateIndicatorContrast(
-                ChromeContrast.stateIndicatorColor(preferred: theme.accent, fallback: theme.textPrimary, on: sidebarSelectionFill),
-                on: sidebarSelectionFill,
-                "\(name) selected sidebar accent rail"
-            )
+        for isDark in [false, true] {
+            let theme = Theme.resolve(isDark: isDark, increaseContrast: false, accent: .detours)
+            XCTAssertEqual(theme.selectionText, .white, "The Detours teal fill always carries white text")
+            assertNormalTextContrast(theme.selectionText, on: theme.selectionFill, "Detours teal \(isDark ? "dark" : "light") selection text")
         }
     }
 
@@ -297,31 +209,5 @@ final class ThemeTests: XCTestCase {
     private struct SourceRef {
         let file: StaticString
         let line: UInt
-    }
-
-    private struct ThemeHexPalette {
-        let background: String
-        let surface: String
-        let border: String
-        let textPrimary: String
-        let textSecondary: String
-        let textTertiary: String
-        let accent: String
-        let accentText: String
-    }
-
-    private static func customTheme(_ palette: ThemeHexPalette) -> Theme {
-        Theme.custom(from: CustomThemeColors(
-            background: CodableColor(hex: palette.background),
-            surface: CodableColor(hex: palette.surface),
-            border: CodableColor(hex: palette.border),
-            textPrimary: CodableColor(hex: palette.textPrimary),
-            textSecondary: CodableColor(hex: palette.textSecondary),
-            textTertiary: CodableColor(hex: palette.textTertiary),
-            accent: CodableColor(hex: palette.accent),
-            accentText: CodableColor(hex: palette.accentText),
-            fontName: "SF Pro",
-            uiFontName: "SF Pro"
-        ))
     }
 }

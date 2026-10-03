@@ -226,7 +226,7 @@ extension FileListDataSource {
 
         let icon: NSImage
         if isDirectory {
-            icon = FileItem.tintedFolderIcon(IconLoader.placeholderFolderIcon)
+            icon = IconLoader.placeholderFolderIcon
         } else {
             icon = IconLoader.placeholderFileIcon
         }
@@ -295,7 +295,7 @@ extension FileListDataSource {
             isDirectory: true,
             size: nil,
             dateModified: modifiedDate,
-            icon: FileItem.tintedFolderIcon(IconLoader.placeholderFolderIcon),
+            icon: IconLoader.placeholderFolderIcon,
             isVirtualSharedFolder: true
         )
     }

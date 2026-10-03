@@ -46,8 +46,6 @@ extension PaneViewController {
         titles.append(contentsOf: components.map { $0.0 })
         itemURLs.append(contentsOf: components.map { Optional($0.1) })
 
-        let separatorWidth: CGFloat = 16 // approximate width of " › "
-        let hostIconWidth: CGFloat = 20
         func makeItem(at index: Int) -> NSPathControlItem {
             let item = NSPathControlItem()
             item.title = titles[index]
@@ -57,11 +55,12 @@ extension PaneViewController {
             return item
         }
         func itemWidth(at index: Int) -> CGFloat {
-            let textWidth = (titles[index] as NSString).size(
-                withAttributes: [.font: ThemeManager.shared.currentTheme.uiFont(size: 12)]
-            ).width
-            let iconWidth: CGFloat = (index == 0 && breadcrumbHost != nil) ? hostIconWidth : 0
-            return textWidth + iconWidth + separatorWidth
+            DroppablePathControl.itemWidth(
+                title: titles[index],
+                hasIcon: index == 0 && breadcrumbHost != nil,
+                isCurrent: index == titles.count - 1,
+                isLast: false
+            )
         }
 
         // Calculate available width and determine how many items fit
@@ -91,7 +90,7 @@ extension PaneViewController {
         var trailingWidth: CGFloat = 0
 
         // Reserve space for first item + ellipsis
-        let reservedWidth = itemWidth(at: 0) + ellipsisWidth + separatorWidth
+        let reservedWidth = itemWidth(at: 0) + ellipsisWidth + DroppablePathControl.separatorWidth
 
         // Add items from the end until we run out of space
         for i in stride(from: items.count - 1, through: 1, by: -1) {

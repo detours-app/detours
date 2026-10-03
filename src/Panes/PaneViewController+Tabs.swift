@@ -306,7 +306,6 @@ extension PaneViewController {
         isActive = active
         updateBackgroundTint()
         tabBar.setActive(active)
-        statusBar.setPaneActive(active)
 
         // Update all tabs' data sources with active state
         for tab in tabs {
@@ -331,11 +330,12 @@ extension PaneViewController {
     }
 
     func updateNavigationControls() {
-        guard let tab = selectedTab else {
-            tabBar.updateNavigationState(canGoBack: false, canGoForward: false)
-            return
-        }
-        tabBar.updateNavigationState(canGoBack: tab.canGoBack, canGoForward: tab.canGoForward)
+        let canGoBack = selectedTab?.canGoBack ?? false
+        let canGoForward = selectedTab?.canGoForward ?? false
+        backButton.isEnabled = canGoBack
+        backButton.alphaValue = canGoBack ? 1.0 : 0.4
+        forwardButton.isEnabled = canGoForward
+        forwardButton.alphaValue = canGoForward ? 1.0 : 0.4
     }
 
     // MARK: - Tab Transfer (for cross-pane drag)

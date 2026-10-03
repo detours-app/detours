@@ -76,7 +76,7 @@ final class DetoursPreviewWindowController: NSWindowController {
         // into the page as well.
         window.titleVisibility = .visible
         window.isMovableByWindowBackground = true
-        window.backgroundColor = theme.background
+        window.backgroundColor = theme.content
         window.isOpaque = true
         window.hidesOnDeactivate = false
         window.level = .floating
@@ -93,7 +93,7 @@ final class DetoursPreviewWindowController: NSWindowController {
         spinnerPlate = SpinnerPlate.wrapping(spinner, theme: theme)
         spinnerPlate.isHidden = true
 
-        let container = BackgroundView(color: theme.background)
+        let container = BackgroundView(color: theme.content)
         // The loading view begins below the visible one. It remains a real, non-hidden member of the
         // window throughout loading, while alpha zero prevents a cold or partially drawn WebKit
         // frame from reaching the screen.
@@ -112,7 +112,7 @@ final class DetoursPreviewWindowController: NSWindowController {
         snapshotCover.translatesAutoresizingMaskIntoConstraints = false
         snapshotCover.imageScaling = .scaleAxesIndependently
         snapshotCover.isHidden = true
-        snapshotCover.backgroundColor = theme.background
+        snapshotCover.backgroundColor = theme.content
         container.addSubview(snapshotCover)
         NSLayoutConstraint.activate([
             snapshotCover.topAnchor.constraint(equalTo: container.topAnchor),
@@ -281,11 +281,11 @@ final class DetoursPreviewWindowController: NSWindowController {
         // platform and it was lost in an earlier rewrite of this file, which is what brought the
         // white back on every file.
         web.setValue(false, forKey: "drawsBackground")
-        web.underPageBackgroundColor = theme.background
+        web.underPageBackgroundColor = theme.content
         web.allowsBackForwardNavigationGestures = false
         web.translatesAutoresizingMaskIntoConstraints = false
         web.wantsLayer = true
-        web.layer?.backgroundColor = theme.background.cgColor
+        web.layer?.backgroundColor = theme.content.cgColor
         return web
     }
 
@@ -369,7 +369,7 @@ final class DetoursPreviewWindowController: NSWindowController {
     }
 
     private static func blankDocument(for theme: Theme) -> String {
-        let hex = theme.background.usingColorSpace(.deviceRGB).map {
+        let hex = theme.content.usingColorSpace(.deviceRGB).map {
             String(
                 format: "#%02X%02X%02X",
                 Int(($0.redComponent * 255).rounded()),
@@ -448,16 +448,15 @@ final class DetoursPreviewWindowController: NSWindowController {
         currentTheme = theme
         // The spinner takes its contrast from the appearance of the view it sits in, and the theme
         // can be dark while the system is light, so the container is told which it is.
-        let isDark = theme.background.usingColorSpace(.deviceRGB).map { $0.brightnessComponent < 0.5 } ?? false
-        window?.contentView?.appearance = NSAppearance(named: isDark ? .darkAqua : .aqua)
+        window?.contentView?.appearance = NSAppearance(named: theme.isDark ? .darkAqua : .aqua)
         spinnerPlate.apply(theme: theme)
-        snapshotCover.backgroundColor = theme.background
+        snapshotCover.backgroundColor = theme.content
         for web in [visibleWebView, loadingWebView] {
-            web.underPageBackgroundColor = theme.background
-            web.layer?.backgroundColor = theme.background.cgColor
+            web.underPageBackgroundColor = theme.content
+            web.layer?.backgroundColor = theme.content.cgColor
         }
-        window?.backgroundColor = theme.background
-        (window?.contentView as? BackgroundView)?.color = theme.background
+        window?.backgroundColor = theme.content
+        (window?.contentView as? BackgroundView)?.color = theme.content
     }
 
     private func handleKeyDown(_ event: NSEvent) -> Bool {

@@ -20,7 +20,7 @@ Dual-pane file manager with tabs, folder expansion, SSH remote browsing for macO
 - **Inline operation progress** - Status bars show progress, transfer speed, completion, and error states
 - **Fast lane operations** - Small independent operations stay responsive while large transfers run
 - **Keyboard-first** - Full keyboard navigation with customizable shortcuts
-- **Theming** - Four built-in themes plus custom theme editor
+- **Appearance** - System, Light and Dark, the macOS accent colour (Detours teal with Multicolor), optional row stripes, and a deep-sea Dock icon
 - **Sidebar** - Quick access to remote hosts, mounted volumes, network shares, and favorite folders
 - **Path bar** - Click to navigate, drag to terminal, right-click to copy path
 - **Quick Look** - Preview files with spacebar, including Detours-styled code, Markdown, and safely rendered HTML previews

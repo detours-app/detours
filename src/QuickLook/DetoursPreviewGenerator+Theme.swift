@@ -7,18 +7,18 @@ extension DetoursPreviewGenerator {
         let syntax = syntaxColors(for: theme)
         return """
         :root {
-          --detours-background: \(cssHex(theme.background));
-          --detours-surface: \(cssHex(theme.surface));
-          --detours-toolbar: \(cssHex(theme.surface));
-          --detours-border: \(cssHex(theme.border));
+          --detours-background: \(cssHex(theme.content));
+          --detours-surface: \(cssHex(theme.header));
+          --detours-toolbar: \(cssHex(theme.header));
+          --detours-border: \(cssHex(theme.hairline));
           --detours-text-primary: \(cssHex(theme.textPrimary));
           --detours-text-secondary: \(cssHex(theme.textSecondary));
-          --detours-text-tertiary: \(cssHex(theme.textTertiary));
+          --detours-text-tertiary: \(cssHex(theme.textSecondary));
           --detours-accent: \(cssHex(theme.accent));
-          --detours-selection: \(cssHex(theme.accent.withAlphaComponent(0.22)));
-          --detours-gutter: \(cssHex(theme.surface));
-          --detours-line-number: \(cssHex(theme.textTertiary));
-          --detours-font-family: "\(theme.fontName)", "SF Mono", Menlo, monospace;
+          --detours-selection: \(cssHex(theme.textSelection));
+          --detours-gutter: \(cssHex(theme.header));
+          --detours-line-number: \(cssHex(theme.textSecondary));
+          --detours-font-family: ui-monospace, "SF Mono", Menlo, monospace;
           --detours-font-size: \(Int(fontSize.rounded()))px;
           --detours-token-keyword: \(syntax.keyword);
           --detours-token-string: \(syntax.string);
@@ -46,7 +46,7 @@ extension DetoursPreviewGenerator {
         add: String,
         delete: String
     ) {
-        if themeIsDark(theme) {
+        if theme.isDark {
             return (
                 keyword: "#569CD6",
                 string: "#CE9178",
@@ -75,32 +75,20 @@ extension DetoursPreviewGenerator {
         )
     }
 
-    private func themeIsDark(_ theme: Theme) -> Bool {
-        let rgb = theme.background.usingColorSpace(.sRGB) ?? theme.background
-        let red = rgb.redComponent
-        let green = rgb.greenComponent
-        let blue = rgb.blueComponent
-        let luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue
-        return luminance < 0.5
-    }
-
     func themeIdentity(_ theme: Theme) -> String {
         [
-            cssHex(theme.background),
-            cssHex(theme.surface),
-            cssHex(theme.border),
+            cssHex(theme.content),
+            cssHex(theme.header),
+            cssHex(theme.hairline),
             cssHex(theme.textPrimary),
             cssHex(theme.textSecondary),
             cssHex(theme.accent),
-            theme.fontName
+            cssHex(theme.textSelection),
+            theme.isDark ? "dark" : "light"
         ].joined(separator: "-")
     }
 
     func cssHex(_ color: NSColor) -> String {
-        let rgb = color.usingColorSpace(.sRGB) ?? color
-        let red = max(0, min(255, Int(round(rgb.redComponent * 255))))
-        let green = max(0, min(255, Int(round(rgb.greenComponent * 255))))
-        let blue = max(0, min(255, Int(round(rgb.blueComponent * 255))))
-        return String(format: "#%02X%02X%02X", red, green, blue)
+        color.hexString
     }
 }

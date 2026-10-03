@@ -227,10 +227,10 @@ final class StatusBarProgressTests: XCTestCase {
     func testThemeChangeUpdatesColors() {
         let statusBar = StatusBarView(frame: NSRect(x: 0, y: 0, width: 400, height: 20))
 
-        // Put status bar in error mode and verify color is red
+        // Put status bar in error mode and verify it uses the error token
         statusBar.showError(message: "Error")
         let errorLabel = statusBar.subviews.compactMap { $0 as? NSTextField }.first { !$0.isHidden }
-        XCTAssertEqual(errorLabel?.textColor, .systemRed, "Error text should be red")
+        XCTAssertEqual(errorLabel?.textColor, ThemeManager.shared.currentTheme.gitConflict, "Error text should use the error colour")
 
         // Switch to completion mode
         statusBar.showCompletion(message: "Done")

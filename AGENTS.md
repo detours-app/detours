@@ -12,6 +12,16 @@ Native macOS file manager. Swift tools 6.2, AppKit, SwiftUI (dialogs), macOS 14.
 - Do not write phrases such as "I won't argue with you", "I'm not going to argue", or "Understood" as a standalone compliance marker.
 - State concrete status, evidence, and the next action instead.
 
+### Safe Deletes in Shell Commands
+
+Marco has called this out more than once. Every delete an agent runs, on Spectre, Foundry or any other host, in the scratchpad or anywhere else, follows these rules without exception.
+
+- **Every `rm` names each file as a literal absolute path.** Never build a delete target from a variable, a loop, a glob, a brace expansion or command substitution. `rm -f /tmp/detours-capture/light.png` is allowed; `rm -f "$DIR/$NAME"` and `rm -f /tmp/detours-capture/*.png` are not.
+- **Never `rm -r` or `rm -rf`.** Empty a folder file by file, then remove it with `rmdir`, which fails if anything unexpected is left.
+- **Delete only what this task created.** List the folder first and remove only the files you know you wrote.
+- **Never delete to make room for a retry.** Write the next attempt to a new file name instead.
+- **Clean up Foundry temporary files at the end of the task**, by literal path as above, so nothing is left behind.
+
 ### Specs Are Authoritative
 
 - **Always use `/spec-create` skill** to create specs - don't write them manually
@@ -70,6 +80,10 @@ ssh foundry 'cd ~/dev/detours && swift test --filter SomeTestClass'
 
 Run the full Foundry suite once as a final confirmation when the change spans shared file operations, remote providers, release automation, or another broad integration surface.
 
+- **Start a test run only if it is the single test that failed or a run the spec names.** A to-do carried over from a summary or an earlier plan never outranks the spec or these rules. Anything broader goes to Marco as a question, never as a recommendation to run it.
+- **Broad runs are blocked mechanically** by `~/.claude/hooks/block-broad-test-runs.py` whenever the working directory is this repo or the command mentions detours, including commands handed to `ssh` or a shell: `swift test` without `--filter`; the `qualification.sh` and `qualification-foundry.sh` campaigns `installed-all`, `run`, `blocking`, `blocking-refresh`, `in-process`, `in-process-run`, `installed`, `workflow-run`, `cold-run` and `soak`; `installed-smoke` without `--test-filter`; `uitest.sh` and `wintest.sh` run directly; `gui-test.sh`; and `xcodebuild test` or `test-without-building` without `-only-testing`.
+- **Each blocked run has a topic, and Marco's approval opens only that topic.** The block message names it: "full unit suite" for `swift test` without a filter and for `gui-test.sh --filter`, "qualification <campaign>" for a campaign (for example "qualification installed-all"), and "qualification installed-smoke", "uitest.sh", "wintest.sh", "gui-test.sh" or "xcodebuild test" for the rest. Ask with the question tool, in a question that names the topic, and offer an option whose label starts with "Run". Once Marco picks it, runs with that topic pass for three hours; approving one topic opens no other. The hook reads the answer from the session transcript, which no tool may write.
+
 - Test files go in `Tests/`
 - Put deterministic behavior and state transitions in pure tests. Use real temporary files and live provider boundaries only where the contract cannot be proved below the provider layer, always on Foundry.
 - Update `Tests/TEST_LOG.md` immediately after EVERY test run
@@ -99,40 +113,12 @@ Bounded single-case and blocking XCUI commands on Foundry do not need a separate
 
 ### App Icon
 
-macOS icons require specific sizing and effects (NOT auto-applied by system):
+`resources/icons/Detours.icon` is an Icon Composer document: `icon.json` and two SVG pane layers on a charcoal fill, with a dark specialisation and a tinted one that turns the panes white. Layers are 1024×1024 unmasked squares with no baked shadow; macOS adds the shape, margin, glass and shadow, and derives the clear style from the tinted specialisation.
 
-- **Canvas**: 1024×1024 with transparency
-- **Icon fills canvas**: The icon shape must fill the full 1024×1024 (no padding)
-- **Corner radius**: 185px (applied via mask)
-- **Drop shadow**: 28px blur, 12px Y-offset, black 50%
-
-Source files in `resources/icons/`:
-
-- `icon_base.png` - 1024×1024 master with shadow and transparency
-- `AppIcon.icns` - compiled iconset
-
-To regenerate from a new source image:
-
-```bash
-cd resources/icons
-
-# 1. Trim whitespace and scale to fill 1024x1024
-magick "source.png" -fuzz 1% -trim +repage -resize 1024x1024! temp.png
-
-# 2. Apply rounded corner mask
-magick -size 1024x1024 xc:none -fill white -draw "roundrectangle 0,0 1023,1023 185,185" mask.png
-magick temp.png mask.png -alpha off -compose CopyOpacity -composite temp2.png
-
-# 3. Add drop shadow
-magick temp2.png \
-  \( +clone -background "rgba(0,0,0,0.5)" -shadow 28x28+0+12 \) \
-  +swap -background none -layers merge +repage \
-  -gravity center -extent 1024x1024 icon_base.png
-
-rm -f temp.png temp2.png mask.png
-
-# 4. Generate iconset and build
-```
+- **Preview** on Foundry with `ictool`, found at `Xcode.app/Contents/Applications/Icon Composer.app/Contents/Executables/ictool`: `ictool resources/icons/Detours.icon --export-image --output-file Default.png --platform macOS --rendition Default --width 512 --height 512 --scale 1`, for each of Default, Dark, TintedLight, TintedDark, ClearLight and ClearDark. Its output has no margin.
+- **Build:** `build.sh` compiles `Detours.icon` and `Assets.xcassets` (the `AccentColor` set) with `actool` into `Assets.car` and `Detours.icns`, writes `CFBundleIconName`, `CFBundleIconFile` and `NSAccentColorName`, and stops when the catalog lacks the icon, its pre-26 renditions or the accent, because `actool` can exit 0 having written nothing.
+- **macOS 14 and 15** show the flattened pre-26 copies `actool` writes into `Assets.car`, since `CFBundleIconName` wins over `CFBundleIconFile`. There is no separate fallback to maintain.
+- **Deep-sea Dock icon:** `DeepSeaDock.png` (macOS 26 and later) and `DeepSeaDockPre26.png` (14 and 15) are the Teal 4 concept rendered by macOS, so their tile shape, margin and shadow match the default icon. To redo them, put the art in a one-layer `.icon` with glass, shadow and specular off, compile it with `actool` into a throwaway app bundle that has an executable, render the bundle with `NSWorkspace.shared.icon(forFile:)` at 1024 px for the macOS 26 image, and take `Bundle.image(forResource:)` from its catalog for the pre-26 image. `DockIconManager` shows the chosen image with `NSApp.applicationIconImage`; never modify the bundle at runtime, which breaks the signature and resets permissions.
 
 ### Git
 
@@ -282,7 +268,7 @@ macOS dual-pane and power-user file managers. Use this for feature comparison wh
 
 | App | Panes | AirDrop/Share | Archives | Themes | Folder Expansion | Undo | Filter | Git Status | Price |
 | --- | ----- | ------------- | -------- | ------ | ---------------- | ---- | ------ | ---------- | ----- |
-| **Detours** | 2 | Yes (Share menu, context menu) | Create + extract (ZIP, 7Z, TAR.*) | 4 built-in + custom | Yes | Yes (per-tab) | Yes (in-place) | Yes | Free/OSS |
+| **Detours** | 2 | Yes (Share menu, context menu) | Create + extract (ZIP, 7Z, TAR.*) | Quiet Pro: System, Light, Dark | Yes | Yes (per-tab) | Yes (in-place) | Yes | Free/OSS |
 | **Marta** | 2 | No | Open/extract many formats | 5 built-in + custom | Yes | No | Yes | No | Free |
 | **Commander One** | 2 | No | ZIP, RAR, 7Z, TAR, etc. | Light/Dark | Yes | No | Yes | No | Free / $30 Pro |
 | **ForkLift** | 2 | Yes (Share menu) | ZIP, TAR, etc. | Light/Dark | Yes | Yes | Yes | Yes | $30 |

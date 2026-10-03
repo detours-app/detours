@@ -98,12 +98,12 @@ struct DeploySheetView: View {
 
     private func iconColor(for step: RemoteDeployStep) -> Color {
         if model.completedSteps.contains(step) {
-            return .green
+            return Color(ThemeManager.shared.currentTheme.gitStaged)
         }
         if model.currentStep == step {
-            return .yellow
+            return Color(ThemeManager.shared.currentTheme.gitModified)
         }
-        return Color(ThemeManager.shared.currentTheme.textTertiary)
+        return Color(ThemeManager.shared.currentTheme.textSecondary)
     }
 
     private func textColor(for step: RemoteDeployStep) -> Color {

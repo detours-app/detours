@@ -25,6 +25,10 @@ struct QuickNavView: View {
     let onReveal: (_ folder: URL, _ itemToSelect: URL) -> Void
     let onDismiss: () -> Void
 
+    static let panelWidth: CGFloat = 600
+    static let cornerRadius: CGFloat = 12
+    static let listHeight: CGFloat = 400
+
     private let maxResults = 50
     private let emptyQueryLimit = 12
     private let spotlightDebounceInterval: UInt64 = 150_000_000
@@ -35,7 +39,7 @@ struct QuickNavView: View {
             // Search field
             TextField("Quick Open...", text: $query)
                 .textFieldStyle(.plain)
-                .font(Font(ThemeManager.shared.currentTheme.font(size: 15)))
+                .font(Font(ThemeManager.shared.currentTheme.font(size: 20)))
                 .padding(.horizontal, 16)
                 .padding(.vertical, 14)
                 .focused($isTextFieldFocused)
@@ -70,7 +74,7 @@ struct QuickNavView: View {
                         LazyVStack(spacing: 0) {
                             ForEach(results.indices, id: \.self) { index in
                                 let result = results[index]
-                                ResultRow(
+                                QuickNavResultRow(
                                     result: result,
                                     isSelected: index == selectedIndex,
                                     isFrecent: FrecencyStore.shared.isFrecent(result.location)
@@ -84,10 +88,14 @@ struct QuickNavView: View {
                         }
                         .padding(.vertical, 4)
                     }
-                    .frame(height: 600)
+                    .frame(height: Self.listHeight)
                     .onChange(of: selectedIndex) { _, newIndex in
-                        withAnimation {
+                        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
                             proxy.scrollTo(newIndex, anchor: .center)
+                        } else {
+                            withAnimation {
+                                proxy.scrollTo(newIndex, anchor: .center)
+                            }
                         }
                     }
                 }
@@ -105,8 +113,8 @@ struct QuickNavView: View {
             .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
             .padding(.vertical, 8)
         }
-        .frame(width: 900)
-        .background(Color(ThemeManager.shared.currentTheme.background))
+        .frame(width: Self.panelWidth)
+        .background(Color(ThemeManager.shared.currentTheme.floatingPanel))
         .task {
             loadInitialResults()
             if UITestEnvironment.isEnabled {
@@ -206,6 +214,11 @@ struct QuickNavView: View {
                     .accessibilityIdentifier("quickNavSearchSpinner")
             }
             Spacer()
+            if !query.isEmpty, !results.isEmpty {
+                Text(results.count == 1 ? "1 match" : "\(results.count) matches")
+                    .monospacedDigit()
+                    .accessibilityIdentifier("quickNavMatchCount")
+            }
         }
         .font(Font(ThemeManager.shared.currentTheme.font(size: 11)))
         .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
@@ -220,7 +233,7 @@ struct QuickNavView: View {
             Text("Searching...")
                 .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
         }
-        .frame(height: 600)
+        .frame(height: Self.listHeight)
         .frame(maxWidth: .infinity)
         .accessibilityIdentifier("quickNavSearchingIndicator")
     }
@@ -234,7 +247,7 @@ struct QuickNavView: View {
             Text(text)
         }
         .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
-        .frame(height: 600)
+        .frame(height: Self.listHeight)
         .frame(maxWidth: .infinity)
     }
 
@@ -247,16 +260,16 @@ struct QuickNavView: View {
                 Text("Reconnect to \(remoteHost?.displayName ?? "server")")
             }
             .font(Font(ThemeManager.shared.currentTheme.font(size: 14)))
-            .foregroundColor(Color(ThemeManager.shared.currentTheme.accentText))
+            .foregroundColor(Color(ThemeManager.shared.currentTheme.selectionText))
             .padding(.horizontal, 18)
             .padding(.vertical, 12)
-            .background(Color(ThemeManager.shared.currentTheme.accent).opacity(0.85))
+            .background(Color(ThemeManager.shared.currentTheme.selectionFill))
             .clipShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("quickNavReconnectButton")
         .padding(.vertical, 24)
-        .frame(height: 600)
+        .frame(height: Self.listHeight)
     }
 
     private func reconnect() {
@@ -552,13 +565,13 @@ struct QuickNavView: View {
 
 // MARK: - Result Row
 
-private struct ResultRow: View {
+struct QuickNavResultRow: View {
     let result: QuickNavResult
     let isSelected: Bool
     let isFrecent: Bool
     let icon: NSImage
 
-    private static let rowHeight: CGFloat = 48
+    private static let rowHeight: CGFloat = 40
 
     init(result: QuickNavResult, isSelected: Bool, isFrecent: Bool) {
         self.result = result
@@ -574,11 +587,7 @@ private struct ResultRow: View {
             systemIcon = NSImage()
         }
         systemIcon.size = NSSize(width: 20, height: 20)
-        if result.isDirectory {
-            self.icon = FileItem.tintedFolderIcon(systemIcon)
-        } else {
-            self.icon = systemIcon
-        }
+        self.icon = systemIcon
     }
 
     var body: some View {
@@ -587,36 +596,40 @@ private struct ResultRow: View {
             Image(nsImage: icon)
                 .frame(width: 20, height: 20)
 
+            let theme = ThemeManager.shared.currentTheme
+
             // Two-line display: filename + path
             VStack(alignment: .leading, spacing: 2) {
                 // Line 1: Filename with star if frecent
                 HStack(spacing: 6) {
                     Text(result.title)
-                        .font(Font(ThemeManager.shared.currentTheme.font(size: 13)))
+                        .font(Font(theme.font(size: 13)))
+                        .foregroundColor(Color(isSelected ? theme.selectionText : theme.textPrimary))
                         .lineLimit(1)
                         .truncationMode(.middle)
 
                     if isFrecent {
                         Image(systemName: "star.fill")
                             .font(.system(size: 9))
-                            .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
+                            .foregroundColor(Color(isSelected ? theme.selectionText : theme.textSecondary))
                     }
 
                     if let hostLabel = result.hostLabel {
                         Text(hostLabel)
-                            .font(Font(ThemeManager.shared.currentTheme.uiFont(size: 10, weight: .medium)))
-                            .foregroundColor(Color(ThemeManager.shared.currentTheme.accentText))
+                            .font(Font(theme.uiFont(size: 10, weight: .medium)))
+                            .foregroundColor(Color(theme.textSecondary))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(Color(ThemeManager.shared.currentTheme.accent).opacity(0.85))
+                            .background(Color(theme.raised))
+                            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color(theme.hairline), lineWidth: 1))
                             .clipShape(RoundedRectangle(cornerRadius: 4))
                     }
                 }
 
                 // Line 2: Full path (secondary, smaller)
                 Text(result.subtitle)
-                    .font(Font(ThemeManager.shared.currentTheme.font(size: 11)))
-                    .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
+                    .font(Font(theme.font(size: 11)))
+                    .foregroundColor(Color(isSelected ? theme.selectionText : theme.textSecondary))
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
@@ -626,14 +639,17 @@ private struct ResultRow: View {
             // Enter symbol for selected row
             if isSelected {
                 Text("↵")
-                    .font(Font(ThemeManager.shared.currentTheme.font(size: 12)))
-                    .foregroundColor(Color(ThemeManager.shared.currentTheme.textSecondary))
+                    .font(Font(theme.font(size: 12)))
+                    .foregroundColor(Color(theme.selectionText))
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 10)
         .frame(height: Self.rowHeight)
-        .background(isSelected ? Color(ThemeManager.shared.currentTheme.accent).opacity(0.2) : Color.clear)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(isSelected ? Color(ThemeManager.shared.currentTheme.selectionFill) : Color.clear)
+        )
+        .padding(.horizontal, 8)
         .contentShape(Rectangle())
         .accessibilityIdentifier("quickNavResultRow")
     }

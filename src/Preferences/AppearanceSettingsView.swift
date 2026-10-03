@@ -4,27 +4,23 @@ struct AppearanceSettingsView: View {
     @State private var selectedTheme: ThemeChoice = SettingsManager.shared.theme
     @State private var fontSize: Int = SettingsManager.shared.fontSize
     @State private var fileListRowDensity: FileListRowDensity = SettingsManager.shared.fileListRowDensity
-    @State private var customColors: CustomThemeColors = SettingsManager.shared.customTheme ?? .defaultLight
+    @State private var fileListBanding: Bool = SettingsManager.shared.fileListBanding
+    @State private var dockIcon: DockIcon = SettingsManager.shared.dockIcon
     @State private var dateFormatCurrentYear: String = SettingsManager.shared.dateFormatCurrentYear
     @State private var dateFormatOtherYears: String = SettingsManager.shared.dateFormatOtherYears
 
     var body: some View {
         Form {
             Section {
-                Picker("Theme", selection: $selectedTheme) {
+                Picker("Appearance", selection: $selectedTheme) {
                     ForEach(ThemeChoice.allCases, id: \.self) { choice in
                         Text(choice.displayName).tag(choice)
                     }
                 }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("appearancePicker")
                 .onChange(of: selectedTheme) { _, newValue in
                     SettingsManager.shared.theme = newValue
-                }
-
-                if selectedTheme == .custom {
-                    CustomThemeEditor(colors: $customColors)
-                        .onChange(of: customColors) { _, newValue in
-                            SettingsManager.shared.customTheme = newValue
-                        }
                 }
             }
 
@@ -48,6 +44,12 @@ struct AppearanceSettingsView: View {
                 .onChange(of: fileListRowDensity) { _, newValue in
                     SettingsManager.shared.fileListRowDensity = newValue
                 }
+
+                Toggle("Row stripes", isOn: $fileListBanding)
+                    .accessibilityIdentifier("rowStripesToggle")
+                    .onChange(of: fileListBanding) { _, newValue in
+                        SettingsManager.shared.fileListBanding = newValue
+                    }
             }
 
             Section("Date Format") {
@@ -60,7 +62,7 @@ struct AppearanceSettingsView: View {
                         }
                     if let error = validateDateFormat(dateFormatCurrentYear) {
                         Text(error)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(Color(ThemeManager.shared.currentTheme.errorText))
                             .font(.caption)
                     }
                 }
@@ -73,9 +75,22 @@ struct AppearanceSettingsView: View {
                         }
                     if let error = validateDateFormat(dateFormatOtherYears) {
                         Text(error)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(Color(ThemeManager.shared.currentTheme.errorText))
                             .font(.caption)
                     }
+                }
+            }
+
+            Section("Dock Icon") {
+                Picker("Dock icon", selection: $dockIcon) {
+                    ForEach(DockIcon.allCases, id: \.self) { icon in
+                        Text(icon.displayName).tag(icon)
+                    }
+                }
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("dockIconPicker")
+                .onChange(of: dockIcon) { _, newValue in
+                    SettingsManager.shared.dockIcon = newValue
                 }
             }
 
@@ -84,10 +99,11 @@ struct AppearanceSettingsView: View {
                     theme: previewTheme,
                     fontSize: fontSize,
                     fileListRowDensity: fileListRowDensity,
+                    banding: fileListBanding,
                     dateFormatCurrentYear: validatedCurrentYearFormat,
                     dateFormatOtherYears: validatedOtherYearsFormat
                 )
-                .id("\(selectedTheme)-\(fontSize)-\(fileListRowDensity)-\(validatedCurrentYearFormat)-\(validatedOtherYearsFormat)")
+                .id("\(selectedTheme)-\(fontSize)-\(fileListRowDensity)-\(fileListBanding)-\(validatedCurrentYearFormat)-\(validatedOtherYearsFormat)")
             }
         }
         .formStyle(.grouped)
@@ -104,21 +120,9 @@ struct AppearanceSettingsView: View {
     }
 
     private var previewTheme: Theme {
-        switch selectedTheme {
-        case .system:
-            let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            return isDark ? .dark : .light
-        case .light:
-            return .light
-        case .dark:
-            return .dark
-        case .foolscap:
-            return .foolscap
-        case .drafting:
-            return .drafting
-        case .custom:
-            return .custom(from: customColors)
-        }
+        var inputs = Theme.currentInputs
+        inputs.choice = selectedTheme
+        return Theme.resolve(inputs: inputs, appearance: NSApp.effectiveAppearance)
     }
 
     /// Returns nil if valid, or an error message if invalid
@@ -191,114 +195,13 @@ struct AppearanceSettingsView: View {
     }
 }
 
-// MARK: - Custom Theme Editor
-
-struct CustomThemeEditor: View {
-    @Binding var colors: CustomThemeColors
-
-    private let availableFonts = [
-        // System fonts
-        "SF Pro",
-        "SF Pro Text",
-        "Helvetica Neue",
-        "Helvetica",
-        "Lucida Grande",
-        // Elegant sans-serif
-        "Avenir",
-        "Avenir Next",
-        "Optima",
-        "Gill Sans",
-        "Futura",
-        // Humanist
-        "Verdana",
-        "Trebuchet MS",
-        "Geneva",
-        // Classic
-        "Arial",
-        "Tahoma",
-        // Monospace (for classic file manager look)
-        "SF Mono",
-        "Menlo",
-        "Monaco",
-        "Courier",
-        "Andale Mono"
-    ]
-
-    private let availableUIFonts = [
-        // System fonts
-        "SF Pro",
-        "SF Pro Text",
-        "Helvetica Neue",
-        "Helvetica",
-        "Lucida Grande",
-        // Elegant sans-serif
-        "Avenir",
-        "Avenir Next",
-        "Optima",
-        "Gill Sans",
-        "Futura",
-        // Humanist
-        "Verdana",
-        "Trebuchet MS",
-        "Geneva",
-        // Classic
-        "Arial",
-        "Tahoma",
-    ]
-
-    var body: some View {
-        Group {
-            ColorPickerRow(label: "Background", color: binding(for: \.background))
-            ColorPickerRow(label: "Surface", color: binding(for: \.surface))
-            ColorPickerRow(label: "Border", color: binding(for: \.border))
-            ColorPickerRow(label: "Text Primary", color: binding(for: \.textPrimary))
-            ColorPickerRow(label: "Text Secondary", color: binding(for: \.textSecondary))
-            ColorPickerRow(label: "Text Tertiary", color: binding(for: \.textTertiary))
-            ColorPickerRow(label: "Accent", color: binding(for: \.accent))
-            ColorPickerRow(label: "Accent Text", color: binding(for: \.accentText))
-
-            Picker("Font", selection: $colors.fontName) {
-                ForEach(availableFonts, id: \.self) { font in
-                    Text(font).tag(font)
-                }
-            }
-
-            Picker("UI Font", selection: $colors.uiFontName) {
-                ForEach(availableUIFonts, id: \.self) { font in
-                    Text(font).tag(font)
-                }
-            }
-        }
-    }
-
-    private func binding(for keyPath: WritableKeyPath<CustomThemeColors, CodableColor>) -> Binding<Color> {
-        Binding(
-            get: { Color(colors[keyPath: keyPath].nsColor) },
-            set: { colors[keyPath: keyPath] = CodableColor(nsColor: NSColor($0)) }
-        )
-    }
-}
-
-struct ColorPickerRow: View {
-    let label: String
-    @Binding var color: Color
-
-    var body: some View {
-        HStack {
-            Text(label)
-            Spacer()
-            ColorPicker("", selection: $color, supportsOpacity: false)
-                .labelsHidden()
-        }
-    }
-}
-
 // MARK: - Theme Preview
 
 struct ThemePreview: View {
     let theme: Theme
     let fontSize: Int
     let fileListRowDensity: FileListRowDensity
+    let banding: Bool
     let dateFormatCurrentYear: String
     let dateFormatOtherYears: String
 
@@ -332,26 +235,26 @@ struct ThemePreview: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header (uses UI font for chrome)
             HStack {
                 Text("~/Documents")
-                    .font(Font(theme.uiFont(size: CGFloat(fontSize))))
+                    .font(Font(theme.uiFont(size: 12, weight: .medium)))
                     .foregroundColor(Color(theme.textPrimary))
                 Spacer()
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .background(Color(theme.surface))
+            .padding(.horizontal, 10)
+            .frame(height: 30)
+            .background(Color(theme.header))
 
-            Divider()
-                .background(Color(theme.border))
+            Rectangle()
+                .fill(Color(theme.hairline))
+                .frame(height: 1)
 
-            // File list preview with dates
             VStack(alignment: .leading, spacing: 0) {
                 FileRowPreview(
                     name: "Projects",
                     isDirectory: true,
                     isSelected: true,
+                    isStriped: false,
                     dateString: formatDate(currentYearDate, isCurrentYear: true),
                     theme: theme,
                     fontSize: fontSize,
@@ -361,6 +264,7 @@ struct ThemePreview: View {
                     name: "Archive",
                     isDirectory: true,
                     isSelected: false,
+                    isStriped: banding,
                     dateString: formatDate(pastYearDate, isCurrentYear: false),
                     theme: theme,
                     fontSize: fontSize,
@@ -370,19 +274,22 @@ struct ThemePreview: View {
                     name: "notes.txt",
                     isDirectory: false,
                     isSelected: false,
+                    isStriped: false,
                     dateString: formatDate(currentYearDate, isCurrentYear: true),
                     theme: theme,
                     fontSize: fontSize,
                     density: fileListRowDensity
                 )
             }
+            .padding(.vertical, 4)
         }
-        .background(Color(theme.background))
+        .background(Color(theme.content))
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .overlay(
             RoundedRectangle(cornerRadius: 6)
-                .stroke(Color(theme.border), lineWidth: 1)
+                .stroke(Color(theme.hairline), lineWidth: 1)
         )
+        .environment(\.colorScheme, theme.isDark ? .dark : .light)
     }
 }
 
@@ -390,44 +297,39 @@ struct FileRowPreview: View {
     let name: String
     let isDirectory: Bool
     let isSelected: Bool
+    let isStriped: Bool
     let dateString: String
     let theme: Theme
     let fontSize: Int
     let density: FileListRowDensity
 
-    private var folderColor: Color {
-        Color(theme.accent)
-    }
-
-    private var fileColor: Color {
-        Color(theme.textSecondary)
-    }
-
-    private var iconColor: Color {
-        if isSelected {
-            return Color(theme.accent)
-        }
-        return isDirectory ? folderColor : fileColor
+    private var icon: NSImage {
+        isDirectory
+            ? NSWorkspace.shared.icon(for: .folder)
+            : NSWorkspace.shared.icon(for: .plainText)
     }
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: isDirectory ? "folder.fill" : "doc")
-                .foregroundColor(iconColor)
-                .font(.system(size: density.primaryIconSize))
+            Image(nsImage: icon)
+                .resizable()
                 .frame(width: density.primaryIconSize, height: density.primaryIconSize)
             Text(name)
-                .font(.custom(theme.monoFont, size: CGFloat(fontSize)))
-                .foregroundColor(isSelected ? Color(theme.accent) : Color(theme.textPrimary))
+                .font(Font(theme.font(size: CGFloat(fontSize))))
+                .foregroundColor(Color(isSelected ? theme.selectionText : theme.textPrimary))
                 .lineLimit(1)
             Spacer()
             Text(dateString)
-                .font(.custom(theme.monoFont, size: CGFloat(fontSize - 1)))
-                .foregroundColor(isSelected ? Color(theme.accent).opacity(0.8) : Color(theme.textTertiary))
+                .font(Font(theme.numericFont(size: CGFloat(fontSize - 1))))
+                .foregroundColor(Color(isSelected ? theme.selectionText : theme.textSecondary))
         }
-        .padding(.horizontal, 8)
+        .padding(.horizontal, FileListRowMetrics.cellPadding)
         .frame(maxWidth: .infinity, minHeight: density.rowHeight, maxHeight: density.rowHeight, alignment: .leading)
-        .background(isSelected ? Color(theme.accent).opacity(0.2) : Color.clear)
+        .background(
+            RoundedRectangle(cornerRadius: density.selectionRadius)
+                .fill(Color(isSelected ? theme.selectionFill : (isStriped ? theme.hover : .clear)))
+        )
+        .padding(.horizontal, FileListRowMetrics.horizontalInset)
     }
 }
 

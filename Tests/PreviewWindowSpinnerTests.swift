@@ -126,8 +126,8 @@ final class SpinnerPlateTests: XCTestCase {
         plate.layoutSubtreeIfNeeded()
 
         XCTAssertTrue(spinner.isDescendant(of: plate), "The plate must carry the spinner it backs")
-        XCTAssertEqual(plate.layer?.backgroundColor, Theme.dark.surface.cgColor)
-        XCTAssertEqual(plate.layer?.borderColor, Theme.dark.border.cgColor)
+        XCTAssertEqual(plate.layer?.backgroundColor, Theme.dark.header.cgColor)
+        XCTAssertEqual(plate.layer?.borderColor, Theme.dark.hairline.cgColor)
         XCTAssertGreaterThan(plate.layer?.cornerRadius ?? 0, 0, "The plate should be rounded, not a bare square")
         XCTAssertNotNil(plate.shadow, "The plate should lift off what is behind it")
     }
@@ -493,7 +493,7 @@ final class PreviewWindowFirstUseTests: XCTestCase {
         XCTAssertTrue(window.isVisible, "The cold window must be composited so WebKit can draw")
         XCTAssertEqual(window.alphaValue, 0, "The cold window must enter the compositor invisibly")
         XCTAssertFalse(controller.showsLoadedContent, "No file should be on screen before it has loaded")
-        XCTAssertEqual(window.backgroundColor, Theme.dark.background)
+        XCTAssertEqual(window.backgroundColor, Theme.dark.content)
 
         let appeared = expectation(description: "window appears with the file")
         Task { @MainActor in
@@ -523,7 +523,7 @@ final class PreviewWebViewBackgroundTests: XCTestCase {
         for view in controller.previewWebViewsForTesting {
             let drawsBackground = view.value(forKey: "drawsBackground") as? Bool
             XCTAssertEqual(drawsBackground, false, "A preview view must not paint its own background")
-            XCTAssertEqual(view.underPageBackgroundColor, Theme.dark.background)
+            XCTAssertEqual(view.underPageBackgroundColor, Theme.dark.content)
         }
     }
 
@@ -534,6 +534,6 @@ final class PreviewWebViewBackgroundTests: XCTestCase {
         // With the views see-through, whatever is behind them is what is seen, so it must be the
         // theme colour and never an unpainted view.
         XCTAssertNotNil(content.layer?.backgroundColor)
-        XCTAssertEqual(content.layer?.backgroundColor, Theme.dark.background.cgColor)
+        XCTAssertEqual(content.layer?.backgroundColor, Theme.dark.content.cgColor)
     }
 }

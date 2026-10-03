@@ -117,25 +117,41 @@ var detourAccentColor: NSColor {
     ThemeManager.shared.currentTheme.accent
 }
 
-/// Text cell that responds to background style for proper selection colors
-final class ThemedTextCell: NSTableCellView {
-    override var backgroundStyle: NSView.BackgroundStyle {
+/// Whether a file row is selected, and in the active or the inactive pane
+enum RowSelectionState {
+    case none
+    case active
+    case inactive
+}
+
+/// Cells that pick their foregrounds from the row's selection state
+@MainActor
+protocol RowSelectionStyling: AnyObject {
+    var rowSelectionState: RowSelectionState { get set }
+}
+
+/// Text cell for the size and date columns
+final class ThemedTextCell: NSTableCellView, RowSelectionStyling {
+    var rowSelectionState: RowSelectionState = .none {
         didSet {
-            updateTextColor()
+            if rowSelectionState != oldValue { updateTextColor() }
         }
     }
 
-    private func updateTextColor() {
+    func updateTextColor() {
         let theme = ThemeManager.shared.currentTheme
-        if backgroundStyle == .emphasized {
-            textField?.textColor = ChromeContrast.fileListSelectedSecondaryForeground(for: theme)
-        } else {
+        switch rowSelectionState {
+        case .none:
             textField?.textColor = theme.textSecondary
+        case .active:
+            textField?.textColor = ChromeContrast.fileListSelectedSecondaryForeground(for: theme, active: true)
+        case .inactive:
+            textField?.textColor = ChromeContrast.fileListSelectedSecondaryForeground(for: theme, active: false)
         }
     }
 }
 
-/// Row view with theme-aware hover, selection, inactive-pane, and drop-target states.
+/// Row view with inset rounded hover, selection, inactive-pane, and drop-target states.
 final class InactiveHidingRowView: NSTableRowView {
     var isTableActive: Bool = true {
         didSet {
@@ -146,6 +162,25 @@ final class InactiveHidingRowView: NSTableRowView {
                 }
             }
         }
+    }
+
+    /// The inset rounded rect selection, hover and drop target fill for the given density
+    static func highlightRect(in bounds: NSRect) -> NSRect {
+        bounds.insetBy(dx: FileListRowMetrics.horizontalInset, dy: 0)
+    }
+
+    private func highlightPath(joinPrevious: Bool, joinNext: Bool) -> NSBezierPath {
+        let rect = Self.highlightRect(in: bounds)
+        let radius = SettingsManager.shared.fileListRowDensity.selectionRadius
+        let path = NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
+        // Contiguous selected rows read as one block, as in macOS inset lists.
+        if joinPrevious {
+            path.append(NSBezierPath(rect: NSRect(x: rect.minX, y: isFlipped ? rect.minY : rect.maxY - radius, width: rect.width, height: radius)))
+        }
+        if joinNext {
+            path.append(NSBezierPath(rect: NSRect(x: rect.minX, y: isFlipped ? rect.maxY - radius : rect.minY, width: rect.width, height: radius)))
+        }
+        return path
     }
 
     var isHovered: Bool = false {
@@ -166,19 +201,17 @@ final class InactiveHidingRowView: NSTableRowView {
     }
 
     override func drawBackground(in dirtyRect: NSRect) {
+        guard isDropTarget || (isHovered && !isSelected) else { return }
         let theme = Theme.currentSnapshot()
 
         if isDropTarget {
-            theme.accent.withAlphaComponent(isTableActive ? 0.16 : 0.10).setFill()
-            bounds.fill()
-
-            theme.accent.withAlphaComponent(isTableActive ? 0.75 : 0.45).setFill()
-            NSRect(x: bounds.minX, y: bounds.minY, width: 2, height: bounds.height).fill()
+            theme.dropTarget.setFill()
+            highlightPath(joinPrevious: false, joinNext: false).fill()
         }
 
         if isHovered && !isSelected {
-            theme.textPrimary.withAlphaComponent(isTableActive ? 0.06 : 0.035).setFill()
-            bounds.fill()
+            theme.hover.setFill()
+            highlightPath(joinPrevious: false, joinNext: false).fill()
         }
     }
 
@@ -186,13 +219,22 @@ final class InactiveHidingRowView: NSTableRowView {
         guard isSelected else { return }
         let theme = Theme.currentSnapshot()
 
-        if isTableActive {
-            theme.accent.withAlphaComponent(ChromeContrast.fileListSelectionAlpha).setFill()
-        } else {
-            theme.textPrimary.withAlphaComponent(0.08).setFill()
-        }
-        bounds.fill()
+        let path = highlightPath(joinPrevious: isPreviousRowSelected, joinNext: isNextRowSelected)
+        ChromeContrast.fileListSelectionFill(for: theme, active: isTableActive).setFill()
+        path.fill()
 
+        // Under Increase Contrast the faint inactive selection gains an outline.
+        if !isTableActive && theme.increaseContrast {
+            let radius = SettingsManager.shared.fileListRowDensity.selectionRadius
+            let outline = NSBezierPath(
+                roundedRect: Self.highlightRect(in: bounds).insetBy(dx: 0.5, dy: 0.5),
+                xRadius: radius,
+                yRadius: radius
+            )
+            outline.lineWidth = 1
+            ChromeContrast.stateIndicatorColor(preferred: theme.glyph, fallback: theme.textPrimary, on: theme.inactiveSelection).setStroke()
+            outline.stroke()
+        }
     }
 
     override func didAddSubview(_ subview: NSView) {
@@ -211,6 +253,7 @@ final class InactiveHidingRowView: NSTableRowView {
     private func updateCellBackgroundStyle(_ view: NSView) {
         guard let cellView = view as? NSTableCellView else { return }
         cellView.backgroundStyle = (isSelected && isTableActive) ? .emphasized : .normal
+        (cellView as? RowSelectionStyling)?.rowSelectionState = isSelected ? (isTableActive ? .active : .inactive) : .none
     }
 }
 

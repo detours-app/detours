@@ -21,9 +21,11 @@ struct RPCHandler: @unchecked Sendable {
     private let fileOperations = FileOperations()
     private let watcher = Watcher()
     private let operationService: ServerOperationService?
+    private let operationHomeDirectory: URL?
 
-    init(operationService: ServerOperationService? = nil) {
+    init(operationService: ServerOperationService? = nil, operationHomeDirectory: URL? = nil) {
         self.operationService = operationService
+        self.operationHomeDirectory = operationHomeDirectory
     }
 
     func run() throws {
@@ -159,7 +161,9 @@ struct RPCHandler: @unchecked Sendable {
     func handleChunks(message: ServerRPCMessage) throws -> [Data] {
         switch message {
         case .operation(let request):
-            return [try ServerOperationReplyBridge.reply(to: request, service: operationService).encoded()]
+            return [try ServerOperationReplyBridge.reply(
+                to: request, service: operationService, homeDirectory: operationHomeDirectory
+            ).encoded()]
         case .protocolVersion:
             var writer = ServerRPCBinaryWriter()
             writer.writeInt64(1)

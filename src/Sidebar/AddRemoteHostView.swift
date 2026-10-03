@@ -250,7 +250,7 @@ struct AddRemoteHostView: View {
             footer
         }
         .frame(width: 540, height: 360)
-        .background(Color(ThemeManager.shared.currentTheme.background))
+        .background(Color(ThemeManager.shared.currentTheme.content))
         .onKeyPress(.upArrow) {
             model.moveSuggestionSelection(by: -1)
             return .handled
@@ -456,17 +456,17 @@ struct AddRemoteHostView: View {
     private func errorView(_ message: String) -> some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.red)
+                .foregroundStyle(Color(ThemeManager.shared.currentTheme.errorText))
             Text(message)
                 .font(Font(ThemeManager.shared.currentTheme.uiFont(size: 12)))
-                .foregroundStyle(.red)
+                .foregroundStyle(Color(ThemeManager.shared.currentTheme.errorText))
                 .lineLimit(2)
                 .truncationMode(.tail)
             Spacer()
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
-        .background(Color.red.opacity(0.08))
+        .background(Color(ThemeManager.shared.currentTheme.errorFill))
     }
 
     @MainActor

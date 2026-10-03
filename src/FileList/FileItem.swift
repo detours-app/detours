@@ -233,13 +233,7 @@ final class FileItem {
         self.size = isDirectory ? nil : Int64(values?.fileSize ?? 0)
         self.dateModified = values?.contentModificationDate ?? Date()
 
-        // Get system icon and tint folders (but not packages) with accent color
-        let systemIcon = NSWorkspace.shared.icon(forFile: url.path)
-        if Self.shouldPresentAsFolder(isDirectory: isDirectory, isPackage: isPackage, location: .local(url)) {
-            self.icon = Self.tintedFolderIcon(systemIcon)
-        } else {
-            self.icon = systemIcon
-        }
+        self.icon = NSWorkspace.shared.icon(forFile: url.path)
 
         self.sharedRole = Self.makeSharedRole(
             isShared: values?.ubiquitousItemIsShared == true,
@@ -446,7 +440,7 @@ final class FileItem {
                 isPackage: entry.isPackage,
                 location: entry.location
             ) {
-                placeholder = Self.tintedFolderIcon(IconLoader.placeholderFolderIcon)
+                placeholder = IconLoader.placeholderFolderIcon
             } else {
                 placeholder = IconLoader.placeholderFileIcon
             }
@@ -593,57 +587,5 @@ extension FileItem: Hashable {
 
     func hash(into hasher: inout Hasher) {
         hasher.combine(location)
-    }
-}
-
-// MARK: - Icon Tinting
-
-extension FileItem {
-    /// Creates a tinted version of the folder icon using theme accent color
-    static func tintedFolderIcon(_ icon: NSImage) -> NSImage {
-        let size = icon.size
-        guard size.width > 0, size.height > 0 else { return icon }
-
-        let tinted = NSImage(size: size, flipped: false) { rect in
-            guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
-
-            // Draw the original icon
-            icon.draw(in: rect)
-
-            // Use AppKit drawing state here; icon rendering can happen from AppKit callbacks
-            // that are not in Swift's MainActor executor context.
-            let accentColor = Theme.currentFolderAccentColor()
-
-            // Apply accent color directly for vibrant result
-            ctx.setBlendMode(.sourceAtop)
-            ctx.setFillColor(accentColor.cgColor)
-            ctx.fill(rect)
-
-            return true
-        }
-        return tinted
-    }
-}
-
-// MARK: - Color Brightness Adjustment
-
-extension NSColor {
-    /// Returns a brighter version of the color for use in dark mode folder icons
-    func brighterForDarkMode() -> NSColor {
-        guard let color = self.usingColorSpace(.sRGB) else { return self }
-
-        var hue: CGFloat = 0
-        var saturation: CGFloat = 0
-        var brightness: CGFloat = 0
-        var alpha: CGFloat = 0
-
-        color.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
-
-        // Increase brightness by 25%, cap at 1.0
-        let newBrightness = min(brightness + 0.25, 1.0)
-        // Slightly reduce saturation to avoid oversaturation
-        let newSaturation = saturation * 0.9
-
-        return NSColor(hue: hue, saturation: newSaturation, brightness: newBrightness, alpha: alpha)
     }
 }

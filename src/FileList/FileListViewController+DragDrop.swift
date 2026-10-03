@@ -13,6 +13,7 @@ extension FileListViewController: FileListDropDelegate {
         operation: FileDropOperation
     ) {
         guard currentICloudListingMode != .sharedTopLevel else { return }
+        qualificationLastDrop = "\(operation) \(locations.map(\.path)) to \(destination.path)"
         var affectedDirectories: Set<Location> = [destination]
         if operation == .move {
             for location in locations {
@@ -60,6 +61,7 @@ extension FileListViewController: FileListDropDelegate {
                     affectedDirectories,
                     preferredResultLocations: []
                 )
+                qualificationLastDrop = (qualificationLastDrop ?? "") + " failed: \(error.localizedDescription)"
                 FileOperationQueue.shared.presentError(error)
             }
         }
@@ -74,6 +76,7 @@ extension FileListViewController: FileListDropDelegate {
     }
 
     func beginInternalDrag(items: [FileItem], on pasteboard: NSPasteboard) {
+        qualificationDragBeginCount += 1
         _ = InternalFileDragSessionStore.shared.begin(
             locations: items.map(\.location),
             on: pasteboard

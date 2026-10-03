@@ -10,10 +10,10 @@ enum SidebarSection: CaseIterable {
 
     var title: String {
         switch self {
-        case .devices: return "DEVICES"
-        case .remoteHosts: return "REMOTE HOSTS"
-        case .network: return "FILE SERVERS"
-        case .favorites: return "FAVORITES"
+        case .devices: return "Devices"
+        case .remoteHosts: return "Remote hosts"
+        case .network: return "File servers"
+        case .favorites: return "Favorites"
         }
     }
 }

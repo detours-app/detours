@@ -37,14 +37,6 @@ extension PaneViewController: PaneTabBarDelegate {
         createTab(at: currentDir, iCloudListingMode: mode, select: true)
     }
 
-    func tabBarDidRequestBack() {
-        goBack()
-    }
-
-    func tabBarDidRequestForward() {
-        goForward()
-    }
-
     func tabBarDidReorderTab(from sourceIndex: Int, to destinationIndex: Int) {
         guard sourceIndex >= 0 && sourceIndex < tabs.count else { return }
         guard destinationIndex >= 0 && destinationIndex < tabs.count else { return }
