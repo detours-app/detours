@@ -47,7 +47,7 @@ final class QualificationConnectionUITests: BaseUITest {
 
     private func runRemoteFolderResult(restoringAfterRestart: Bool) throws {
         guard qualificationRemoteTarget != nil else {
-            throw QualificationConnectionFailure.timedOut("Live target is required", nil)
+            throw XCTSkip("This regression requires a live remote qualification target.")
         }
         let ready = try waitForPaneState(pane: "left", description: "remote result fixture") {
             $0.connectionStates.values.contains("connected") && $0.displayedLocation != nil && self.isQuiescent($0)
