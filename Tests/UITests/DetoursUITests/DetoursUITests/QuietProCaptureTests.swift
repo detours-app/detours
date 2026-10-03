@@ -168,6 +168,9 @@ final class QuietProCaptureTests: BaseUITest {
         clickRow("tracked.txt", in: app.rightPaneOutlineView)
         XCTAssertTrue(waitForCondition(timeout: 3) { (try? self.requestRemotePaneState(pane: "right"))?.activePane == true })
         attachScreenshot("\(prefix)-right-active", of: app.windows.firstMatch)
+        // A selected folder on the accent selection, so the folder tint can be judged against it.
+        clickRow("Clients", in: app.leftPaneOutlineView)
+        attachScreenshot("\(prefix)-folder-selected", of: app.windows.firstMatch)
         clickRow("Budget-2026.xlsx", in: app.leftPaneOutlineView)
     }
 
