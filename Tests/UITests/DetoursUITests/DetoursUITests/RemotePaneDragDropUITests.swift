@@ -7,6 +7,13 @@ final class RemotePaneDragDropUITests: BaseUITest {
         environment["DETOURS_UI_TEST_REMOTE"] = "connected"
     }
 
+    /// Files the app's local operation helper has written, to tell a refused move from a drag that never started.
+    private func operationHomeContents() -> [String] {
+        let home = uiTestControlRootURL.appendingPathComponent(".detours-operation-home")
+        guard let walk = FileManager.default.enumerator(atPath: home.path) else { return ["<missing>"] }
+        return walk.compactMap { $0 as? String }.sorted()
+    }
+
     private func visibleLeftOutline() -> XCUIElement {
         let visible = app.outlines.matching(identifier: "fileListOutlineView").allElementsBoundByIndex
             .filter { $0.isHittable }
@@ -48,7 +55,9 @@ final class RemotePaneDragDropUITests: BaseUITest {
                 + "sourceFrame=\(sourceFrame) destinationFrame=\(destinationFrame) "
                 + "root=\(((try? FileManager.default.contentsOfDirectory(atPath: uiTestRootURL.path)) ?? []).sorted()) "
                 + "folderC=\(((try? FileManager.default.contentsOfDirectory(atPath: uiTestRootURL.appendingPathComponent("FolderC").path)) ?? []).sorted()) "
-                + "selected=\(String(describing: (try? requestRemotePaneState(pane: "left"))?.selectedLocations))"
+                + "selected=\(String(describing: (try? requestRemotePaneState(pane: "left"))?.selectedLocations)) "
+                + "alerts=\((app.dialogs.allElementsBoundByIndex + app.sheets.allElementsBoundByIndex).map { $0.staticTexts.allElementsBoundByIndex.map(\.label) }) "
+                + "operationHome=\(operationHomeContents())"
         )
 
         // The reveal contract: the destination expands, the moved item is
