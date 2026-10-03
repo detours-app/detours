@@ -41,10 +41,11 @@ final class QuietProCaptureTests: BaseUITest {
     }
 
     func testCaptureAccessibilityScenes() throws {
-        // The guarded runner turns these on only when this test is the run's filter.
+        // The guarded runner turns these on for this test, alone or in the whole-target run.
         let state = try appAppearanceState()
         guard state.increaseContrast, state.differentiateWithoutColor, state.reduceMotion, state.keyboardNavigation else {
-            throw XCTSkip("Accessibility settings were not seeded: \(state)")
+            XCTFail("The runner should have turned on the accessibility settings: \(state)")
+            return
         }
 
         try stageScene()
