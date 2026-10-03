@@ -198,7 +198,9 @@ final class FileListCell: NSTableCellView, RowSelectionStyling {
         self.isHiddenFile = item.isHiddenFile
         self.isReadable = item.isReadable
         self.gitStatus = item.gitStatus
-        iconView.image = item.icon
+        baseIcon = item.icon
+        isFolderIcon = item.isNavigableFolder
+        updateIcon()
         itemName = item.name
         nameLabel.stringValue = item.name
         linkIcon.isHidden = !item.isSymbolicLink
@@ -339,9 +341,23 @@ final class FileListCell: NSTableCellView, RowSelectionStyling {
         updateCutAppearance()
     }
 
+    private var baseIcon: NSImage?
+    private var isFolderIcon = false
+
+    /// Folders take the accent; on an active selection a lighter accent keeps them visible on the row.
+    private func updateIcon() {
+        guard let baseIcon else { return }
+        iconView.image = isFolderIcon
+            ? FileItem.tintedFolderIcon(baseIcon, onSelection: rowSelectionState == .active)
+            : baseIcon
+    }
+
     var rowSelectionState: RowSelectionState = .none {
         didSet {
-            if rowSelectionState != oldValue { updateColorsForBackgroundStyle() }
+            if rowSelectionState != oldValue {
+                updateColorsForBackgroundStyle()
+                updateIcon()
+            }
         }
     }
 

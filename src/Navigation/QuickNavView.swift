@@ -582,7 +582,10 @@ struct QuickNavResultRow: View {
         if result.isRemote {
             systemIcon = NSImage(systemSymbolName: "network", accessibilityDescription: nil) ?? NSImage()
         } else if let localURL = result.localURL {
-            systemIcon = NSWorkspace.shared.icon(forFile: localURL.path)
+            let values = try? localURL.resourceValues(forKeys: [.isDirectoryKey, .isPackageKey])
+            let workspaceIcon = NSWorkspace.shared.icon(forFile: localURL.path)
+            let isFolder = values?.isDirectory == true && values?.isPackage != true
+            systemIcon = isFolder ? FileItem.tintedFolderIcon(workspaceIcon) : workspaceIcon
         } else {
             systemIcon = NSImage()
         }

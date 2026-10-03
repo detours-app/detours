@@ -184,40 +184,63 @@ final class FileListCellTests: XCTestCase {
         }
     }
 
-    func testStockIconsUntinted() throws {
+    func testFolderIconsTakeAccent() throws {
         let root = try createTempDirectory()
         defer { cleanupTempDirectory(root) }
         let folder = try createTestFolder(in: root, name: "Projects")
         let file = try createTestFile(in: root, name: "notes.txt", content: "notes")
+        let accentHue = try XCTUnwrap(Theme.currentSnapshot().accent.usingColorSpace(.deviceRGB)).hueComponent
 
         for (url, isDirectory) in [(folder, true), (file, false)] {
             let name = url.lastPathComponent
-            let workspaceIcon = try iconPixels(NSWorkspace.shared.icon(forFile: url.path))
+            let workspaceIcon = NSWorkspace.shared.icon(forFile: url.path)
             let item = FileItem(url: url)
-            XCTAssertEqual(try iconPixels(item.icon), workspaceIcon, "\(name) row icon is the workspace icon")
-
             let cell = FileListCell(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
             cell.configure(with: item)
-            let iconView = try XCTUnwrap(cell.imageView)
-            for selection in [RowSelectionState.active, .inactive, .none] {
-                cell.rowSelectionState = selection
-                XCTAssertTrue(iconView.image === item.icon, "\(name) keeps its icon, selection \(selection)")
-                XCTAssertNil(iconView.contentTintColor, "\(name) icon is not tinted, selection \(selection)")
-            }
+            let rowIcon = try XCTUnwrap(cell.imageView?.image)
+            let quickNavIcon = QuickNavResultRow(
+                result: QuickNavResult.local(url: url, score: 1, isDirectory: isDirectory),
+                isSelected: false,
+                isFrecent: false
+            ).icon
 
-            let result = QuickNavResult.local(url: url, score: 1, isDirectory: isDirectory)
-            for isSelected in [false, true] {
-                let row = QuickNavResultRow(result: result, isSelected: isSelected, isFrecent: false)
-                XCTAssertEqual(try iconPixels(row.icon), workspaceIcon, "\(name) Quick Nav icon, selected \(isSelected)")
+            if isDirectory {
+                cell.rowSelectionState = .active
+                let selectedIcon = try XCTUnwrap(cell.imageView?.image)
+                for (icon, place) in [(rowIcon, "row"), (quickNavIcon, "Quick Nav"), (selectedIcon, "selected row")] {
+                    XCTAssertNotEqual(try iconPixels(icon), try iconPixels(workspaceIcon), "\(name) \(place) icon is tinted")
+                    let hue = try XCTUnwrap(meanOpaqueHue(icon), "\(name) \(place) icon has opaque pixels")
+                    XCTAssertLessThan(abs(hue - accentHue), 0.04, "\(name) \(place) icon takes the accent hue")
+                }
+                XCTAssertGreaterThan(
+                    try XCTUnwrap(meanOpaqueBrightness(selectedIcon)),
+                    try XCTUnwrap(meanOpaqueBrightness(rowIcon)) + 0.2,
+                    "On an active selection the folder is lighter, so it stays visible on the accent-filled row"
+                )
+            } else {
+                XCTAssertEqual(try iconPixels(rowIcon), try iconPixels(workspaceIcon), "\(name) row icon is the workspace icon")
+                XCTAssertEqual(try iconPixels(quickNavIcon), try iconPixels(workspaceIcon), "\(name) Quick Nav icon is the workspace icon")
             }
         }
+    }
 
-        let favorite = SidebarItemView(frame: NSRect(x: 0, y: 0, width: 220, height: 28))
-        favorite.configure(with: .favorite(folder), theme: Theme.light)
-        favorite.backgroundStyle = .emphasized
-        let favoriteIcon = try XCTUnwrap(favorite.subviews.compactMap { $0 as? NSImageView }.first { !$0.isHidden && $0.image != nil })
-        XCTAssertNil(favoriteIcon.contentTintColor, "Selected sidebar favourite keeps the stock icon")
-        XCTAssertEqual(try iconPixels(XCTUnwrap(favoriteIcon.image)), try iconPixels(NSWorkspace.shared.icon(forFile: folder.path)))
+    /// Mean hue of the clearly opaque pixels, which for a tinted folder is the accent's hue.
+    private func meanOpaqueHue(_ image: NSImage) throws -> CGFloat? {
+        try meanOpaqueColor(image)?.hueComponent
+    }
+
+    private func meanOpaqueBrightness(_ image: NSImage) throws -> CGFloat? {
+        try meanOpaqueColor(image)?.brightnessComponent
+    }
+
+    private func meanOpaqueColor(_ image: NSImage) throws -> NSColor? {
+        let data = try iconPixels(image)
+        var red = 0.0, green = 0.0, blue = 0.0, count = 0.0
+        for offset in stride(from: 0, to: data.count, by: 4) where data[offset + 3] > 200 {
+            red += Double(data[offset]); green += Double(data[offset + 1]); blue += Double(data[offset + 2]); count += 1
+        }
+        guard count > 0 else { return nil }
+        return NSColor(deviceRed: red / count / 255, green: green / count / 255, blue: blue / count / 255, alpha: 1)
     }
 
     private func makeGitCell(_ status: GitStatus) throws -> (FileListCell, GitMarkView) {

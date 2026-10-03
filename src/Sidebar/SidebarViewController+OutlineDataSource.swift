@@ -8,6 +8,10 @@ extension SidebarViewController: NSOutlineViewDataSource {
     func topLevelItems() -> [Any] {
         var items: [Any] = []
 
+        // FAVORITES first, as on the Quiet Pro board
+        items.append(SidebarSection.favorites)
+        items.append(contentsOf: favoritesItems())
+
         // DEVICES section header + local volumes
         items.append(SidebarSection.devices)
         items.append(contentsOf: devicesItems())
@@ -24,10 +28,6 @@ extension SidebarViewController: NSOutlineViewDataSource {
         } else {
             items.append(contentsOf: networkHierarchy)
         }
-
-        // FAVORITES section header + favorite URLs
-        items.append(SidebarSection.favorites)
-        items.append(contentsOf: favoritesItems())
 
         return items
     }
@@ -90,12 +90,13 @@ extension SidebarViewController: NSOutlineViewDataSource {
     // MARK: - Drop Target
 
     /// Get the index where favorites start in the top-level list
+    /// Favorites lead the sidebar: their rows start right after the Favorites header.
     private func favoritesStartIndex() -> Int {
-        // devices header + local devices + remote header + remote hosts
-        // + network header + network servers/placeholder + favorites header
-        let networkHierarchy = buildNetworkHierarchy()
-        let networkItemCount = (networkHierarchy.isEmpty && networkVolumes().isEmpty) ? 1 : networkHierarchy.count
-        return 1 + devicesItems().count + 1 + remoteHostItems().count + 1 + networkItemCount + 1
+        1
+    }
+
+    private func favoritesEndIndex() -> Int {
+        favoritesStartIndex() + favoritesItems().count
     }
 
     func outlineView(_ outlineView: NSOutlineView, validateDrop info: NSDraggingInfo, proposedItem item: Any?, proposedChildIndex index: Int) -> NSDragOperation {
@@ -143,7 +144,7 @@ extension SidebarViewController: NSOutlineViewDataSource {
 
         // Check for favorites reordering - only in favorites area
         if info.draggingPasteboard.string(forType: Self.favoriteDropType) != nil {
-            if index >= favoritesStartIndex() {
+            if index >= favoritesStartIndex(), index <= favoritesEndIndex() {
                 return .move
             }
         }
@@ -186,7 +187,7 @@ extension SidebarViewController: NSOutlineViewDataSource {
         // Handle new folder being added
         if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] {
             let favStart = favoritesStartIndex()
-            let targetIndex = index >= 0 ? max(0, index - favStart) : nil
+            let targetIndex = index >= 0 ? min(max(0, index - favStart), favoritesItems().count) : nil
             for url in urls {
                 var isDirectory: ObjCBool = false
                 if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue {

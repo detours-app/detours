@@ -68,21 +68,35 @@ final class ThemedHeaderCell: NSTableHeaderCell {
 
         let title = stringValue
         let size = title.size(withAttributes: attrs)
-
-        // Reserve space for AppKit's sort indicator at the trailing edge.
-        let indicatorWidth: CGFloat = sortAscending != nil ? sortIndicatorRect(forBounds: cellFrame).width + 4 : 0
         let padding = FileListRowMetrics.cellPadding
-        let textRect = NSRect(
-            x: contentFrame.minX + padding,
-            y: contentFrame.midY - size.height / 2,
-            width: contentFrame.width - padding * 2 - indicatorWidth,
-            height: size.height
-        )
+        let available = contentFrame.width - padding * 2
+
+        // The sort arrow sits right after the column name, as on the Quiet Pro board.
+        let arrow = sortAscending.flatMap { Self.sortArrow(ascending: $0, color: theme.textSecondary) }
+        let arrowSpace = arrow.map { $0.size.width + 4 } ?? 0
+        let titleWidth = min(size.width, max(0, available - arrowSpace))
+        let titleX = isFirstColumn
+            ? contentFrame.minX + padding
+            : contentFrame.maxX - padding - arrowSpace - titleWidth
+        let textRect = NSRect(x: titleX, y: contentFrame.midY - size.height / 2, width: titleWidth, height: size.height)
         title.draw(in: textRect, withAttributes: attrs)
 
-        if let ascending = sortAscending {
-            drawSortIndicator(withFrame: cellFrame, in: controlView, ascending: ascending, priority: 0)
+        if let arrow {
+            let arrowRect = NSRect(
+                x: textRect.maxX + 4,
+                y: contentFrame.midY - arrow.size.height / 2,
+                width: arrow.size.width,
+                height: arrow.size.height
+            )
+            arrow.draw(in: arrowRect)
         }
+    }
+
+    private static func sortArrow(ascending: Bool, color: NSColor) -> NSImage? {
+        let configuration = NSImage.SymbolConfiguration(pointSize: 8, weight: .semibold)
+            .applying(NSImage.SymbolConfiguration(paletteColors: [color]))
+        return NSImage(systemSymbolName: ascending ? "chevron.up" : "chevron.down", accessibilityDescription: nil)?
+            .withSymbolConfiguration(configuration)
     }
 
     override func drawInterior(withFrame cellFrame: NSRect, in controlView: NSView) {
@@ -370,10 +384,24 @@ final class BandedOutlineView: NSOutlineView {
         if SettingsManager.shared.fileListBanding {
             let density = SettingsManager.shared.fileListRowDensity
             theme.stripe.setFill()
+            let radius = density.selectionRadius
             let visibleRows = rows(in: clipRect)
             for row in visibleRows.location..<NSMaxRange(visibleRows) where row % 2 == 1 {
                 let stripeRect = InactiveHidingRowView.highlightRect(in: rect(ofRow: row))
-                NSBezierPath(roundedRect: stripeRect, xRadius: density.selectionRadius, yRadius: density.selectionRadius).fill()
+                NSBezierPath(roundedRect: stripeRect, xRadius: radius, yRadius: radius).fill()
+            }
+
+            // Like macOS lists, the stripes carry on below the last row to the bottom of the pane.
+            let pitch = rowHeight + intercellSpacing.height
+            var row = numberOfRows
+            var y = numberOfRows > 0 ? rect(ofRow: numberOfRows - 1).maxY : 0
+            while pitch > 0, y < clipRect.maxY {
+                if row % 2 == 1, y + pitch > clipRect.minY {
+                    let stripeRect = InactiveHidingRowView.highlightRect(in: NSRect(x: bounds.minX, y: y, width: bounds.width, height: pitch))
+                    NSBezierPath(roundedRect: stripeRect, xRadius: radius, yRadius: radius).fill()
+                }
+                row += 1
+                y += pitch
             }
         }
 
