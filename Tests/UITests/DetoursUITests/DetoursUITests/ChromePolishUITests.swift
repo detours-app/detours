@@ -95,6 +95,17 @@ final class ChromePolishUITests: BaseUITest {
 
         pressCharKey("w", modifiers: .command)
         XCTAssertTrue(waitForRow(named: "FolderA", timeout: 3), "Closing the second tab should return to the original tab")
+
+        for theme in ["light", "dark"] {
+            try applyAppearanceSettings(theme: theme, fontSize: 13, density: "compact")
+            attachScreenshot("\(theme)-local-path-navigation", of: app.windows.firstMatch)
+        }
+        app.terminate()
+        launchChromePolishApp(remoteMode: "connected")
+        for theme in ["light", "dark"] {
+            try applyAppearanceSettings(theme: theme, fontSize: 13, density: "compact")
+            attachScreenshot("\(theme)-remote-path-navigation", of: app.windows.firstMatch)
+        }
     }
 
     func testPaneChromeAndTitlebarClicksMoveFocus() throws {

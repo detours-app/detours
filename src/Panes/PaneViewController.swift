@@ -159,7 +159,6 @@ final class PaneViewController: NSViewController {
         view.addSubview(pathStripView)
     }
 
-    /// Back and forward lead the path bar; their identifiers and shortcuts are unchanged.
     private func setupNavigationButtons() {
         for (button, symbol, title, identifier, action) in [
             (backButton, "chevron.left", "Back", "paneBackButton", #selector(navigateBackClicked)),
@@ -366,8 +365,8 @@ final class PaneViewController: NSViewController {
         statusBar.translatesAutoresizingMaskIntoConstraints = false
 
         pathControlLeadingToICloudConstraint = pathControl.leadingAnchor.constraint(equalTo: iCloudButton.trailingAnchor, constant: 8)
-        pathControlLeadingToViewConstraint = pathControl.leadingAnchor.constraint(equalTo: forwardButton.trailingAnchor, constant: 6)
-        pathControlTrailingConstraint = pathControl.trailingAnchor.constraint(equalTo: pathStripView.trailingAnchor, constant: -10)
+        pathControlLeadingToViewConstraint = pathControl.leadingAnchor.constraint(equalTo: pathStripView.leadingAnchor, constant: 10)
+        pathControlTrailingConstraint = pathControl.trailingAnchor.constraint(equalTo: backButton.leadingAnchor, constant: -6)
         reconnectBannerHeightConstraint = reconnectBanner.heightAnchor.constraint(equalToConstant: 0)
 
         NSLayoutConstraint.activate([
@@ -390,17 +389,17 @@ final class PaneViewController: NSViewController {
             pathStripSeparator.heightAnchor.constraint(equalToConstant: 1),
 
             // Path control and quick path buttons sit inside the path strip
-            backButton.leadingAnchor.constraint(equalTo: pathStripView.leadingAnchor, constant: 8),
             backButton.centerYAnchor.constraint(equalTo: pathStripView.centerYAnchor),
             backButton.widthAnchor.constraint(equalToConstant: Self.pathBarButtonSize),
             backButton.heightAnchor.constraint(equalToConstant: Self.pathBarButtonSize),
 
             forwardButton.leadingAnchor.constraint(equalTo: backButton.trailingAnchor, constant: 2),
+            forwardButton.trailingAnchor.constraint(equalTo: pathStripView.trailingAnchor, constant: -8),
             forwardButton.centerYAnchor.constraint(equalTo: pathStripView.centerYAnchor),
             forwardButton.widthAnchor.constraint(equalToConstant: Self.pathBarButtonSize),
             forwardButton.heightAnchor.constraint(equalToConstant: Self.pathBarButtonSize),
 
-            homeButton.leadingAnchor.constraint(equalTo: forwardButton.trailingAnchor, constant: 6),
+            homeButton.leadingAnchor.constraint(equalTo: pathStripView.leadingAnchor, constant: 8),
             homeButton.centerYAnchor.constraint(equalTo: pathStripView.centerYAnchor),
             homeButton.widthAnchor.constraint(equalToConstant: 24),
             homeButton.heightAnchor.constraint(equalToConstant: 24),
