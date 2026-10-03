@@ -205,11 +205,18 @@ final class FileListCellTests: XCTestCase {
             ).icon
 
             if isDirectory {
-                for (icon, place) in [(rowIcon, "row"), (quickNavIcon, "Quick Nav")] {
+                cell.rowSelectionState = .active
+                let selectedIcon = try XCTUnwrap(cell.imageView?.image)
+                for (icon, place) in [(rowIcon, "row"), (quickNavIcon, "Quick Nav"), (selectedIcon, "selected row")] {
                     XCTAssertNotEqual(try iconPixels(icon), try iconPixels(workspaceIcon), "\(name) \(place) icon is tinted")
                     let hue = try XCTUnwrap(meanOpaqueHue(icon), "\(name) \(place) icon has opaque pixels")
                     XCTAssertLessThan(abs(hue - accentHue), 0.04, "\(name) \(place) icon takes the accent hue")
                 }
+                XCTAssertGreaterThan(
+                    try XCTUnwrap(meanOpaqueBrightness(selectedIcon)),
+                    try XCTUnwrap(meanOpaqueBrightness(rowIcon)) + 0.2,
+                    "On an active selection the folder is lighter, so it stays visible on the accent-filled row"
+                )
             } else {
                 XCTAssertEqual(try iconPixels(rowIcon), try iconPixels(workspaceIcon), "\(name) row icon is the workspace icon")
                 XCTAssertEqual(try iconPixels(quickNavIcon), try iconPixels(workspaceIcon), "\(name) Quick Nav icon is the workspace icon")
@@ -219,13 +226,21 @@ final class FileListCellTests: XCTestCase {
 
     /// Mean hue of the clearly opaque pixels, which for a tinted folder is the accent's hue.
     private func meanOpaqueHue(_ image: NSImage) throws -> CGFloat? {
+        try meanOpaqueColor(image)?.hueComponent
+    }
+
+    private func meanOpaqueBrightness(_ image: NSImage) throws -> CGFloat? {
+        try meanOpaqueColor(image)?.brightnessComponent
+    }
+
+    private func meanOpaqueColor(_ image: NSImage) throws -> NSColor? {
         let data = try iconPixels(image)
         var red = 0.0, green = 0.0, blue = 0.0, count = 0.0
         for offset in stride(from: 0, to: data.count, by: 4) where data[offset + 3] > 200 {
             red += Double(data[offset]); green += Double(data[offset + 1]); blue += Double(data[offset + 2]); count += 1
         }
         guard count > 0 else { return nil }
-        return NSColor(deviceRed: red / count / 255, green: green / count / 255, blue: blue / count / 255, alpha: 1).hueComponent
+        return NSColor(deviceRed: red / count / 255, green: green / count / 255, blue: blue / count / 255, alpha: 1)
     }
 
     private func makeGitCell(_ status: GitStatus) throws -> (FileListCell, GitMarkView) {
