@@ -2,6 +2,11 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry guarded `RefreshAuthorityRemoteRenameUITests/testRefreshErrorIsReadableAboveListingAndRetryRecovers` | `c0bc55e1` | PASS: 1 passed, 0 failed, 0 skipped. With the local helper serving the fake remote's operations, the external rename after the forced listing failure now shows up and the banner clears. |
+| Foundry guarded `RefreshAuthorityRemoteRenameUITests/testRemoteInlineRenameShowsSingleEditorAndSelectsResult` | `c0bc55e1` | PASS: 1 passed, 0 failed, 0 skipped. The inline rename on the fake remote lands and the renamed file is selected. |
+| Foundry guarded `RemotePaneDragDropUITests/testDraggingRemoteFileOntoRemoteFolderMovesIt`, with failure diagnostics | `c0bc55e1` | FAIL, same as before: the file stayed put, no alert was on screen, and the local helper's records folder was empty, so no move was ever sent. The drag never reached a move; the operation-service fix does not apply to it. Diagnosis continues. |
+| Foundry guarded `RemotePaneDragDropUITests/testDraggingRemoteFileOntoRemoteFolderMovesIt` | `10a93eb5` | FAIL, same message as before the local-helper change. The build rebuilt the Linux and Intel macOS helpers from the changed sources. |
+| Foundry `swift test --filter ServerOperationHomeTests` | `10a93eb5` | PASS: 3 tests, 0 failures, no warnings. The helper's `--operation-home` option is parsed, refuses a missing or relative path, and the live service keeps its journal and trash under the chosen folder. |
 | Foundry guarded `WindowsRemoteUITests/testReconnectBannerForWindowsHost`, A1 single run 38 of 38 | `e31bb0cc` | PASS: 1 passed, 0 failed, 0 skipped. |
 | Foundry guarded `WindowsRemoteUITests/testReconnectBannerDrivenByRealWindowsState`, A1 single run 37 of 38 | `e31bb0cc` | SKIPPED as in the whole-target LOCAL_ROOT run: needs a live remote target. 0 failed. |
 | Foundry guarded `WindowPaneGeometryUITests/testSidebarResizePreservesEqualContentPanes`, A1 single run 36 of 38 | `e31bb0cc` | PASS: 1 passed, 0 failed, 0 skipped. |
