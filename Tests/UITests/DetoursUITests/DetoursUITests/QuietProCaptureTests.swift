@@ -105,6 +105,10 @@ final class QuietProCaptureTests: BaseUITest {
             XCTFail("Finder did not open the Applications folder")
         }
         app.activate()
+
+        // Later tests in the same run start from the default icon.
+        choosePreference(inPicker: "dockIconPicker", option: "Default")
+        XCTAssertTrue(waitForCondition(timeout: 3) { (try? self.appAppearanceState())?.dockImageIsDeepSea == false }, "Default should be restored")
     }
 
     // MARK: - Scene
