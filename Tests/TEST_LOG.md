@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry guarded `RemotePaneDragDropUITests/testDraggingRemoteFileOntoRemoteFolderMovesIt`, with drag counters | `620d0c22` | FAIL: the file list reported 0 drags begun and no drop handled, with `file1.txt` still the only selected row. The press-and-move never started a drag at all; drag and drop code is unchanged since the test last passed on 2026-08-03, and this branch changed the row and cell drawing but no mouse handling. No other UI test drags a file, so whether local drags are affected is unknown. |
 | Foundry guarded `RefreshAuthorityRemoteRenameUITests/testRefreshErrorIsReadableAboveListingAndRetryRecovers` | `c0bc55e1` | PASS: 1 passed, 0 failed, 0 skipped. With the local helper serving the fake remote's operations, the external rename after the forced listing failure now shows up and the banner clears. |
 | Foundry guarded `RefreshAuthorityRemoteRenameUITests/testRemoteInlineRenameShowsSingleEditorAndSelectsResult` | `c0bc55e1` | PASS: 1 passed, 0 failed, 0 skipped. The inline rename on the fake remote lands and the renamed file is selected. |
 | Foundry guarded `RemotePaneDragDropUITests/testDraggingRemoteFileOntoRemoteFolderMovesIt`, with failure diagnostics | `c0bc55e1` | FAIL, same as before: the file stayed put, no alert was on screen, and the local helper's records folder was empty, so no move was ever sent. The drag never reached a move; the operation-service fix does not apply to it. Diagnosis continues. |
