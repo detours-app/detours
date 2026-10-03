@@ -2,6 +2,37 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry guarded `WindowsRemoteUITests/testReconnectBannerForWindowsHost`, A1 single run 38 of 38 | `e31bb0cc` | PASS: 1 passed, 0 failed, 0 skipped. |
+| Foundry guarded `WindowsRemoteUITests/testReconnectBannerDrivenByRealWindowsState`, A1 single run 37 of 38 | `e31bb0cc` | SKIPPED as in the whole-target LOCAL_ROOT run: needs a live remote target. 0 failed. |
+| Foundry guarded `WindowPaneGeometryUITests/testSidebarResizePreservesEqualContentPanes`, A1 single run 36 of 38 | `e31bb0cc` | PASS: 1 passed, 0 failed, 0 skipped. |
+| Foundry guarded `WindowPaneGeometryUITests/testPoisonedSplitDefaultsFallBackWithoutUnusablePanes`, A1 single run 35 of 38 | `e31bb0cc` | PASS: 1 passed, 0 failed, 0 skipped. |
+| Foundry guarded `WindowPaneGeometryUITests/testPoisonedSavedWindowFrameFallsBackWithoutJump`, A1 single run 34 of 38 | `e31bb0cc` | PASS: 1 passed, 0 failed, 0 skipped. |
+| Foundry guarded `WindowPaneGeometryUITests/testPaneDividerDragPersistsAcrossRelaunch`, A1 single run 33 of 38 | `e31bb0cc` | PASS: 1 passed, 0 failed, 0 skipped. |
+| Foundry guarded `WindowPaneGeometryUITests/testOversizedSavedWindowFrameComesBackAtItsSavedSize`, A1 single run 32 of 38 | `e31bb0cc` | PASS: 1 passed, 0 failed, 0 skipped. |
+| Foundry guarded `WindowPaneGeometryUITests/testMainWindowResizePersistsAcrossRelaunch`, A1 single run 31 of 38 | `e31bb0cc` | PASS: 1 passed, 0 failed, 0 skipped. |
+| Foundry guarded `WindowPaneGeometryUITests/testLaunchHasNoWindowFrameJump`, A1 single run 30 of 38 | `e31bb0cc` | PASS: 1 passed, 0 failed, 0 skipped. |
+| Foundry guarded `WindowPaneGeometryUITests/testEqualizePanesCommandSetsFiftyFifty`, A1 single run 29 of 38 | `e31bb0cc` | PASS: 1 passed, 0 failed, 0 skipped. |
+| Foundry guarded `UndoUITests/testUndoMoveRevealsTheRestoredFile`, A1 single run 28 of 38 | `e31bb0cc` | PASS: 1 passed, 0 failed, 0 skipped. |
+| Foundry guarded `UndoUITests/testUndoMove`, A1 single run 27 of 38 | `e31bb0cc` | PASS: 1 passed, 0 failed, 0 skipped. |
+| Foundry guarded `UndoUITests/testUndoMenuLabel`, A1 single run 26 of 38 | `e31bb0cc` | PASS: 1 passed, 0 failed, 0 skipped. |
+| Foundry guarded `UndoUITests/testUndoDelete`, A1 single run 25 of 38 | `e31bb0cc` | PASS: 1 passed, 0 failed, 0 skipped. |
+| Foundry guarded `UndoUITests/testUndoCopy`, A1 single run 24 of 38 | `e31bb0cc` | PASS: 1 passed, 0 failed, 0 skipped. |
+| Foundry guarded `UndoUITests/testTabScopedUndo`, A1 single run 23 of 38 | `e31bb0cc` | PASS: 1 passed, 0 failed, 0 skipped. |
+| Foundry guarded `UndoUITests/testRedo`, A1 single run 22 of 38 | `e31bb0cc` | PASS: 1 passed, 0 failed, 0 skipped. |
+| Foundry guarded `UndoUITests/testMultipleUndosAcrossTabs`, A1 single run 21 of 38 | `e31bb0cc` | PASS: 1 passed, 0 failed, 0 skipped. |
+| Foundry guarded `UndoUITests/testMultipleUndoOrder`, A1 single run 20 of 38 | `e31bb0cc` | PASS: 1 passed, 0 failed, 0 skipped. |
+| Foundry guarded `SmokeTests/testHomeButtonShowsOutlineRows`, A1 single run 19 of 38 | `e31bb0cc` | PASS: 1 passed, 0 failed, 0 skipped. |
+| Foundry guarded `SmokeTests/testHomeButtonExists`, A1 single run 18 of 38 | `e31bb0cc` | PASS: 1 passed, 0 failed, 0 skipped. |
+| Foundry guarded `SmokeTests/testFileListOutlineViewExists`, A1 single run 17 of 38 | `e31bb0cc` | PASS: 1 passed, 0 failed, 0 skipped. |
+| Foundry guarded `SmokeTests/testAppLaunchesWithWindow`, A1 single run 16 of 38 | `e31bb0cc` | PASS: 1 passed, 0 failed, 0 skipped. |
+| Foundry guarded `RenameVisualUITests/testInlineRenameEditorExpandsAfterPastingLongName`, A1 single run 15 of 38 | `e31bb0cc` | PASS: 1 passed, 0 failed, 0 skipped. |
+| Foundry guarded `RenameVisualUITests/testCaptureInlineRenameEditor`, A1 single run 14 of 38 | `e31bb0cc` | PASS: 1 passed, 0 failed, 0 skipped. |
+| Foundry guarded `RemoteSymlinkPreviewUITests/testSpaceOnRemoteSymlinkPreviewsTheLinkedFile`, A1 single run 13 of 38 | `e31bb0cc` | SKIPPED as in the whole-target LOCAL_ROOT run: needs a live remote target. 0 failed. |
+| Foundry guarded `RemoteSymlinkCopyUITests/testF5OnLocalLinkLandsTargetOnRemoteHost`, A1 single run 12 of 38 | `e31bb0cc` | SKIPPED as in the whole-target LOCAL_ROOT run: needs a live remote target. 0 failed. |
+| Foundry guarded `RemoteQuickOpenUITests/testLocalTabScopeHeader`, A1 single run 11 of 38 | `e31bb0cc` | PASS: 1 passed, 0 failed, 0 skipped. |
+| Foundry guarded `RemotePreviewWindowUITests/testRemoteTextPreviewsStayInTheDetoursWindow`, A1 single run 10 of 38 | `e31bb0cc` | PASS: 1 passed, 0 failed, 0 skipped. |
+| Foundry guarded `RemotePaneDragDropUITests/testDraggingRemoteFileOntoRemoteFolderMovesIt`, A1 single run 9 of 38 | `e31bb0cc` | FAIL at line 45: the drag from `file1.txt` onto FolderC never moved the file; the fake remote root still held `file1.txt`, FolderC stayed empty and `file1.txt` stayed selected. Last recorded pass 2026-08-03 (`bf22dc5`). Diagnosis follows. |
+| Foundry guarded `RefreshAuthorityRemoteRenameUITests/testRemoteInlineRenameShowsSingleEditorAndSelectsResult`, A1 single run 8 of 38 | `e31bb0cc` | FAIL at line 204, "Renamed file appears once": the inline rename editor became active and `renamed-remote` was typed and committed, but `renamed-remote.txt` never appeared in the remote listing within 5 s. Diagnosis follows. |
 | Foundry guarded `RefreshAuthorityRemoteRenameUITests/testRefreshErrorIsReadableAboveListingAndRetryRecovers`, rerun | `e31bb0cc` | FAIL again at the same line, so the failure is deterministic. The step that fails, an external rename after one more forced listing failure expecting automatic recovery, was added on main with the automatic-recovery change (`4cb6bf36`), and no UI pass of it is recorded; the logged pass of this test (`09df826`) predates that step. This branch's diff touches the banner colour but no refresh, rename or recovery logic. Open: likely broken on main before the redesign, not proven. |
 | Foundry guarded `RefreshAuthorityRemoteRenameUITests/testRefreshErrorIsReadableAboveListingAndRetryRecovers`, A1 single run 7 of 38 | `e31bb0cc` | FAIL at line 172: the banner appeared, read correctly and Retry cleared it, but after one more forced listing failure and an external rename of `file1.txt`, `externally-renamed.txt` never appeared within 5 s. The runner stops at the first failure, so the result bundle holds no screenshot. |
 | Foundry guarded `RefreshAuthorityCopyUITests/testF5CopyActivatesDestinationPaneAndSelectsCopy`, A1 single run 6 of 38 | `e31bb0cc` | PASS: 1 passed, 0 failed, 0 skipped. |
