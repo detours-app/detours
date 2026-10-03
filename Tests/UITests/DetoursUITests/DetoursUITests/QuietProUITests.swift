@@ -226,7 +226,7 @@ final class QuietProUITests: BaseUITest {
 
     /// Luminance down a column 40 pt into the left file list, from just below its last row to just above its bottom edge.
     private func luminancesBelowLastRow() throws -> [CGFloat] {
-        let outline = leftPaneOutlineView
+        let outline = app.leftPaneOutlineView
         let rows = outline.outlineRows
         XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5), "The left pane should list the fixture")
         let lastRow = rows.element(boundBy: rows.count - 1).frame
