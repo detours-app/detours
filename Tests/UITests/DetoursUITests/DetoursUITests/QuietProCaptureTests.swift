@@ -72,7 +72,8 @@ final class QuietProCaptureTests: BaseUITest {
     /// The Dock is captured with the whole screen: it can also list an installed Detours among its
     /// recent apps, so a single Detours Dock item is not a unique element.
     /// Apps (which replaced Launchpad) and Spotlight are not captured: on macOS 27 both are Siri AI
-    /// panels that UI tests cannot drive or close.
+    /// panels that UI tests cannot drive or close. Nor is the app switcher: XCTest delivers Cmd-Tab to
+    /// Detours rather than to macOS, and the switcher shows the same running-app icon as the Dock.
     func testCaptureAppIcons() throws {
         let dock = XCUIApplication(bundleIdentifier: "com.apple.dock")
         let dockItems = dock.descendants(matching: .dockItem).matching(identifier: "Detours")
@@ -83,14 +84,6 @@ final class QuietProCaptureTests: BaseUITest {
         XCTAssertTrue(waitForCondition(timeout: 3) { (try? self.appAppearanceState())?.dockImageIsDeepSea == true }, "Deep sea should be applied")
         sleep(1)
         attachScreenshot("dock-deep-sea-running", of: nil)
-
-        app.activate()
-        XCUIElement.perform(withKeyModifiers: .command) {
-            self.app.typeKey(.tab, modifierFlags: [])
-            sleep(1)
-            self.attachScreenshot("app-switcher-deep-sea", of: nil)
-        }
-        app.activate()
 
         // Quit with Deep sea chosen: any Detours the Dock still shows, among its recent apps, has
         // the bundle's own icon again.
