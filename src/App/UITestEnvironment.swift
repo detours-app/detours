@@ -209,6 +209,8 @@ enum UITestEnvironment {
         let refreshRequestCount: Int
         let listingMutationCount: Int
         let lastRefreshMilliseconds: Double?
+        let dragBeginCount: Int
+        let lastDrop: String?
         let appAppearance: AppAppearanceState
     }
 

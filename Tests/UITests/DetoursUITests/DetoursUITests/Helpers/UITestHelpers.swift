@@ -122,6 +122,8 @@ extension BaseUITest {
         /// app rather than from a log stream, so taking it costs nothing.
         let lastRefreshMilliseconds: Double?
         let listingMutationCount: Int
+        let dragBeginCount: Int
+        let lastDrop: String?
         let appAppearance: AppAppearanceState
     }
 

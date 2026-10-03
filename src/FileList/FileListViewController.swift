@@ -105,6 +105,11 @@ final class FileListViewController: NSViewController, FileListKeyHandling, QLPre
     /// can be taken with nothing observing it.
     private(set) var qualificationLastRefreshMilliseconds: Double?
 
+    /// Drags this list started and the last drop it handled, so a UI test can tell a drag
+    /// that never began from a drop that was refused.
+    var qualificationDragBeginCount = 0
+    var qualificationLastDrop: String?
+
     func recordQualificationRefreshDuration(_ milliseconds: Double) {
         qualificationLastRefreshMilliseconds = milliseconds
     }

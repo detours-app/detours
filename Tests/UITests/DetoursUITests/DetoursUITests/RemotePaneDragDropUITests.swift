@@ -56,6 +56,8 @@ final class RemotePaneDragDropUITests: BaseUITest {
                 + "root=\(((try? FileManager.default.contentsOfDirectory(atPath: uiTestRootURL.path)) ?? []).sorted()) "
                 + "folderC=\(((try? FileManager.default.contentsOfDirectory(atPath: uiTestRootURL.appendingPathComponent("FolderC").path)) ?? []).sorted()) "
                 + "selected=\(String(describing: (try? requestRemotePaneState(pane: "left"))?.selectedLocations)) "
+                + "dragsBegun=\(String(describing: (try? requestRemotePaneState(pane: "left"))?.dragBeginCount)) "
+                + "lastDrop=\(String(describing: (try? requestRemotePaneState(pane: "left"))?.lastDrop)) "
                 + "alerts=\((app.dialogs.allElementsBoundByIndex + app.sheets.allElementsBoundByIndex).map { $0.staticTexts.allElementsBoundByIndex.map(\.label) }) "
                 + "operationHome=\(operationHomeContents())"
         )
