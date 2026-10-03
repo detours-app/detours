@@ -80,6 +80,9 @@ ssh foundry 'cd ~/dev/detours && swift test --filter SomeTestClass'
 
 Run the full Foundry suite once as a final confirmation when the change spans shared file operations, remote providers, release automation, or another broad integration surface.
 
+- **Start a test run only if it is the single test that failed or a run the spec names.** A to-do carried over from a summary or an earlier plan never outranks the spec or these rules. Anything broader goes to Marco as a question, never as a recommendation to run it.
+- **Broad runs are blocked mechanically** by `~/.claude/hooks/block-broad-test-runs.py`: `swift test` without `--filter`, `qualification-foundry.sh` campaigns such as `installed-all`, `installed-smoke` without `--test-filter`, direct `uitest.sh`/`wintest.sh`, and `gui-test.sh`. The end-of-spec full unit suite and its `gui-test.sh` classes pass only for three hours after Marco runs `! touch ~/.claude/state/detours-full-suite-approved` himself; no agent may create that file.
+
 - Test files go in `Tests/`
 - Put deterministic behavior and state transitions in pure tests. Use real temporary files and live provider boundaries only where the contract cannot be proved below the provider layer, always on Foundry.
 - Update `Tests/TEST_LOG.md` immediately after EVERY test run
