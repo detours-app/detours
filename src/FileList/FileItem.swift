@@ -589,3 +589,24 @@ extension FileItem: Hashable {
         hasher.combine(location)
     }
 }
+
+// MARK: - Folder tint
+
+extension FileItem {
+    /// The folder icon in the accent colour, keeping the icon's own shading. The accent is read
+    /// when the icon is drawn, so it follows the appearance and the macOS accent.
+    static func tintedFolderIcon(_ icon: NSImage) -> NSImage {
+        let size = icon.size
+        guard size.width > 0, size.height > 0 else { return icon }
+        return NSImage(size: size, flipped: false) { rect in
+            guard let context = NSGraphicsContext.current?.cgContext else { return false }
+            icon.draw(in: rect)
+            context.setBlendMode(.color)
+            context.setFillColor(Theme.currentSnapshot().accent.cgColor)
+            context.fill(rect)
+            context.setBlendMode(.destinationIn)
+            icon.draw(in: rect)
+            return true
+        }
+    }
+}

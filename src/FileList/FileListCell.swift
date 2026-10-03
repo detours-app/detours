@@ -198,7 +198,7 @@ final class FileListCell: NSTableCellView, RowSelectionStyling {
         self.isHiddenFile = item.isHiddenFile
         self.isReadable = item.isReadable
         self.gitStatus = item.gitStatus
-        iconView.image = item.icon
+        iconView.image = item.isNavigableFolder ? FileItem.tintedFolderIcon(item.icon) : item.icon
         itemName = item.name
         nameLabel.stringValue = item.name
         linkIcon.isHidden = !item.isSymbolicLink

@@ -247,13 +247,10 @@ final class SidebarItemView: NSTableCellView {
     private func configureAsDevice(_ volume: VolumeInfo, theme: Theme) {
         iconView.isHidden = false
         let displayKind = volumeDisplayKind(for: volume, isNetworkVolume: false)
-        if displayKind == .localDevice {
-            iconView.image = volume.icon
-            iconView.contentTintColor = nil
-        } else {
-            iconView.image = NSImage(systemSymbolName: displayKind.symbolName, accessibilityDescription: displayKind.name)
-            iconView.contentTintColor = theme.textSecondary
-        }
+        // Monochrome symbols throughout the sidebar; the selected item's symbol takes the accent.
+        let symbolName = displayKind == .localDevice ? "internaldrive" : displayKind.symbolName
+        iconView.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: displayKind.name)
+        iconView.contentTintColor = theme.textSecondary
         nameLabel.stringValue = volume.name
         nameLabel.font = theme.uiFont(size: 13)
         nameLabel.textColor = theme.textPrimary
@@ -584,8 +581,10 @@ final class SidebarItemView: NSTableCellView {
             nameLabel.stringValue = url.lastPathComponent
             nameLabel.textColor = theme.textSecondary
         }
-        iconView.image = NSWorkspace.shared.icon(forFile: url.path)
-        iconView.contentTintColor = nil
+        var isDirectory: ObjCBool = false
+        let isFolder = !FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) || isDirectory.boolValue
+        iconView.image = NSImage(systemSymbolName: isFolder ? "folder" : "doc", accessibilityDescription: nil)
+        iconView.contentTintColor = theme.textSecondary
 
         toolTip = url.path
         setAccessibilityLabel(FileManager.default.fileExists(atPath: url.path) ? "\(url.lastPathComponent), favorite" : "\(url.lastPathComponent), missing favorite")

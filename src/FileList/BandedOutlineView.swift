@@ -68,21 +68,35 @@ final class ThemedHeaderCell: NSTableHeaderCell {
 
         let title = stringValue
         let size = title.size(withAttributes: attrs)
-
-        // Reserve space for AppKit's sort indicator at the trailing edge.
-        let indicatorWidth: CGFloat = sortAscending != nil ? sortIndicatorRect(forBounds: cellFrame).width + 4 : 0
         let padding = FileListRowMetrics.cellPadding
-        let textRect = NSRect(
-            x: contentFrame.minX + padding,
-            y: contentFrame.midY - size.height / 2,
-            width: contentFrame.width - padding * 2 - indicatorWidth,
-            height: size.height
-        )
+        let available = contentFrame.width - padding * 2
+
+        // The sort arrow sits right after the column name, as on the Quiet Pro board.
+        let arrow = sortAscending.flatMap { Self.sortArrow(ascending: $0, color: theme.textSecondary) }
+        let arrowSpace = arrow.map { $0.size.width + 4 } ?? 0
+        let titleWidth = min(size.width, max(0, available - arrowSpace))
+        let titleX = isFirstColumn
+            ? contentFrame.minX + padding
+            : contentFrame.maxX - padding - arrowSpace - titleWidth
+        let textRect = NSRect(x: titleX, y: contentFrame.midY - size.height / 2, width: titleWidth, height: size.height)
         title.draw(in: textRect, withAttributes: attrs)
 
-        if let ascending = sortAscending {
-            drawSortIndicator(withFrame: cellFrame, in: controlView, ascending: ascending, priority: 0)
+        if let arrow {
+            let arrowRect = NSRect(
+                x: textRect.maxX + 4,
+                y: contentFrame.midY - arrow.size.height / 2,
+                width: arrow.size.width,
+                height: arrow.size.height
+            )
+            arrow.draw(in: arrowRect)
         }
+    }
+
+    private static func sortArrow(ascending: Bool, color: NSColor) -> NSImage? {
+        let configuration = NSImage.SymbolConfiguration(pointSize: 8, weight: .semibold)
+            .applying(NSImage.SymbolConfiguration(paletteColors: [color]))
+        return NSImage(systemSymbolName: ascending ? "chevron.up" : "chevron.down", accessibilityDescription: nil)?
+            .withSymbolConfiguration(configuration)
     }
 
     override func drawInterior(withFrame cellFrame: NSRect, in controlView: NSView) {

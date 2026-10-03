@@ -171,6 +171,23 @@ final class SidebarTests: XCTestCase {
     // MARK: - Sidebar Accessibility Tests
 
     @MainActor
+    func testSectionOrderStartsWithFavorites() throws {
+        XCTAssertEqual(SidebarSection.allCases, [.favorites, .devices, .remoteHosts, .network])
+        let sections = SidebarViewController().topLevelItems().compactMap { $0 as? SidebarSection }
+        XCTAssertEqual(sections, [.favorites, .devices, .remoteHosts, .network], "The sidebar lists Favorites first")
+
+        let root = try createTempDirectory()
+        defer { cleanupTempDirectory(root) }
+        for item in [SidebarItem.favorite(root), .device(Self.volume(path: "/", name: "Macintosh HD"))] {
+            let view = SidebarItemView(frame: NSRect(x: 0, y: 0, width: 220, height: 28))
+            view.configure(with: item, theme: Theme.currentSnapshot())
+            let icon = try XCTUnwrap(view.subviews.compactMap { $0 as? NSImageView }.first { !$0.isHidden && $0.image != nil })
+            XCTAssertTrue(try XCTUnwrap(icon.image).isTemplate, "\(item) shows a monochrome symbol, not a workspace icon")
+            XCTAssertNotNil(icon.contentTintColor, "\(item) symbol is tinted in the sidebar colour")
+        }
+    }
+
+    @MainActor
     func testMountedVolumeAccessoryLabels() throws {
         try assertMountedItemLabels(
             item: .device(Self.volume(path: "/Volumes/Specs.sparsebundle", name: "Specs.sparsebundle")),

@@ -2,11 +2,12 @@ import AppKit
 
 // MARK: - Sidebar Section
 
+/// Sidebar sections in display order: Favorites first, as on the Quiet Pro board.
 enum SidebarSection: CaseIterable {
+    case favorites
     case devices
     case remoteHosts
     case network
-    case favorites
 
     var title: String {
         switch self {
