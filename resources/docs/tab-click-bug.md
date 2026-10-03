@@ -1,6 +1,6 @@
 # Bug: Tabs Cannot Be Selected or Closed
 
-Status: Resolved historical investigation. The current window does not use `.fullSizeContentView`, so pane tabs remain below the system title-bar hit-test layer while the title bar can still appear transparent.
+Status: Resolved historical investigation. The current window uses `.fullSizeContentView` with a transparent title bar and hidden title; pane tab bars are pinned to the view's safe-area layout guide, so they sit below the system title-bar hit-test layer while the title bar can still appear transparent.
 
 ## Symptom
 

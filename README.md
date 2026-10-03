@@ -1,6 +1,6 @@
 # Detours
 
-Dual-pane file manager with tabs, folder expansion, SSH remote browsing for macOS, Linux, and Windows hosts, Quick Open, file-operation progress, and git status. Keyboard-first, fully themeable.
+Dual-pane file manager with tabs, folder expansion, SSH remote browsing for macOS, Linux, and Windows hosts, Quick Open, file-operation progress, and git status. Keyboard-first, with System, Light and Dark appearances that follow the macOS accent colour.
 
 ![Detours screenshot](resources/docs/screenshot.png?v=2026-06-16)
 

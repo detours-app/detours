@@ -4,7 +4,7 @@
 
 ### Features
 
-- **A calmer, more professional look throughout** - Detours is restyled in light and dark mode with warm neutral surfaces and colour used only where it means something: the selected row, the active pane, git status, warnings and errors. Selected rows are rounded and inset and turn grey in the inactive pane, the active pane's tab carries a thin accent underline, tabs are compact and steady, back and forward sit at the start of the path bar, and the status bar is one slim line with activity shown only while something runs. File and folder icons are the standard macOS icons, and Quick Nav is a quiet floating panel.
+- **A calmer, more professional look throughout** - Detours is restyled in light and dark mode with warm neutral surfaces and colour used only where it means something: the selected row, the active pane, git status, warnings and errors. Selected rows are rounded and inset and turn grey in the inactive pane, the active pane's tab carries a thin accent underline, tabs are compact and steady, back and forward sit at the start of the path bar, and the status bar is one slim line with activity shown only while something runs. File and folder icons are the standard macOS icons, and Quick Open is a quiet floating panel.
 - **The accent follows macOS** - Selections, focus and the active tab use the accent chosen in System Settings, and Detours teal when macOS is set to Multicolor.
 - **One appearance setting for the whole app** - Preferences offer System, Light and Dark, applied at once to windows, right-click menus, alerts, Preferences and previews.
 - **Git status you can read without colour** - Each git state is a small mark after the file name with its own shape, stays visible on a selected row, and is read aloud by VoiceOver.

@@ -491,7 +491,7 @@ Features that aren't immediately obvious:
 ### Split Pane Divider
 
 - **Drag** the divider between panes to resize
-- **Equal-width indicator**: A brief blue line on the divider shows the moment the panes are equal width while dragging; it does not move the divider
+- **Equal-width indicator**: A brief accent-coloured line on the divider shows the moment the panes are equal width while dragging; it does not move the divider
 - **Equalize panes**: Press Ctrl-Cmd-= or choose View → Equalize Panes
 
 ### iCloud Drive

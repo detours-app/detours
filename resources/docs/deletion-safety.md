@@ -29,7 +29,7 @@ Other filesystem `removeItem` calls clean up data created by Detours itself:
 - drag-out partials and temporary Open With lookup directories;
 - committed `.detours-replacement-*` fallback items created when a volume
   cannot move a displaced destination to Trash;
-- test-only session roots created by the UI-test environment.
+- test-only session roots, fixture items and control files created and removed by the UI-test environment and its fake remote provider, confined to the run's fixture and control roots.
 
 These paths are constructed by Detours under temporary/cache locations or use an operation-specific generated suffix. They are not caller-supplied user directories.
 
