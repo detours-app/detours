@@ -29,7 +29,9 @@ Restyle the whole app in the Quiet Pro direction Marco chose on 2 October 2026: 
 - The active pane's current tab carries a thin accent underline, so the active pane is clear even when nothing is selected.
 - Tabs are compact rounded pills; the current tab looks raised. Switching tabs never shifts the other tabs.
 - Back and forward sit at the start of the path bar. Path separators are visible in light and dark mode, and the current folder stands out.
-- File and folder icons are the standard macOS icons, without the teal tint.
+- File icons are the standard macOS icons. Folder icons take the accent colour (Detours teal under Multicolor), so a selected folder sits in harmony with the teal selection instead of clashing with it.
+- Sidebar items use monochrome symbols; only the selected item takes the accent. Favorites come first, then devices, remote hosts and file servers.
+- In the column header the sort arrow sits right after the column name.
 - Rows have no zebra stripes by default, and the empty space below the last file is plain. Stripes remain available as a preference; turned on, they run the full height of the pane, through the empty space below the last file, as in Finder.
 - Git status shows as a small mark after the file name, with a different shape per state, so it does not depend on colour. VoiceOver reads the state aloud.
 - The status bar is one slim line per pane: item count, selection size and free space, plus the host for remote panes. Activity appears only while something runs.
@@ -50,13 +52,14 @@ Restyle the whole app in the Quiet Pro direction Marco chose on 2 October 2026: 
 - [x] **A7** No zebra stripes appear by default and the space below the last row is plain; turning stripes on in Preferences runs them the full height of each pane, below the last row too.
 - [x] **A8** The four git states can be told apart without colour, stay visible on a selected row, and are read aloud by VoiceOver.
 - [x] **A9** Path separators are visible in both appearances and the current folder name stands out.
-- [x] **A10** Folder and file icons appear in their standard macOS colours in the file lists, sidebar favourites and Quick Nav.
-- [x] **A11** The sidebar reads as one full-height column with sentence-case section headers, a clear selected item and visible eject controls.
+- [ ] **A10** Folder icons take the accent colour and file icons keep their standard macOS colours in the file lists and Quick Nav, and a selected folder no longer clashes with the selection.
+- [ ] **A11** The sidebar reads as one full-height column with Favorites first, sentence-case section headers, monochrome symbols, a clear selected item and visible eject controls.
 - [x] **A12** Preferences offer Appearance, file list density, font size, row stripes, date formats and the Dock icon, and no longer offer themes or a colour editor.
 - [x] **A13** Finder and the Dock show the new icon, which adapts to the macOS dark, clear and tinted icon styles on macOS 26 and later and shows correctly on macOS 14.
 - [x] **A14** Choosing the deep-sea Dock icon changes the Dock and app switcher while Detours runs, survives relaunch, and the Dock shows the default icon after quitting.
 - [x] **A15** Text and state markers meet readable contrast in light and dark mode, and Increase Contrast, Reduce Motion, Differentiate Without Color and Full Keyboard Access each give a usable result.
 - [x] **A16** No text overlaps at font sizes 10 through 16 in any density, in light and dark mode.
+- [ ] **A18** The sort arrow in a column header sits right after the column name.
 - [x] **A17** Screenshots of light and dark mode, with the left and the right pane active, match the Quiet Pro direction on the mockup board.
 
 ### Out of scope
@@ -191,6 +194,10 @@ Metrics: rows 24/28/32 pt (Compact/Comfortable/Spacious) with selection radius 5
 
 - [x] **C31** In `src/FileList/BandedOutlineView.swift` continue the inset rounded stripes below the last row to the bottom of the visible area when `fileListBanding` is on, at the row height plus intercell spacing, keeping the alternation of the real rows.
 - [x] **C32** Remove the bright white vertical lines at the sidebar and pane dividers in dark mode, so every divider draws in the `hairline` token.
+- [ ] **C33** Restore accent-tinted folder icons: bring back `FileItem.tintedFolderIcon` (removed in `e4361f8d`) tinting with the `accent` token, use it for folder icons and folder placeholders in the file list and for Quick Nav folder results in `src/Navigation/QuickNavView.swift`, and re-tint visible rows when the accent or appearance changes.
+- [ ] **C34** In `src/Sidebar/SidebarItemView.swift` draw every sidebar item (favourites, devices, disk images, remote hosts, file servers and shares) with a monochrome SF Symbol in `textSecondary`, and the selected item's symbol in the accent, instead of workspace icons.
+- [ ] **C35** Order the sidebar sections Favorites, Devices, Remote hosts, File servers in `SidebarSection` (`src/Sidebar/SidebarItem.swift`) and wherever the sidebar builds its sections.
+- [ ] **C36** In the column header cell in `src/FileList/BandedOutlineView.swift` draw the sort arrow right after the column title instead of at the column's trailing edge.
 
 ---
 
@@ -224,6 +231,9 @@ All tests run on Foundry. Installed-app tests run one at a time through `resourc
 - [x] **T16** Capture light and dark screenshots with left and right pane active through the guarded launcher and compare them with the Quiet Pro mockup board, using this spec for its stated overrides; inspect stripes on/off and plain empty space, tabs, path separators, sidebar, status/activity, banners, sheets and Quick Nav, then exercise Increase Contrast, Reduce Motion, Differentiate Without Color and Full Keyboard Access against A15.
 - [x] **T18** `QuietProUITests.testStripesFillPaneHeight` - with stripes on and a short listing, the area below the last row alternates in the stripe colour down to the bottom of the pane, and with stripes off it is plain.
 - [x] **T19** `QuietProUITests.testDividersUseHairline` - in Dark and Light, the sidebar and pane dividers sampled from a screenshot match the `hairline` token, never near-white.
+- [ ] **T20** Update `FileListCellTests.testStockIconsUntinted` to `testFolderIconsTakeAccent`: folder icons and placeholders in rows and Quick Nav are tinted with the accent for Multicolor and a system accent, file icons stay the workspace icon.
+- [ ] **T21** `SidebarTests.testSectionOrderStartsWithFavorites` - sections come in the order Favorites, Devices, Remote hosts, File servers; sidebar rows carry monochrome symbols, not workspace icons.
+- [ ] **T22** Recapture the dark and light scenes through the guarded launcher, look at them, and put them beside the Quiet Pro mockup board for Marco: tinted folders with the selection, monochrome sidebar with Favorites first, and the sort arrow beside the column name.
 - [x] **T17** Run the full Foundry unit suite over SSH once at the end, excluding `ClipboardManagerTests` and `DroppablePathControlTests` from that invocation and running those two classes through `resources/scripts/gui-test.sh` with a narrow filter, as required by the testing runbook.
 
 ---
