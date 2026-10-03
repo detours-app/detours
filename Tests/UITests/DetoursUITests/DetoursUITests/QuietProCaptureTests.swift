@@ -240,6 +240,12 @@ final class QuietProRemoteCaptureTests: BaseUITest {
             pressCharKey("r", modifiers: .command)
             let banner = app.descendants(matching: .any)["remoteRefreshErrorBanner"]
             XCTAssertTrue(banner.waitForExistence(timeout: 5), "The refresh error banner should show")
+            // The refresh retries on its own until the forced failures are used up; Retry before then fails again.
+            let failureControl = uiTestControlRootURL.appendingPathComponent(".detours-remote-provider-failure.json")
+            XCTAssertTrue(
+                waitForCondition(timeout: 8) { !FileManager.default.fileExists(atPath: failureControl.path) },
+                "The forced failures should be used up"
+            )
             attachScreenshot("\(theme)-remote-refresh-error", of: app.windows.firstMatch)
             app.buttons["remoteRefreshRetryButton"].click()
             XCTAssertTrue(waitForCondition(timeout: 8) { !banner.exists }, "Retry should clear the banner")
