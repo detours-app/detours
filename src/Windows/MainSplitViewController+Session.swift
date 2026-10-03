@@ -143,7 +143,7 @@ extension MainSplitViewController {
         let operationHelper = Self.makeUITestLocalHelper()
         registerUITestRemoteProvider(provider, host: host, helper: operationHelper)
         guard let tab = leftPane.selectedTab else { return }
-        tab.fileListViewController.loadRemoteDirectory(host: host, path: "/", provider: provider)
+        leftPane.loadRemoteHost(host, provider: provider)
         if UITestEnvironment.mirrorsRemoteInBothPanes,
            let rightTab = rightPane.selectedTab {
             rightTab.fileListViewController.loadRemoteDirectory(
