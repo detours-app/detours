@@ -142,7 +142,7 @@ extension MainSplitViewController {
         let provider = UITestRemoteProvider(hostID: host.id, base: root)
         let operationHelper = Self.makeUITestLocalHelper()
         registerUITestRemoteProvider(provider, host: host, helper: operationHelper)
-        guard let tab = leftPane.selectedTab else { return }
+        guard leftPane.selectedTab != nil else { return }
         leftPane.loadRemoteHost(host, provider: provider)
         if UITestEnvironment.mirrorsRemoteInBothPanes,
            let rightTab = rightPane.selectedTab {
