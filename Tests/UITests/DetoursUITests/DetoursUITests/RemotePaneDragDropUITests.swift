@@ -41,7 +41,8 @@ final class RemotePaneDragDropUITests: BaseUITest {
             .coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.5))
         let end = outline.outlineRow(withStaticText: "FolderC")
             .coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.5))
-        start.press(
+        // macOS 27 posts no mouse events for press(forDuration:thenDragTo:); click delivers them.
+        start.click(
             forDuration: 0.5,
             thenDragTo: end,
             withVelocity: .slow,

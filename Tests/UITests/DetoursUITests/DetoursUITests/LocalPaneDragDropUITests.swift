@@ -10,7 +10,7 @@ final class LocalPaneDragDropUITests: BaseUITest {
         selectRow(named: "file1.txt")
         let start = outlineRow(named: "file1.txt").coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.5))
         let end = outlineRow(named: "FolderC").coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.5))
-        start.press(forDuration: 0.5, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 1.0)
+        start.click(forDuration: 0.5, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 1.0)
 
         let moved = uiTestRootURL.appendingPathComponent("FolderC/file1.txt")
         XCTAssertTrue(
