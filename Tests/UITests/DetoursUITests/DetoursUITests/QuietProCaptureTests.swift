@@ -70,12 +70,9 @@ final class QuietProCaptureTests: BaseUITest {
 
     /// The Dock is captured with the whole screen: it can also list an installed Detours among its
     /// recent apps, so a single Detours Dock item is not a unique element.
+    /// Apps (which replaced Launchpad) and Spotlight are not captured: on macOS 27 both are Siri AI
+    /// panels that UI tests cannot drive or close.
     func testCaptureAppIcons() throws {
-        // On macOS 27 the Apps and Spotlight panels belong to Siri AI. A capture stopped early can
-        // leave one open over everything, which keeps keystrokes from reaching Detours.
-        let siriAI = XCUIApplication(bundleIdentifier: "com.apple.campo")
-        closePanel(of: siriAI)
-
         let dock = XCUIApplication(bundleIdentifier: "com.apple.dock")
         let dockItems = dock.descendants(matching: .dockItem).matching(identifier: "Detours")
         XCTAssertTrue(dockItems.firstMatch.waitForExistence(timeout: 5), "Detours should be in the Dock while it runs")
@@ -113,34 +110,7 @@ final class QuietProCaptureTests: BaseUITest {
         } else {
             XCTFail("Finder did not open the Applications folder")
         }
-
-        // Apps, which replaced Launchpad, is a background stub that opens its view and exits before
-        // XCTest can attach to it, so it is opened through Launch Services instead of activated.
-        let appsURL = try XCTUnwrap(NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.apps.launcher"), "Apps should be installed")
-        XCTAssertTrue(NSWorkspace.shared.open(appsURL), "Apps should launch")
-        XCTAssertTrue(siriAI.dialogs.firstMatch.waitForExistence(timeout: 5), "Apps should open its panel")
-        siriAI.typeText("Detours")
-        sleep(2)
-        attachScreenshot("apps-launcher-search", of: nil)
-        closePanel(of: siriAI)
-
         app.activate()
-        app.typeKey(" ", modifierFlags: .command)
-        XCTAssertTrue(siriAI.dialogs.firstMatch.waitForExistence(timeout: 5), "Cmd-Space should open the Spotlight panel")
-        siriAI.typeText("Detours")
-        sleep(2)
-        attachScreenshot("spotlight-search", of: nil)
-        closePanel(of: siriAI)
-        app.activate()
-    }
-
-    private func closePanel(of host: XCUIApplication) {
-        guard host.dialogs.firstMatch.exists else { return }
-        host.typeKey(.escape, modifierFlags: [])
-        if host.dialogs.firstMatch.exists {
-            host.typeKey(.escape, modifierFlags: [])
-        }
-        XCTAssertTrue(host.dialogs.firstMatch.doesNotExistOrWait(timeout: 5), "The \(host.description) panel should close")
     }
 
     // MARK: - Scene

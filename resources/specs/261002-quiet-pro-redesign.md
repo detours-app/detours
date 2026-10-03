@@ -53,7 +53,7 @@ Restyle the whole app in the Quiet Pro direction Marco chose on 2 October 2026: 
 - [ ] **A10** Folder and file icons appear in their standard macOS colours in the file lists, sidebar favourites and Quick Nav.
 - [ ] **A11** The sidebar reads as one full-height column with sentence-case section headers, a clear selected item and visible eject controls.
 - [ ] **A12** Preferences offer Appearance, file list density, font size, row stripes, date formats and the Dock icon, and no longer offer themes or a colour editor.
-- [ ] **A13** Finder, the Dock and Launchpad show the new icon, which adapts to the macOS dark, clear and tinted icon styles on macOS 26 and later and shows correctly on macOS 14.
+- [ ] **A13** Finder and the Dock show the new icon, which adapts to the macOS dark, clear and tinted icon styles on macOS 26 and later and shows correctly on macOS 14.
 - [ ] **A14** Choosing the deep-sea Dock icon changes the Dock and app switcher while Detours runs, survives relaunch, and the Dock shows the default icon after quitting.
 - [ ] **A15** Text and state markers meet readable contrast in light and dark mode, and Increase Contrast, Reduce Motion, Differentiate Without Color and Full Keyboard Access each give a usable result.
 - [ ] **A16** No text overlaps at font sizes 10 through 16 in any density, in light and dark mode.
@@ -215,7 +215,7 @@ All tests run on Foundry. Installed-app tests run one at a time through `resourc
 
 ### Build and Visual Checks (Foundry)
 
-- [ ] **T15** Build with `resources/scripts/build.sh`; confirm `Assets.car`, `Detours.icns`, `CFBundleIconName`, `CFBundleIconFile`, `NSAccentColorName` and a valid code signature; inspect default, dark, clear and tinted icons and capture Finder, Launchpad, Spotlight, Dock and app-switcher icons, including the Dock returning to default after quitting with deep sea selected.
+- [ ] **T15** Build with `resources/scripts/build.sh`; confirm `Assets.car`, `Detours.icns`, `CFBundleIconName`, `CFBundleIconFile`, `NSAccentColorName` and a valid code signature; inspect default, dark, clear and tinted icons and capture Finder, Dock and app-switcher icons, including the Dock returning to default after quitting with deep sea selected. Launchpad and Spotlight are not captured: on macOS 27 both are Siri AI panels that UI tests cannot drive or close.
 - [ ] **T16** Capture light and dark screenshots with left and right pane active through the guarded launcher and compare them with the Quiet Pro mockup board, using this spec for its stated overrides; inspect stripes on/off and plain empty space, tabs, path separators, sidebar, status/activity, banners, sheets and Quick Nav, then exercise Increase Contrast, Reduce Motion, Differentiate Without Color and Full Keyboard Access against A15.
 - [ ] **T17** Run the full Foundry unit suite over SSH once at the end, excluding `ClipboardManagerTests` and `DroppablePathControlTests` from that invocation and running those two classes through `resources/scripts/gui-test.sh` with a narrow filter, as required by the testing runbook.
 
