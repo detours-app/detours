@@ -77,6 +77,12 @@ final class QuietProCaptureTests: BaseUITest {
         captureReleasePreview("README.md", marker: "TaskFlow", pane: app.rightPaneOutlineView, attachment: "release-dark-markdown")
     }
 
+    func testCaptureReleaseHostSuggestions() throws {
+        continueAfterFailure = false
+        try applyAppearanceSettings(theme: "dark", fontSize: 13, density: "compact")
+        captureReleaseHostPicker()
+    }
+
     private func captureReleaseHostPicker() {
         pressCharKey("k", modifiers: .command)
         let sheet = app.sheets.firstMatch
@@ -84,8 +90,10 @@ final class QuietProCaptureTests: BaseUITest {
         let search = sheet.textFields.firstMatch
         XCTAssertTrue(search.waitForExistence(timeout: 3))
         search.click()
-        search.typeText("devtest")
-        XCTAssertTrue(sheet.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "devtest")).firstMatch.waitForExistence(timeout: 5), "The configured sample host should be suggested")
+        search.typeText("d")
+        for target in ["devtest", "dockerhost", "detours-windows"] {
+            XCTAssertTrue(sheet.descendants(matching: .any).matching(NSPredicate(format: "label == %@", target)).firstMatch.waitForExistence(timeout: 5), "The configured host \(target) should be suggested")
+        }
         attachScreenshot("release-dark-add-host", of: sheet)
         pressKey(.escape)
         XCTAssertTrue(waitForCondition(timeout: 3) { !sheet.exists }, "The picker should close without connecting")
