@@ -123,7 +123,7 @@ Create missing-part and deterministic damaged copies only within test-owned Foun
 - [x] **C1** Separate extraction and creation capabilities in src/Utilities/CompressionTools.swift, Shared/SevenZipArchiveReader.swift and ArchiveDialog; add RAR recognition and explicit app/helper/Windows creation rejection.
 - [x] **C2** Extend SevenZip/ and ArchiveStreamBridge/ with pinned RAR/RAR5 handlers, codecs, complete-open error inspection, password/volume callbacks and retained licence notices.
 - [x] **C3** Add the fixture corpus and manifest under resources/fixtures/rar/ with independent expected contents, pinned provenance, public fixture-password metadata and qualification of the encrypted multipart reference set. Copy these fixtures to devtest and include them in the helper cache hash so paired reader tests run during the required Linux build.
-- [ ] **C4** Add shared RAR volume discovery and extend archive inspection, accepted source observations and commit validation to bind the complete ordered volume set.
+- [x] **C4** Add shared RAR volume discovery and extend archive inspection, accepted source observations and commit validation to bind the complete ordered volume set.
 - [ ] **C5** Add local RAR extraction through the shared reader in src/Operations/, preserving owned-output validation, existing conflict publication, cancellation and undo.
 - [ ] **C6** Extend Server/ServerArchiveExtractionReader.swift, ServerArchiveExtractionPlan and ServerOperationService extraction handling for encrypted multipart RAR and all-volume source proofs.
 - [ ] **C7** Extend src/Remote/Windows/WindowsOperationArchiveLayout.swift and WindowsOperationSevenZipInterfaces/Reader/Runtime/Extraction.swift for RAR/RAR5, password and volume callback interfaces, controlled volumes and safe link properties.
@@ -144,9 +144,9 @@ Shared reader tests live in Tests/DetoursProcessTests/RarArchiveStreamTests.swif
 ### Reader and local tests
 
 - [x] **T1** (C3) RarFixtureTests/testPinnedInputsMatchIndependentReferences checks fixture hashes and licences, decodes the six-part encrypted reference with full free 7-Zip on Foundry and compares every output byte to upstream originals.
-- [ ] **T2** (C1, C4) RarArchiveOperationTests/testRecognizesRarSetsWithoutOfferingRarCreation covers case variants, later-part entry, false numbered-file matches, unchanged creation choices and direct RAR-creation rejection.
+- [x] **T2** (C1, C4) RarArchiveOperationTests/testRecognizesRarSetsWithoutOfferingRarCreation covers case variants, later-part entry, false numbered-file matches, unchanged creation choices and direct RAR-creation rejection.
 - [ ] **T3** (C2, C3, C9) RarArchiveStreamTests/testReadsAllRarFixtureFamilies compares ordinary, solid, Unicode, empty, encrypted-content and encrypted-header RAR4/RAR5 output against the independent manifest on macOS and Linux.
-- [ ] **T4** (C2, C3, C4) RarArchiveStreamTests/testVolumeCallbacksRefuseUnacceptedPaths covers missing first/middle/final parts, mixed sets, the 1,024-part limit, ambiguous names, source-link substitutions, forbidden path requests and descriptor cleanup.
+- [x] **T4** (C2, C3, C4) RarArchiveStreamTests/testVolumeCallbacksRefuseUnacceptedPaths covers missing first/middle/final parts, mixed sets, the 1,024-part limit, ambiguous names, source-link substitutions, forbidden path requests and descriptor cleanup.
 - [x] **T5** (C2, C3) RarArchiveStreamTests/testSeparatesPasswordIntegrityAndCancellation covers absent/wrong/correct passwords, ambiguous encrypted corruption, checksum failure, declared-size mismatch, cancellation and closed owned handles.
 - [ ] **T6** (C3, C4, C5) RarArchiveOperationTests/testMultipartExtractionUsesEveryObservedPart covers both naming schemes, encrypted multipart input, selected continuation, changed parts, final source-proof rejection and absence of the password from operation records and diagnostics.
 - [ ] **T7** (C3, C5) RarArchiveOperationTests/testUnsafeOrDamagedRarCannotPublish covers traversal, duplicate normalized names, link escapes, truncation, disk-full failure and no changes to existing occupants.
@@ -180,6 +180,8 @@ Run each filter separately, after its related RAR checks pass. Required Windows 
 ---
 
 ## Build Log
+
+- **C4, T2, T4** Bound discovery and accepted requests to ordered, observed sibling volumes with all-part commit proofs and an explicit helper capability. Continuations are inspected without joining siblings, then the complete set receives strict integrity checks. Foundry at `d834b705` passed T2 and T4; Linux passed T4 among 20 process checks plus 125 helper checks. Both helpers and the signed app built successfully. Tests cover encrypted modern and legacy sets, missing/mixed/ambiguous parts, substituted links, forbidden paths, the 1,024-part limit and closed handles.
 
 - **C3 ordering** Marco approved moving fixture copying and cache tracking from C9 into C3 because C3's paired shared-reader test is automatically included in the required Linux helper build. The remaining C9 work stays in sequence.
 
