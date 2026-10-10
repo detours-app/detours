@@ -39,16 +39,12 @@ final class QuietProCaptureTests: BaseUITest {
 
         try openReleaseSample("acme-corp", pane: "left")
         pressKey(.upArrow, modifiers: .command)
-        let company = app.leftPaneOutlineView.outlineRow(withStaticText: "acme-corp").staticTexts["acme-corp"]
-        XCTAssertTrue(company.waitForExistence(timeout: 5))
-        let source = company.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-        let destination = sidebar.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9))
-        source.click(forDuration: 0.5, thenDragTo: destination, withVelocity: .slow, thenHoldForDuration: 1)
-        XCTAssertTrue(sidebar.staticTexts["acme-corp"].waitForExistence(timeout: 5))
-        company.doubleClick()
+        pressCharKey("t", modifiers: .command)
+        try open("acme-corp", in: app.leftPaneOutlineView, pane: "left")
 
         app.rightPaneOutlineView.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
         try openReleaseSample("taskflow", pane: "right")
+        pressCharKey("t", modifiers: .command)
         try open("api", in: app.rightPaneOutlineView, pane: "right")
         XCTAssertTrue(waitForCondition(timeout: 10) {
             ((try? self.requestRemotePaneState(pane: "right"))?.gitStatuses.count ?? 0) >= 3
