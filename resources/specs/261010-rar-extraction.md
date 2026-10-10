@@ -30,13 +30,13 @@ Add RAR extraction alongside the existing archive formats, including password-pr
 
 ### Acceptance Criteria
 
-- [ ] **A1** Ordinary and solid RAR4 and RAR5 archives extract correctly on the Mac and supported macOS, Linux and Windows remote hosts.
+- [x] **A1** Ordinary and solid RAR4 and RAR5 archives extract correctly on the Mac and supported macOS, Linux and Windows remote hosts.
 - [ ] **A2** Password-protected contents and concealed filenames open with the correct password, and a confirmed wrong password can be corrected without partial results.
 - [ ] **A3** Split archives, including password-protected split archives, extract once when any recognized part is selected and all required parts are together.
 - [ ] **A4** Missing, damaged, changed or unsafe archive contents leave original archives and existing destination files intact and explain why extraction stopped.
 - [ ] **A5** Progress, cancellation, destination naming, conflict handling, selection and undo follow the existing archive workflow.
 - [ ] **A6** No RAR creation option or paid dependency is introduced, and existing ZIP, 7Z and TAR features continue to work.
-- [ ] **A7** Passwords are absent from saved operation records and diagnostic output.
+- [x] **A7** Passwords are absent from saved operation records and diagnostic output.
 - [ ] **A8** The GitHub page and formatted HTML user guide accurately describe RAR extraction, passwords, split archives and the Windows requirement.
 
 ### Out of scope
@@ -157,7 +157,7 @@ Shared reader tests live in Tests/DetoursProcessTests/RarArchiveStreamTests.swif
 - [x] **T9** (C3, C4, C6, C9) ServerRarExtractionTests/testAcceptedRarVerifiesAllPartsAndCommitsOnce runs on macOS and Linux, checking every fixture family, unpublished preparation, changed volumes, source proofs and idempotent commit.
 - [x] **T10** (C3, C4, C6, C9) ServerRarExtractionTests/testRarFailurePreservesFilesAndPasswordPrivacy covers missing parts, wrong passwords, corruption, unsafe links, cancellation and absence of passwords from records and diagnostics.
 - [x] **T11** (C3, C4, C7, C9) WindowsAcceptedOperationLiveTests/testAcceptedRarMatchesFixtureManifest exercises real RAR4/RAR5 ordinary, solid, both encryption modes and encrypted multipart extraction through the installed free DLL.
-- [ ] **T12** (C3, C4, C7, C9) WindowsAcceptedOperationLiveTests/testRarVolumesAndFailuresCannotEscape covers continuation selection, replaced/missing parts, idempotent commit, drive/UNC/ADS paths, unsafe links/reparse points, cancellation and password privacy.
+- [x] **T12** (C3, C4, C7, C9) WindowsAcceptedOperationLiveTests/testRarVolumesAndFailuresCannotEscape covers continuation selection, replaced/missing parts, idempotent commit, drive/UNC/ADS paths, unsafe links/reparse points, cancellation and password privacy.
 - [x] **T13** (C7) WindowsArchiveScriptTests/testRarCapabilitiesDoNotChangeOtherFormats covers missing/incompatible DLL errors, no archive-folder DLL lookup and unchanged Windows ZIP/7Z password restrictions.
 
 ### Installed-app and documentation tests
@@ -180,6 +180,12 @@ Run each filter separately, after its related RAR checks pass. Required Windows 
 ---
 
 ## Build Log
+
+- **T12** Foundry passed the complete Windows refusal journey with both 7-Zip 23.01 (`cb91191b`, 150.669s) and 26.02 (`f6def964`, 149.769s). Missing/replaced parts, junctions, drive/UNC/ADS paths, unsafe links, corruption, wrong passwords, cancellation and cleanup all passed. The fixture header mutations now preserve filename byte lengths. T11 independently covers continuation selection and repeat commits.
+
+- **T11, A1** Foundry at `f6def964` passed all 20 positive Windows families with official 7-Zip 26.02 in 301.848 seconds. Together with Mac/Linux T3/T9 and local T6, this confirms ordinary and solid RAR4/RAR5 extraction across the supported paths. Older DLLs that omit RAR4 Unix file types now receive a specific update message before output allocation.
+
+- **A7** Native helper T10 and local T6 passed their password-privacy assertions; Windows T12 at `cb91191b` passed receipt and journal scans with a distinct wrong password across content-encrypted, header-encrypted and encrypted multipart archives.
 
 - **C8** Recognized continuation selections and enabled Extract Here for multiple RAR parts. Successful extraction reports its verified source set so remaining selected parts are skipped. Reused the password sheet with distinct password, ambiguous integrity, missing-part and tool messages. Foundry at `4737757a` passed the signed build and strengthened T2, T6 and T13 individually. Installed-app behavior remains paired with C9.
 
