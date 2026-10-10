@@ -64,26 +64,26 @@ final class QuietProCaptureTests: BaseUITest {
         clickRow("database.py", in: app.rightPaneOutlineView)
         clickRow("Budget-2026.xlsx", in: app.leftPaneOutlineView)
         XCTAssertFalse(app.outlines["sidebarOutlineView"].staticTexts[testFolderName].exists, "The public screenshot should not show a qualification identifier")
-        try attachReleaseScreenshot("release-dark-main", of: app.windows.firstMatch)
+        attachScreenshot("release-dark-main", of: app.windows.firstMatch)
         openQuickNavForKeyboardInput()
         app.textFields["quickNavSearchField"].typeText("INV-2025")
         XCTAssertTrue(app.staticTexts["INV-2025-010.pdf"].waitForExistence(timeout: 10), "Quick Open should find the sample invoices")
-        try attachReleaseScreenshot("release-dark-quick-open", of: app.windows.firstMatch)
+        attachScreenshot("release-dark-quick-open", of: app.windows.firstMatch)
         pressKey(.escape)
 
-        try captureReleaseHostPicker()
+        captureReleaseHostPicker()
         clickRow("database.py", in: app.rightPaneOutlineView)
         pressKey(.upArrow, modifiers: .command)
-        try captureReleasePreview("README.md", marker: "TaskFlow", pane: app.rightPaneOutlineView, attachment: "release-dark-markdown")
+        captureReleasePreview("README.md", marker: "TaskFlow", pane: app.rightPaneOutlineView, attachment: "release-dark-markdown")
     }
 
     func testCaptureReleaseHostSuggestions() throws {
         continueAfterFailure = false
         try applyAppearanceSettings(theme: "dark", fontSize: 13, density: "compact")
-        try captureReleaseHostPicker()
+        captureReleaseHostPicker()
     }
 
-    private func captureReleaseHostPicker() throws {
+    private func captureReleaseHostPicker() {
         pressCharKey("k", modifiers: .command)
         let sheet = app.sheets.firstMatch
         XCTAssertTrue(sheet.waitForExistence(timeout: 5), "Cmd-K should open Add Remote Host")
@@ -95,18 +95,18 @@ final class QuietProCaptureTests: BaseUITest {
             XCTAssertTrue(sheet.descendants(matching: .any).matching(NSPredicate(format: "label == %@", target)).firstMatch.waitForExistence(timeout: 5), "The configured host \(target) should be suggested")
         }
         pressKey(.downArrow)
-        try attachReleaseScreenshot("release-dark-add-host", of: sheet)
+        attachScreenshot("release-dark-add-host", of: sheet)
         pressKey(.escape)
         XCTAssertTrue(waitForCondition(timeout: 3) { !sheet.exists }, "The picker should close without connecting")
     }
 
-    private func captureReleasePreview(_ name: String, marker: String, pane: XCUIElement, attachment: String) throws {
+    private func captureReleasePreview(_ name: String, marker: String, pane: XCUIElement, attachment: String) {
         clickRow(name, in: pane)
         pressKey(.space)
         let preview = app.windows[name]
         XCTAssertTrue(preview.waitForExistence(timeout: 10), "The sample should open in the Detours preview window")
         XCTAssertTrue(preview.staticTexts[marker].firstMatch.waitForExistence(timeout: 10), "Rendered sample content should be visible")
-        try attachReleaseScreenshot(attachment, of: preview)
+        attachScreenshot(attachment, of: preview)
         pressKey(.escape)
         XCTAssertTrue(waitForCondition(timeout: 3) { !preview.exists }, "The preview should close")
     }
@@ -135,7 +135,7 @@ final class QuietProCaptureTests: BaseUITest {
         """
         try performFixtureMutation(action: "write", relativePath: "Client-invoices.csv", contents: contents)
         try navigatePaneToFixtureRoot(paneIndex: 0, pane: "left")
-        try captureReleasePreview("Client-invoices.csv", marker: "Northstar Studio", pane: app.leftPaneOutlineView, attachment: "release-dark-data")
+        captureReleasePreview("Client-invoices.csv", marker: "Northstar Studio", pane: app.leftPaneOutlineView, attachment: "release-dark-data")
     }
 
     private func openReleaseSample(_ name: String, pane: String) throws {
