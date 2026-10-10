@@ -42,6 +42,8 @@ COPYFILE_DISABLE=1 tar --no-xattrs -czf - \
     resources/fixtures/rar \
     Tests/ServerArchiveOperationsTests.swift \
     Tests/ServerArchiveStreamTests.swift \
+    Tests/ServerRarExtractionTests.swift \
+    Tests/RarTestCorpus.swift \
     Tests/ServerOperationArchiveTests.swift \
     Tests/ServerOperationExtractionTests.swift \
     Tests/ServerLegacyMutationTests.swift \
@@ -106,6 +108,7 @@ let package = Package(
             path: "Tests",
             exclude: ["DetoursProcessTests"],
             sources: [
+                "ServerRarExtractionTests.swift", "RarTestCorpus.swift",
                 "ServerArchiveOperationsTests.swift", "ServerArchiveStreamTests.swift", "ServerOperationArchiveTests.swift", "ServerOperationExtractionTests.swift", "ServerLegacyMutationTests.swift", "ServerAcceptedMutationTests.swift",
                 "OperationFilesystemTests.swift", "OperationPublicationTests.swift",
                 "OperationContentProofTests.swift", "OperationManifestTests.swift", "ServerOperationServiceTests.swift", "ServerOperationTrashTests.swift",
