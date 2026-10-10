@@ -21,7 +21,7 @@ final class ReleaseQuickOpenCaptureTests: BaseUITest {
         let host = sheet.descendants(matching: .any).matching(NSPredicate(format: "label == %@", target)).firstMatch
         XCTAssertTrue(host.waitForExistence(timeout: 5))
         host.click()
-        let trust = app.buttons["Trust Host Key"]
+        let trust = app.buttons["Trust Host Key"].firstMatch
         XCTAssertTrue(trust.waitForExistence(timeout: 10))
         let fingerprint = "SHA256:uvGrK9oDb9pIPpBLi5bm0w0ObUIT1SY5ciQaMNuE0lU"
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", fingerprint, fingerprint)).firstMatch.exists,
