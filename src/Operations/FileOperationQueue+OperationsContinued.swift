@@ -362,7 +362,8 @@ extension FileOperationQueue {
         return archive
     }
 
-    func performProviderExtract(archive: Location, password: String?, undoManager: UndoManager? = nil) async throws -> Location {
+    func performProviderExtract(archive: Location, password: String?, undoManager: UndoManager? = nil,
+                                onRarParts: (([Location]) -> Void)? = nil) async throws -> Location {
         guard case .remote = archive else {
             throw FileProviderError.expectedLocal(archive)
         }
@@ -374,7 +375,8 @@ extension FileOperationQueue {
         startOperation(operation, totalCount: 1)
         defer { finishOperation() }
 
-        let extracted = try await performAcceptedExtraction(archive, format: format, password: password, undoManager: undoManager)
+        let extracted = try await performAcceptedExtraction(archive, format: format, password: password,
+            undoManager: undoManager, onRarParts: onRarParts)
         updateProgress(
             operation: operation,
             currentItem: URL(fileURLWithPath: extracted.path),

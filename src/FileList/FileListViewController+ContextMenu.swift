@@ -103,8 +103,7 @@ extension FileListViewController: FileListContextMenuDelegate {
             archiveItem.image = NSImage(systemSymbolName: "archivebox", accessibilityDescription: nil)
             menu.addItem(archiveItem)
 
-            // Extract (only for single archive file)
-            if let singleFile = singleItem, singleFile.isLocal, CompressionTools.isExtractable(singleFile.url) {
+            if Self.isExtractableSelection(selectedItems.map(\.location)) {
                 let extractItem = NSMenuItem(title: "Extract Here", action: #selector(extractArchive(_:)), keyEquivalent: "E")
                 extractItem.keyEquivalentModifierMask = [.command, .shift]
                 extractItem.target = self

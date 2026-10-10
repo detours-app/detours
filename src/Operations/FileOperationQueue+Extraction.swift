@@ -6,7 +6,8 @@ extension FileOperationQueue {
     func performExtract(
         archive: URL,
         password: String?,
-        undoManager: UndoManager?
+        undoManager: UndoManager?,
+        onRarParts: (([Location]) -> Void)? = nil
     ) async throws -> URL {
         guard let format = ArchiveFormat.detect(from: archive) ?? (RarVolumeSet.isCandidate(archive.lastPathComponent) ? .rar : nil) else {
             throw FileOperationError.archiveExtractionFailed("Unsupported archive format: \(archive.pathExtension)")
@@ -23,7 +24,7 @@ extension FileOperationQueue {
             let result: URL
             switch format {
             case .rar:
-                result = try await performExtractRar(archive: archive, password: password, ledger: ledger)
+                result = try await performExtractRar(archive: archive, password: password, ledger: ledger, onRarParts: onRarParts)
             case .zip:
                 result = try await performExtractZip(
                     archive: archive,

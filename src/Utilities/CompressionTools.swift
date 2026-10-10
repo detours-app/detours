@@ -1,3 +1,4 @@
+import DetoursProcess
 import Foundation
 
 enum ArchiveFormat: String, CaseIterable, Codable {
@@ -81,7 +82,7 @@ enum ArchiveFormat: String, CaseIterable, Codable {
         case "zip": return .zip
         case "7z": return .sevenZ
         case "rar": return .rar
-        default: return nil
+        default: return RarVolumeSet.isCandidate(url.lastPathComponent) ? .rar : nil
         }
     }
 }

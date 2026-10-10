@@ -461,21 +461,28 @@ final class FileOperationQueue {
     func extract(
         archive: Location,
         password: String? = nil,
-        undoManager: UndoManager? = nil
+        undoManager: UndoManager? = nil,
+        onRarParts: (([Location]) -> Void)? = nil
     ) async throws -> Location {
         guard case .local(let archiveURL) = archive else {
             let hostIDs = remoteHostIDs(from: [archive])
             return try await enqueue(remoteHosts: hostIDs) {
-                try await self.performProviderExtract(archive: archive, password: password, undoManager: undoManager)
+                do {
+                    return try await self.performProviderExtract(archive: archive, password: password,
+                        undoManager: undoManager, onRarParts: onRarParts)
+                } catch {
+                    throw ArchiveFormat.detect(from: URL(fileURLWithPath: archive.path)) == .rar ? RarExtractionDiagnostics.map(error) : error
+                }
             }
         }
         return try await enqueue { () async throws -> Location in
-            let extracted = try await self.performExtract(
-                archive: archiveURL,
-                password: password,
-                undoManager: undoManager
-            )
-            return .local(extracted)
+            do {
+                let extracted = try await self.performExtract(archive: archiveURL, password: password,
+                    undoManager: undoManager, onRarParts: onRarParts)
+                return .local(extracted)
+            } catch {
+                throw ArchiveFormat.detect(from: archiveURL) == .rar ? RarExtractionDiagnostics.map(error) : error
+            }
         }
     }
 

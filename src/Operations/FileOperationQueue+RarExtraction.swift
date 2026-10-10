@@ -7,7 +7,8 @@ enum RarExtractionStage: Sendable { case discovered, output, prepared, publishin
 #endif
 
 extension FileOperationQueue {
-    func performExtractRar(archive: URL, password: String?, ledger: ExtractionReplacementLedger) async throws -> URL {
+    func performExtractRar(archive: URL, password: String?, ledger: ExtractionReplacementLedger,
+                           onRarParts: (([Location]) -> Void)? = nil) async throws -> URL {
         let operation = FileOperation.extract(archive: archive, format: .rar)
         startOperation(operation, totalCount: 1)
         let cancellation = CancelFlag()
@@ -115,6 +116,7 @@ extension FileOperationQueue {
             try await runUntrackedFileIO { try staged.workspace.removeScratch() }
             updateProgress(operation: operation, currentItem: destination, completed: 1, total: 1,
                            bytesCompleted: Int64(staged.plan.byteCount), bytesTotal: Int64(staged.plan.byteCount))
+            onRarParts?(staged.volumes.parts.map { .local(parent.appendingPathComponent($0.name)) })
             return destination
         } catch {
             do { try await runUntrackedFileIO { try staged.workspace.removeScratch() } } catch let cleanup {

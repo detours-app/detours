@@ -163,6 +163,7 @@ extension WindowsOperationScripts {
                 Entries = entries.ToArray();
                 if (rar != null) {
                     long flags = ArchiveNumber(71, 0);
+                    if ((flags & (128L | 256L)) != 0) throw new IOException("Unsupported RAR compression method or feature.");
                     bool continuation = inspection && format == 0xCC && VolumeIndex > 0 && Entries.Length > 0 && Entries[0].SplitBefore;
                     if ((flags & ~(continuation ? 2L : 0L)) != 0 || !inspection && ArchiveText(55) != null)
                         throw new IOException(rar.PasswordRequested ? "RAR_PASSWORD_OR_DAMAGE" : "Damaged or incomplete RAR archive.");

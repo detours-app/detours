@@ -3,7 +3,8 @@ import Foundation
 import RemoteOperationSupport
 
 extension FileOperationQueue {
-    func performAcceptedExtraction(_ archive: Location, format: ArchiveFormat, password: String?, undoManager: UndoManager? = nil) async throws -> Location {
+    func performAcceptedExtraction(_ archive: Location, format: ArchiveFormat, password: String?, undoManager: UndoManager? = nil,
+                                   onRarParts: (([Location]) -> Void)? = nil) async throws -> Location {
         let hostID = Self.operationHostID(archive)
         let provider = try remoteProvider(for: hostID)
         let coordinator = try operationCoordinator()
@@ -45,6 +46,7 @@ extension FileOperationQueue {
         let operation = try await coordinator.create()
         let sources: [OperationLocation]
         let observations: [OperationObservation]
+        var rarParts: [Location] = []
         if format == .rar {
             guard let boundSources = layout.rarSources, let boundObservations = layout.rarObservations,
                   !boundSources.isEmpty, boundSources.count == boundObservations.count else {
@@ -52,6 +54,9 @@ extension FileOperationQueue {
             }
             sources = boundSources
             observations = boundObservations
+            if onRarParts != nil {
+                for source in sources { rarParts.append(try await provider.displayLocation(source.path)) }
+            }
         } else {
             sources = [inspected.location]
             observations = [layout.source]
@@ -63,8 +68,13 @@ extension FileOperationQueue {
         if let item = result.items.first, item.outcome == .failedUnchanged, item.result.receipt?.failure == "passwordRequired" {
             throw FileOperationError.archivePasswordRequired
         }
-        try requireSuccessfulBatch(result)
+        if format == .rar, let item = result.items.first, item.outcome == .failedUnchanged,
+           let failure = item.result.receipt?.failure {
+            throw RarExtractionDiagnostics.remote(failure)
+        }
+        if format != .rar || !result.items.allSatisfy({ $0.outcome == .committed }) { try requireSuccessfulBatch(result) }
         try await registerAcceptedUndo(result, with: undoManager, name: "Extract Archive")
+        if format == .rar { onRarParts?(rarParts) }
         return try await provider.displayLocation(target.path)
     }
 

@@ -17,7 +17,10 @@ extension RarArchiveOperationTests {
             defer { fixture.cleanup() }
             let encrypted = names.count == 6
             let selected = try XCTUnwrap(fixture.parts.last)
-            let result = try await queue.extract(archive: selected, password: encrypted ? "test" : nil)
+            var consumed: [[Location]] = []
+            let result = try await queue.extract(archive: .local(selected), password: encrypted ? "test" : nil,
+                onRarParts: { consumed.append($0) }).url
+            XCTAssertEqual(consumed, [fixture.parts.map(Location.local)])
             if encrypted {
                 XCTAssertEqual(result.lastPathComponent, "Rar.EncryptedParts")
                 for name in ["exe/test.exe", "jpg/test.jpg", "тест.txt"] {

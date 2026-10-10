@@ -12,7 +12,11 @@ final class RarArchiveOperationTests: XCTestCase {
         XCTAssertNil(ArchivePasswordValidation.errorMessage(for: String(repeating: "x", count: 200), format: .rar))
         for name in ["received.rar", "received.RAR", "received.Part003.RaR", "received.r00", "received.R01"] {
             XCTAssertTrue(RarVolumeSet.isCandidate(name))
+            XCTAssertEqual(ArchiveFormat.detect(from: URL(fileURLWithPath: name)), .rar)
+            XCTAssertTrue(FileListViewController.isExtractableArchiveLocation(.local(URL(fileURLWithPath: name))))
         }
+        XCTAssertTrue(FileListViewController.isExtractableSelection(["set.part1.rar", "set.part2.rar"].map { .local(URL(fileURLWithPath: $0)) }))
+        XCTAssertFalse(FileListViewController.isExtractableSelection(["set.part1.rar", "notes.001"].map { .local(URL(fileURLWithPath: $0)) }))
         for name in ["notes.001", "notes.r0", "notes.r000", "../received.rar", "C:received.rar"] {
             XCTAssertFalse(RarVolumeSet.isCandidate(name))
         }
