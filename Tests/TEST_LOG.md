@@ -2,6 +2,15 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry `RarArchiveStreamTests/testVolumeCallbacksRefuseUnacceptedPaths` | `a829813f` | PASS: 1 test, 0 failures, 1.426 seconds; signed app and both helper builds passed. |
+| Foundry `AcceptedExtractionCallerTests/testSingleItemNamesAndWrappersMatchAllExistingFormats` | `a829813f` | PASS: 1 test, 0 failures, 2.245 seconds. |
+| Foundry `AcceptedExtractionCallerTests/testEncryptedExtractionRequestsPasswordAndRetainsRetry` | `a829813f` | PASS: 1 test, 0 failures, 0.736 seconds. |
+| Foundry `AcceptedExtractionCallerTests/testChangedArchiveAfterInspectionCannotBeExtracted` | `a829813f` | PASS: 1 test, 0 failures, 0.170 seconds. |
+| Foundry `ServerArchiveStreamTests/testNativeReaderListsAndExtractsOwnedStreamsAcrossFormats` | `a829813f` | PASS: 1 test, 0 failures, 0.148 seconds. |
+| Foundry `ServerArchiveStreamTests/testNativeReaderRefusesNonemptyOutputAndPropagatesCancellation` | `a829813f` | PASS: 1 test, 0 failures, 0.005 seconds. |
+| Foundry `ServerArchiveStreamTests/testExternalLinkArchiveRetainsExistingExtractionRefusal` | `a829813f` | PASS: 1 test, 0 failures, 0.288 seconds. |
+| Foundry build, devtest `DetoursProcessTests`, accepted RAR sets | `a829813f` | PASS: 20 tests, 0 failures in 19.76 seconds. Strengthened volume case passed in 7.32 seconds, including rejection of reordered and extra accepted parts. |
+| Foundry build, devtest `ServerArchiveOperationsTests`, RAR helper preparation | `a829813f` | PASS: 125 tests, 0 failures in 16.51 seconds. Existing helper extraction and publication checks remain green. |
 | Foundry helper RAR build | `f681d67c` | FAIL before tests: three extraction checks refer to a nonexistent RAR case in the creation-only server format enum. Use the extraction protocol string; keep creation formats unchanged. |
 | Foundry `RarArchiveOperationTests/testRarConflictCancellationAndUndoPreserveFiles`, dangling links | `a1ad9672` | PASS: 1 test, 0 failures in 0.25 seconds. Keep Both skips dangling links; replacement, undo, cancellation and destination races remain green. |
 | Foundry `ArchiveOperationTests/testCreateAndExtractEncryptedZipRoundTrips` | `a1ad9672` | PASS: 1 test, 0 failures in 0.30 seconds. |
