@@ -2,6 +2,13 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry `RarArchiveOperationTests/testRarConflictCancellationAndUndoPreserveFiles`, dangling links | `a1ad9672` | PASS: 1 test, 0 failures in 0.25 seconds. Keep Both skips dangling links; replacement, undo, cancellation and destination races remain green. |
+| Foundry `ArchiveOperationTests/testCreateAndExtractEncryptedZipRoundTrips` | `a1ad9672` | PASS: 1 test, 0 failures in 0.30 seconds. |
+| Foundry `ArchiveOperationTests/testEncryptedZipWrongPasswordRetriesWithoutPartialOutput` | `a1ad9672` | PASS: 1 test, 0 failures in 0.42 seconds. |
+| Foundry `ArchiveOperationTests/testCreateListAndExtractEncrypted7zRoundTrips` | `a1ad9672` | PASS: 1 test, 0 failures in 0.27 seconds. |
+| Foundry `ArchiveOperationTests/testEncrypted7zWrongPasswordDiffersFromCorruption` | `a1ad9672` | PASS: 1 test, 0 failures in 0.19 seconds. |
+| Foundry `ArchiveOperationTests/testEncryptedAESZipPromptsAndRoundTripsThroughSevenZip` | `a1ad9672` | PASS: 1 test, 0 failures in 0.39 seconds. |
+| Foundry `RarArchiveOperationTests/testMultipartExtractionUsesEveryObservedPart`, hidden members | `a1ad9672` | PASS: 1 test, 0 failures in 0.88 seconds. Modern, legacy, encrypted and hidden-file extraction matches independent bytes; source changes are rejected before publication. Signed app build passed without warnings. |
 | Foundry `RarArchiveOperationTests/testMultipartExtractionUsesEveryObservedPart` | `0210b48e` | PASS: 1 test, 0 failures in 0.87 seconds. Modern, legacy and encrypted multipart outputs match independent expectations; changed sources and password privacy checks pass. Signed Mac app build passed. |
 | Foundry `RarArchiveOperationTests/testUnsafeOrDamagedRarCannotPublish` | `0210b48e` | PASS: 1 test, 0 failures in 0.09 seconds. Traversal, duplicate/equivalent names, escaping links, truncation, known space shortage and output-boundary disk-full errors leave occupants intact and remove private staging. |
 | Foundry `RarArchiveOperationTests/testRarConflictCancellationAndUndoPreserveFiles` | `0210b48e` | PASS: 1 test, 0 failures in 0.24 seconds. Keep Both, Replace, Stop, undo, cancellation before and after publication and racing destination occupants behave as required. |

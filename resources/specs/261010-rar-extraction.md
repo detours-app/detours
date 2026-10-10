@@ -124,7 +124,7 @@ Create missing-part and deterministic damaged copies only within test-owned Foun
 - [x] **C2** Extend SevenZip/ and ArchiveStreamBridge/ with pinned RAR/RAR5 handlers, codecs, complete-open error inspection, password/volume callbacks and retained licence notices.
 - [x] **C3** Add the fixture corpus and manifest under resources/fixtures/rar/ with independent expected contents, pinned provenance, public fixture-password metadata and qualification of the encrypted multipart reference set. Copy these fixtures to devtest and include them in the helper cache hash so paired reader tests run during the required Linux build.
 - [x] **C4** Add shared RAR volume discovery and extend archive inspection, accepted source observations and commit validation to bind the complete ordered volume set.
-- [ ] **C5** Add local RAR extraction through the shared reader in src/Operations/, preserving owned-output validation, existing conflict publication, cancellation and undo.
+- [x] **C5** Add local RAR extraction through the shared reader in src/Operations/, preserving owned-output validation, existing conflict publication, cancellation and undo.
 - [ ] **C6** Extend Server/ServerArchiveExtractionReader.swift, ServerArchiveExtractionPlan and ServerOperationService extraction handling for encrypted multipart RAR and all-volume source proofs.
 - [ ] **C7** Extend src/Remote/Windows/WindowsOperationArchiveLayout.swift and WindowsOperationSevenZipInterfaces/Reader/Runtime/Extraction.swift for RAR/RAR5, password and volume callback interfaces, controlled volumes and safe link properties.
 - [ ] **C8** Update file opening, Extract Here availability, multi-selection deduplication and FileOperationQueue error mapping; reuse the existing password sheet and add precise volume/tool/integrity messages.
@@ -148,9 +148,9 @@ Shared reader tests live in Tests/DetoursProcessTests/RarArchiveStreamTests.swif
 - [ ] **T3** (C2, C3, C9) RarArchiveStreamTests/testReadsAllRarFixtureFamilies compares ordinary, solid, Unicode, empty, encrypted-content and encrypted-header RAR4/RAR5 output against the independent manifest on macOS and Linux.
 - [x] **T4** (C2, C3, C4) RarArchiveStreamTests/testVolumeCallbacksRefuseUnacceptedPaths covers missing first/middle/final parts, mixed sets, the 1,024-part limit, ambiguous names, source-link substitutions, forbidden path requests and descriptor cleanup.
 - [x] **T5** (C2, C3) RarArchiveStreamTests/testSeparatesPasswordIntegrityAndCancellation covers absent/wrong/correct passwords, ambiguous encrypted corruption, checksum failure, declared-size mismatch, cancellation and closed owned handles.
-- [ ] **T6** (C3, C4, C5) RarArchiveOperationTests/testMultipartExtractionUsesEveryObservedPart covers both naming schemes, encrypted multipart input, selected continuation, changed parts, final source-proof rejection and absence of the password from operation records and diagnostics.
+- [x] **T6** (C3, C4, C5) RarArchiveOperationTests/testMultipartExtractionUsesEveryObservedPart covers both naming schemes, encrypted multipart input, selected continuation, changed parts, final source-proof rejection and absence of the password from operation records and diagnostics.
 - [x] **T7** (C3, C5) RarArchiveOperationTests/testUnsafeOrDamagedRarCannotPublish covers traversal, duplicate normalized names, link escapes, truncation, disk-full failure and no changes to existing occupants.
-- [ ] **T8** (C3, C5) RarArchiveOperationTests/testRarConflictCancellationAndUndoPreserveFiles covers Keep Both, Replace, Stop, destination races, pre-publication cancellation, commit-race reporting and restoration of displaced files.
+- [x] **T8** (C3, C5) RarArchiveOperationTests/testRarConflictCancellationAndUndoPreserveFiles covers Keep Both, Replace, Stop, destination races, pre-publication cancellation, commit-race reporting and restoration of displaced files.
 
 ### Helper and Windows tests
 
@@ -171,7 +171,7 @@ Shared reader tests live in Tests/DetoursProcessTests/RarArchiveStreamTests.swif
 
 Run each filter separately, after its related RAR checks pass. Required Windows tests use the existing DETOURS_7ZIP_FIXTURE prerequisite containing official free Windows 7z.exe and 7z.dll. Fixture setup and installed-app checks follow resources/docs/testing-runbook.md, including the independent consent-prompt sentry.
 
-- [ ] **T18** (C1, C2, C5) Pass ArchiveOperationTests/testCreateAndExtractEncryptedZipRoundTrips, testEncryptedZipWrongPasswordRetriesWithoutPartialOutput, testCreateListAndExtractEncrypted7zRoundTrips, testEncrypted7zWrongPasswordDiffersFromCorruption and testEncryptedAESZipPromptsAndRoundTripsThroughSevenZip individually.
+- [x] **T18** (C1, C2, C5) Pass ArchiveOperationTests/testCreateAndExtractEncryptedZipRoundTrips, testEncryptedZipWrongPasswordRetriesWithoutPartialOutput, testCreateListAndExtractEncrypted7zRoundTrips, testEncrypted7zWrongPasswordDiffersFromCorruption and testEncryptedAESZipPromptsAndRoundTripsThroughSevenZip individually.
 - [ ] **T19** (C4, C5, C6) Pass AcceptedExtractionCallerTests/testSingleItemNamesAndWrappersMatchAllExistingFormats, testEncryptedExtractionRequestsPasswordAndRetainsRetry and testChangedArchiveAfterInspectionCannotBeExtracted individually.
 - [ ] **T20** (C2, C6) Pass ServerArchiveStreamTests/testNativeReaderListsAndExtractsOwnedStreamsAcrossFormats, testNativeReaderRefusesNonemptyOutputAndPropagatesCancellation and testExternalLinkArchiveRetainsExistingExtractionRefusal individually.
 - [ ] **T21** (C7) Pass WindowsAcceptedOperationLiveTests/testAcceptedSevenZipCreationAndExtractionMatchExistingLayout and WindowsArchiveScriptTests/testArchiveExtractRejectsEscapingEntries individually.
@@ -180,6 +180,10 @@ Run each filter separately, after its related RAR checks pass. Required Windows 
 ---
 
 ## Build Log
+
+- **C5, T8, T18** Added a RAR-only local staging adapter using the shared decoder and pinned, owned filesystem handles. Complete output planning precedes allocation; final source/output proofs precede exclusive publication through the existing replacement ledger and undo. Foundry at `a1ad9672` passed conflict choices, displaced-file restoration, dangling-link name conflicts, destination races and cancellation on both sides of publication. All five named encrypted ZIP/7Z regressions passed individually. The signed app build and SwiftLint passed; no unrelated extraction implementation moved.
+
+- **T6** Foundry at `a1ad9672` passed local modern, legacy and encrypted multipart extraction from a continuation, compared output to independent bytes/checksums, retained hidden members, rejected source mutations after discovery and immediately before publication, and confirmed errors and operation descriptions omit a supplied secret. Signed app build passed without warnings.
 
 - **T7** Foundry at `0210b48e` passed the unsafe/damaged local RAR check with traversal, duplicate and equivalent names, escaping links, truncation, space shortage and injected output-boundary disk-full errors. Existing occupants and archive inputs remain intact; private staging is removed. Both helpers and the signed app built successfully.
 
