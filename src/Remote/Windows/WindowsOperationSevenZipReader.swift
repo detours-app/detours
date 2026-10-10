@@ -151,6 +151,8 @@ extension WindowsOperationScripts {
                     string hard = rar == null ? null : Text(index, 90);
                     uint mode = rar == null ? 0 : checked((uint)Number(index, 53)) & 0xF000;
                     if (rar != null && mode == 0 && (attributes & 0x8000) != 0) mode = (attributes >> 16) & 0xF000;
+                    if (rar != null && format == 3 && mode == 0 && (Text(index, 23) == "Unix" || Text(index, 23) == "BeOS"))
+                        throw new IOException("This 7-Zip installation cannot safely read Unix file types in this RAR archive. Update free 7-Zip from https://www.7-zip.org/download.html and try again.");
                     if (rar != null && (windowsLink || mode != 0 && mode != 0x8000 && mode != 0x4000 && mode != 0xA000 ||
                         symbolic != null && hard != null)) throw new IOException("Unsupported RAR link or special file.");
                     if (symbolic != null || hard != null) directory = false;
