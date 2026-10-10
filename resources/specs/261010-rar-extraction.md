@@ -127,7 +127,7 @@ Create missing-part and deterministic damaged copies only within test-owned Foun
 - [x] **C5** Add local RAR extraction through the shared reader in src/Operations/, preserving owned-output validation, existing conflict publication, cancellation and undo.
 - [x] **C6** Extend Server/ServerArchiveExtractionReader.swift, ServerArchiveExtractionPlan and ServerOperationService extraction handling for encrypted multipart RAR and all-volume source proofs.
 - [x] **C7** Extend src/Remote/Windows/WindowsOperationArchiveLayout.swift and WindowsOperationSevenZipInterfaces/Reader/Runtime/Extraction.swift for RAR/RAR5, password and volume callback interfaces, controlled volumes and safe link properties.
-- [ ] **C8** Update file opening, Extract Here availability, multi-selection deduplication and FileOperationQueue error mapping; reuse the existing password sheet and add precise volume/tool/integrity messages.
+- [x] **C8** Update file opening, Extract Here availability, multi-selection deduplication and FileOperationQueue error mapping; reuse the existing password sheet and add precise volume/tool/integrity messages.
 - [ ] **C9** In resources/scripts/build-server-linux.sh, copy Tests/ServerRarExtractionTests.swift to devtest and add the test file to the ServerArchiveOperationsTests sources, as ServerArchiveStreamTests is today; add it to resources/scripts/server-cache-hash.sh. Fixture copying and cache tracking are prerequisites completed under C3. RarExtractionUITests run through the guarded installed-smoke runner's --test-filter without joining a default workflow group.
 - [ ] **C10** Update README.md and resources/docs/USER_GUIDE.md, regenerate resources/docs/USER_GUIDE.html with resources/scripts/render-user-guide.mjs, and document RAR extraction-only support, passwords, multipart limits and Windows prerequisites.
 
@@ -180,6 +180,8 @@ Run each filter separately, after its related RAR checks pass. Required Windows 
 ---
 
 ## Build Log
+
+- **C8** Recognized continuation selections and enabled Extract Here for multiple RAR parts. Successful extraction reports its verified source set so remaining selected parts are skipped. Reused the password sheet with distinct password, ambiguous integrity, missing-part and tool messages. Foundry at `4737757a` passed the signed build and strengthened T2, T6 and T13 individually. Installed-app behavior remains paired with C9.
 
 - **C5, T8, T18** Added a RAR-only local staging adapter using the shared decoder and pinned, owned filesystem handles. Complete output planning precedes allocation; final source/output proofs precede exclusive publication through the existing replacement ledger and undo. Foundry at `a1ad9672` passed conflict choices, displaced-file restoration, dangling-link name conflicts, destination races and cancellation on both sides of publication. All five named encrypted ZIP/7Z regressions passed individually. The signed app build and SwiftLint passed; no unrelated extraction implementation moved.
 

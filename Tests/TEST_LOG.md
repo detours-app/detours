@@ -2,6 +2,9 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry `RarArchiveOperationTests/testRecognizesRarSetsWithoutOfferingRarCreation` | `4737757a` | PASS: 1 test, 0 failures, 0.013 seconds. Later parts and multiple RAR selections are extractable; creation choices remain unchanged. Signed app build passed. |
+| Foundry `RarArchiveOperationTests/testMultipartExtractionUsesEveryObservedPart` | `4737757a` | PASS: 1 test, 0 failures, 0.887 seconds. Successful extraction reports the complete ordered part set once for selection deduplication. |
+| Foundry and Windows `WindowsArchiveScriptTests/testRarCapabilitiesDoNotChangeOtherFormats` | `4737757a` | PASS: 1 test, 0 failures, 3.411 seconds. Updated native diagnostics compile and existing capability refusals remain correct. |
 | Foundry and Windows `WindowsAcceptedOperationLiveTests/testAcceptedSevenZipCreationAndExtractionMatchExistingLayout` | `0aba96f9` | PASS: 1 test, 0 failures, 53.735 seconds. Existing 7Z creation, layout, owned extraction, links and cancellation passed through the updated DLL reader. |
 | Foundry `WindowsArchiveScriptTests/testArchiveExtractRejectsEscapingEntries` | `0aba96f9` | PASS: 1 test, 0 failures, 0.001 seconds. |
 | Foundry and Windows `WindowsArchiveScriptTests/testRarCapabilitiesDoNotChangeOtherFormats` | `0aba96f9` | PASS: 1 test, 0 failures, 3.185 seconds. Native callback code compiled on Windows; missing/incompatible DLLs and archive-folder lookup are refused, ZIP/7Z password restrictions remain. Signed Foundry build passed. |
