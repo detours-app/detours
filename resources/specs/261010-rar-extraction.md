@@ -156,7 +156,7 @@ Shared reader tests live in Tests/DetoursProcessTests/RarArchiveStreamTests.swif
 
 - [x] **T9** (C3, C4, C6, C9) ServerRarExtractionTests/testAcceptedRarVerifiesAllPartsAndCommitsOnce runs on macOS and Linux, checking every fixture family, unpublished preparation, changed volumes, source proofs and idempotent commit.
 - [x] **T10** (C3, C4, C6, C9) ServerRarExtractionTests/testRarFailurePreservesFilesAndPasswordPrivacy covers missing parts, wrong passwords, corruption, unsafe links, cancellation and absence of passwords from records and diagnostics.
-- [ ] **T11** (C3, C4, C7, C9) WindowsAcceptedOperationLiveTests/testAcceptedRarMatchesFixtureManifest exercises real RAR4/RAR5 ordinary, solid, both encryption modes and encrypted multipart extraction through the installed free DLL.
+- [x] **T11** (C3, C4, C7, C9) WindowsAcceptedOperationLiveTests/testAcceptedRarMatchesFixtureManifest exercises real RAR4/RAR5 ordinary, solid, both encryption modes and encrypted multipart extraction through the installed free DLL.
 - [ ] **T12** (C3, C4, C7, C9) WindowsAcceptedOperationLiveTests/testRarVolumesAndFailuresCannotEscape covers continuation selection, replaced/missing parts, idempotent commit, drive/UNC/ADS paths, unsafe links/reparse points, cancellation and password privacy.
 - [x] **T13** (C7) WindowsArchiveScriptTests/testRarCapabilitiesDoNotChangeOtherFormats covers missing/incompatible DLL errors, no archive-folder DLL lookup and unchanged Windows ZIP/7Z password restrictions.
 
@@ -206,3 +206,5 @@ Run each filter separately, after its related RAR checks pass. Required Windows 
 - **T21** Existing Windows 7Z creation/extraction and escaping-entry regressions passed individually at `0aba96f9`, including actual DLL extraction, layout, links and cancellation.
 
 - **T3, T9, T10** Foundry and Linux at `024d193b` passed every positive fixture family and accepted extraction failure checks. Independent plaintext SHA-256 takes precedence over keyed encrypted-header checksums. Mac cases passed individually; Linux passed 21 process and 127 helper checks, including complete source proofs, private preparation, repeat commit, corruption, cancellation and password privacy.
+
+- **T11** Foundry against Windows at `b40087be` passed all 20 positive fixture families through the official free DLL in 298.676 seconds, including the six-part encrypted archive, independent output comparisons and repeat commits. Fixed the PowerShell unsigned type, compacted generated workspace names, and moved full part hashing before the publication lock while retaining identity/version/size checks inside it.
