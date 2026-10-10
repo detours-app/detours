@@ -36,6 +36,9 @@ final class QuietProCaptureTests: BaseUITest {
     func testCaptureReleaseScenes() throws {
         continueAfterFailure = false
         try resizeMainWindow(width: 1280, height: 640)
+        setPreferenceToggle("rowStripesToggle", on: true)
+        try applyAppearanceSettings(theme: "dark", fontSize: 13, density: "compact")
+        try captureReleaseDataPreview()
 
         try openReleaseSample("acme-corp", pane: "left")
         pressKey(.upArrow, modifiers: .command)
@@ -60,9 +63,6 @@ final class QuietProCaptureTests: BaseUITest {
         XCTAssertTrue(app.leftPaneOutlineView.staticTexts["INV-2025-012.pdf"].waitForExistence(timeout: 5))
         clickRow("database.py", in: app.rightPaneOutlineView)
         clickRow("Budget-2026.xlsx", in: app.leftPaneOutlineView)
-        setPreferenceToggle("rowStripesToggle", on: true)
-
-        try applyAppearanceSettings(theme: "dark", fontSize: 13, density: "compact")
         XCTAssertFalse(app.outlines["sidebarOutlineView"].staticTexts[testFolderName].exists, "The public screenshot should not show a qualification identifier")
         attachScreenshot("release-dark-main", of: app.windows.firstMatch)
         openQuickNavForKeyboardInput()
@@ -75,7 +75,6 @@ final class QuietProCaptureTests: BaseUITest {
         clickRow("database.py", in: app.rightPaneOutlineView)
         pressKey(.upArrow, modifiers: .command)
         captureReleasePreview("README.md", marker: "TaskFlow", pane: app.rightPaneOutlineView, attachment: "release-dark-markdown")
-        try captureReleaseDataPreview()
     }
 
     private func captureReleaseHostPicker() {
