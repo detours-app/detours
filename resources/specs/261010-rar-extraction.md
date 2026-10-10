@@ -32,9 +32,9 @@ Add RAR extraction alongside the existing archive formats, including password-pr
 
 - [x] **A1** Ordinary and solid RAR4 and RAR5 archives extract correctly on the Mac and supported macOS, Linux and Windows remote hosts.
 - [x] **A2** Password-protected contents and concealed filenames open with the correct password, and a confirmed wrong password can be corrected without partial results.
-- [ ] **A3** Split archives, including password-protected split archives, extract once when any recognized part is selected and all required parts are together.
+- [x] **A3** Split archives, including password-protected split archives, extract once when any recognized part is selected and all required parts are together.
 - [x] **A4** Missing, damaged, changed or unsafe archive contents leave original archives and existing destination files intact and explain why extraction stopped.
-- [ ] **A5** Progress, cancellation, destination naming, conflict handling, selection and undo follow the existing archive workflow.
+- [x] **A5** Progress, cancellation, destination naming, conflict handling, selection and undo follow the existing archive workflow.
 - [ ] **A6** No RAR creation option or paid dependency is introduced, and existing ZIP, 7Z and TAR features continue to work.
 - [x] **A7** Passwords are absent from saved operation records and diagnostic output.
 - [ ] **A8** The GitHub page and formatted HTML user guide accurately describe RAR extraction, passwords, split archives and the Windows requirement.
@@ -164,7 +164,7 @@ Shared reader tests live in Tests/DetoursProcessTests/RarArchiveStreamTests.swif
 
 - [x] **T14** (C3, C5, C8, C9) RarExtractionUITests/testEncryptedMultipartRarRetriesAndUndoes uses the guarded installed-smoke runner to open a later part, reject a password, extract with the correct one, select the result and undo.
 - [x] **T15** (C3, C5, C8, C9) RarExtractionUITests/testMissingVolumeExplainsFailure uses the guarded runner to confirm actionable missing-part text, no partial result and no incorrect-password prompt.
-- [ ] **T16** (C3, C5, C8, C9) RarExtractionUITests/testSelectingSeveralPartsExtractsOnce confirms one operation/result for a multi-selected set and inspects the actual progress and result UI.
+- [x] **T16** (C3, C5, C8, C9) RarExtractionUITests/testSelectingSeveralPartsExtractsOnce confirms one operation/result for a multi-selected set and inspects the actual progress and result UI.
 - [ ] **T17** (C10) Regenerate USER_GUIDE.html, render README.md to a scratch HTML file with the bundled markdown-it, open both with /agent-browser, confirm every link resolves and compare the archive descriptions with the platforms T3, T9 and T11 proved.
 
 ### Focused regressions
@@ -180,6 +180,8 @@ Run each filter separately, after its related RAR checks pass. Required Windows 
 ---
 
 ## Build Log
+
+- **T16, A3, A5** Foundry guarded UI at `4b463dfc` passed multi-selected multipart extraction, visible progress during Keep Both, one selected result, retained occupants and undo. Both screenshots were inspected. T14 proves encrypted continuation selection; T6/T8/T9/T11 cover naming, cancellation, replacement restoration and accepted publication. The test reads visible progress while the modal dialog is open and requests internal completion state afterwards.
 
 - **T15, A4** Foundry guarded UI at `dc595a71` passed missing-middle-part refusal and retained both existing parts byte for byte. The inspected screenshot names the missing part and explains recovery, with no password prompt. Together with T7/T8/T10/T12 this covers missing, damaged, changed and unsafe input without publishing partial output or losing occupants.
 
