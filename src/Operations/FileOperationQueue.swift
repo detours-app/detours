@@ -132,6 +132,7 @@ final class FileOperationQueue {
     /// Forces the same rollback-safe sibling fallback used by mounted volumes
     /// that do not implement Finder Trash.
     var forceLocalDisplacementFallbackForTesting = false
+    var rarExtractionProbeForTesting: (@Sendable (RarExtractionStage, CancelFlag) throws -> Void)?
     #endif
 
     var pendingCount: Int { pending.count }

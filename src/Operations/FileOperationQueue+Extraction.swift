@@ -8,7 +8,7 @@ extension FileOperationQueue {
         password: String?,
         undoManager: UndoManager?
     ) async throws -> URL {
-        guard let format = ArchiveFormat.detect(from: archive) else {
+        guard let format = ArchiveFormat.detect(from: archive) ?? (RarVolumeSet.isCandidate(archive.lastPathComponent) ? .rar : nil) else {
             throw FileOperationError.archiveExtractionFailed("Unsupported archive format: \(archive.pathExtension)")
         }
         if let password, !password.isEmpty {
@@ -23,7 +23,7 @@ extension FileOperationQueue {
             let result: URL
             switch format {
             case .rar:
-                throw FileProviderError.unsupportedOperation("RAR extraction is not available in this build.")
+                result = try await performExtractRar(archive: archive, password: password, ledger: ledger)
             case .zip:
                 result = try await performExtractZip(
                     archive: archive,
@@ -806,13 +806,13 @@ extension FileOperationQueue {
         return topLevel
     }
 
-    private enum ExtractConflictChoice {
+    enum ExtractConflictChoice {
         case replace
         case keepBoth
         case stop
     }
 
-    private func resolveExtractConflict(
+    func resolveExtractConflict(
         conflictingItems: [String],
         destination: URL
     ) async -> ExtractConflictChoice {
