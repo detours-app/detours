@@ -114,7 +114,7 @@ final class RarExtractionUITests: BaseUITest {
 
     private func openArchive(_ name: String) {
         selectRow(named: name)
-        chooseFileMenuItem("Extract Here")
+        outlineRow(named: name).staticTexts[name].doubleClick()
         XCTAssertTrue(app.staticTexts["Password Required"].waitForExistence(timeout: 5))
     }
 

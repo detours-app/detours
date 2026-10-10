@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry live `WindowsAcceptedOperationLiveTests/testAcceptedRarMatchesFixtureManifest` | `024d193b` | FAIL: 19.375s. Preparation of the first encrypted multipart fixture failed unchanged because Windows PowerShell does not resolve `[ulong]`; the expected result was therefore absent. Replace that cast with `[uint64]`. The signed app build passed; T12 did not run. |
 | Linux RAR reader and accepted extraction corpus | `024d193b` | PASS: 21 process and 127 helper tests. T3 passed in 8.272s, T9 in 2.832s and T10 in 0.668s; existing password and controlled-volume reader checks also passed. Signed app build remains in progress. |
 | Foundry native RAR corpus and accepted extraction checks | `024d193b` | PASS: T3 `RarArchiveStreamTests/testReadsAllRarFixtureFamilies` (1.220s), T9 `ServerRarExtractionTests/testAcceptedRarVerifiesAllPartsAndCommitsOnce` (2.333s) and T10 `ServerRarExtractionTests/testRarFailurePreservesFilesAndPasswordPrivacy` (0.480s), each run separately. Linux counterparts and the signed build remain in progress. |
 | Spectre install-only delivery, Wraith repair | `e55a15e4` | PASS: normal signed build completed, installed the Foundry-verified repair and relaunched Detours. Copied helper binaries match Foundry's SHA-256 values and source cache hash. No runtime probe or test ran on Spectre. |

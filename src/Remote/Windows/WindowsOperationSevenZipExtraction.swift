@@ -42,7 +42,7 @@ extension WindowsOperationScripts {
                         Assert-WindowsRarSources $intent $Context.account
                         [long]$expanded = 0
                         foreach ($entry in $archive.Entries) { if ($entry.Kind -eq 'file') { $expanded += $entry.Length } }
-                        if ([ulong]$expanded -gt [DetoursSevenZipLibrary]::AvailableBytes([System.IO.Path]::GetDirectoryName($destination))) {
+                        if ([uint64]$expanded -gt [DetoursSevenZipLibrary]::AvailableBytes([System.IO.Path]::GetDirectoryName($destination))) {
                             throw 'Not enough free space to extract this RAR archive.'
                         }
                     }
