@@ -121,7 +121,7 @@ Create missing-part and deterministic damaged copies only within test-owned Foun
 ### Implementation Plan
 
 - [x] **C1** Separate extraction and creation capabilities in src/Utilities/CompressionTools.swift, Shared/SevenZipArchiveReader.swift and ArchiveDialog; add RAR recognition and explicit app/helper/Windows creation rejection.
-- [ ] **C2** Extend SevenZip/ and ArchiveStreamBridge/ with pinned RAR/RAR5 handlers, codecs, complete-open error inspection, password/volume callbacks and retained licence notices.
+- [x] **C2** Extend SevenZip/ and ArchiveStreamBridge/ with pinned RAR/RAR5 handlers, codecs, complete-open error inspection, password/volume callbacks and retained licence notices.
 - [ ] **C3** Add the fixture corpus and manifest under resources/fixtures/rar/ with independent expected contents, pinned provenance, public fixture-password metadata and qualification of the encrypted multipart reference set.
 - [ ] **C4** Add shared RAR volume discovery and extend archive inspection, accepted source observations and commit validation to bind the complete ordered volume set.
 - [ ] **C5** Add local RAR extraction through the shared reader in src/Operations/, preserving owned-output validation, existing conflict publication, cancellation and undo.
@@ -182,3 +182,4 @@ Run each filter separately, after its related RAR checks pass. Required Windows 
 ## Build Log
 
 - **C1** Added reader-specific formats and an explicit writable-format list, retained serialized creation values, recognized `.rar` case-insensitively, and rejected RAR creation before output allocation in app/helper/Windows paths. Creation-based round trips enumerate writable formats. SwiftLint passed. Foundry `resources/scripts/build.sh --no-install` at `bedd0349` built both helpers and the signed app; embedded Linux checks passed 18 process and 125 helper tests. Continuation/signature recognition and its paired T2 remain with C4; RAR decoding remains unavailable until C2/C5.
+- **C2** Imported the RAR/RAR5 handlers and dependencies from the same verified 26.02 source archive, retaining licence notices. The bridge exposes controlled sibling-volume callbacks, limits distinct parts to 1,024, opens additional part handles only while reading, checks archive error properties before member output, enforces declared lengths and separates password/integrity/volume outcomes. An unnecessary disk-image implementation caused an initial Linux link failure and was removed. Foundry build at `afe6a720` passed for both helpers and the signed app; embedded Linux checks passed 18 process and 125 helper tests. RAR fixture qualification follows in C3 and its paired tests.
