@@ -15,7 +15,7 @@ extension WindowsOperationScripts {
             throw 'RAR requires a compatible free 7-Zip installation. Download it from https://www.7-zip.org/download.html'
         }
     }
-    function Assert-WindowsRarSources($Intent, $Account) {
+    function Assert-WindowsRarSources($Intent, $Account, [switch]$MetadataOnly) {
         if ($Intent.archiveFormat -ne 'rar' -or $Intent.action -ne 'archiveExtract') { return }
         $count = @($Intent.sources).Count
         if ($count -lt 1 -or $count -gt 1024 -or $count -ne @($Intent.sourceObservations).Count) { throw 'Invalid accepted RAR parts.' }
@@ -35,8 +35,16 @@ extension WindowsOperationScripts {
             if ($expected.kind -ne 'file' -or [string]::IsNullOrEmpty($expected.sha256) -or
                 -not $names.Add([System.IO.Path]::GetFileName($path)) -or
                 -not $identities.Add($expected.identity.volume + ':' + $expected.identity.object)) { throw 'Invalid accepted RAR part proof.' }
-            $actual = Get-WindowsContentProof $path
-            Assert-WindowsObservation $actual $expected
+            if ($MetadataOnly) {
+                $actual = [DetoursOperationFiles]::Observe($path)
+                if ($actual.kind -ne 'file' -or $actual.identity.volume -cne $expected.identity.volume -or
+                    $actual.identity.object -cne $expected.identity.object -or $actual.version -cne $expected.version) {
+                    throw 'RAR part changed.'
+                }
+            } else {
+                $actual = Get-WindowsContentProof $path
+                Assert-WindowsObservation $actual $expected
+            }
             if ($actual.byteCount -ne $expected.byteCount) { throw 'RAR part changed.' }
             if ($null -ne $Intent.destination) {
                 $target = Get-WindowsOperationLookup (Get-OperationPath $Intent.destination $Account)

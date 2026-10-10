@@ -88,11 +88,12 @@ extension WindowsOperationScripts {
         $location = Get-WindowsOperationLocation $holding $Context.account
         $planned = $false
         try {
+            Assert-WindowsRarSources $intent $Context.account
             $commit = Lock-OperationFile (Join-Path $Context.root 'commit.lock') (Join-Path $Context.root ((Get-OperationKey $Context.identity.id) + '.cancel'))
             try {
                 Assert-WindowsOperationActive $Context
                 Assert-WindowsDestination $Context | Out-Null
-                Assert-WindowsRarSources $intent $Context.account
+                Assert-WindowsRarSources $intent $Context.account -MetadataOnly
                 $Context.record | Add-Member -NotePropertyName windowsReplacementBackup -NotePropertyValue @{
                     location = $location; observation = $before; manifest = $backupManifest } -Force
                 Save-WindowsWorkspace $Context

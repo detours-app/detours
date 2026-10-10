@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry live `WindowsAcceptedOperationLiveTests/testAcceptedRarMatchesFixtureManifest` | `dd22844c` | FAIL: 18.923s. The encrypted multipart fixture prepared successfully with verified contents and no published result. Commit then failed unchanged because `commit.lock` was opened while already held. Trace the nested commit-lock path; T12, T21 and the signed build did not run. |
 | Foundry live `WindowsAcceptedOperationLiveTests/testAcceptedRarMatchesFixtureManifest` | `daf08f76` | FAIL: 19.848s. Preparation passed the corrected numeric cast, then `CreateDirectoryExclusive` rejected the generated private extraction path as too long. No result was published and fixture cleanup completed. Trace the generated path before changing its handling; T12 and the signed build did not run. |
 | Foundry live `WindowsAcceptedOperationLiveTests/testAcceptedRarMatchesFixtureManifest` | `024d193b` | FAIL: 19.375s. Preparation of the first encrypted multipart fixture failed unchanged because Windows PowerShell does not resolve `[ulong]`; the expected result was therefore absent. Replace that cast with `[uint64]`. The signed app build passed; T12 did not run. |
 | Linux RAR reader and accepted extraction corpus | `024d193b` | PASS: 21 process and 127 helper tests. T3 passed in 8.272s, T9 in 2.832s and T10 in 0.668s; existing password and controlled-volume reader checks also passed. Signed app build remains in progress. |

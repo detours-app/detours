@@ -226,12 +226,13 @@ extension WindowsOperationScripts {
             Assert-WindowsObservation $observed $intent.sourceObservations[0]
             $payload = @{ location = $intent.sources[0]; observation = $observed }
         } elseif ($intent.action -ne 'createFolder' -or @($intent.sources).Count -ne 0) { throw 'Unsupported accepted native operation.' }
+        Assert-WindowsRarSources $intent $Context.account
         $commit = Lock-OperationFile (Join-Path $Context.root 'commit.lock') (Join-Path $Context.root ((Get-OperationKey $Context.identity.id) + '.cancel'))
         try {
             Assert-WindowsOperationActive $Context
             if (-not $Replacing) { $destination = Assert-WindowsDestination $Context }
             elseif (-not (Get-WindowsOperationLookup $destination).ContainsKey('missing')) { throw 'Replacement destination was occupied.' }
-            Assert-WindowsRarSources $intent $Context.account
+            Assert-WindowsRarSources $intent $Context.account -MetadataOnly
             $receipt = New-WindowsReceipt $Context 'committing' 'running'
             $receipt.preparedPayload = $payload
             $receipt.plannedPaths = @($intent.destination)
