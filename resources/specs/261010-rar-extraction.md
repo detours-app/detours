@@ -2,7 +2,7 @@
 
 ## Meta
 
-- Status: Draft
+- Status: Reviewed
 - Branch: feature/rar-extraction
 
 ---
@@ -126,10 +126,10 @@ Create missing-part and deterministic damaged copies only within test-owned Foun
 - [ ] **C4** Add shared RAR volume discovery and extend archive inspection, accepted source observations and commit validation to bind the complete ordered volume set.
 - [ ] **C5** Add local RAR extraction through the shared reader in src/Operations/, preserving owned-output validation, existing conflict publication, cancellation and undo.
 - [ ] **C6** Extend Server/ServerArchiveExtractionReader.swift, ServerArchiveExtractionPlan and ServerOperationService extraction handling for encrypted multipart RAR and all-volume source proofs.
-- [ ] **C7** Extend src/Remote/Windows/WindowsOperationArchiveLayout.swift and WindowsOperationSevenZip reader/runtime/extraction scripts for RAR/RAR5, passwords, controlled volumes and safe link properties.
+- [ ] **C7** Extend src/Remote/Windows/WindowsOperationArchiveLayout.swift and WindowsOperationSevenZipInterfaces/Reader/Runtime/Extraction.swift for RAR/RAR5, password and volume callback interfaces, controlled volumes and safe link properties.
 - [ ] **C8** Update file opening, Extract Here availability, multi-selection deduplication and FileOperationQueue error mapping; reuse the existing password sheet and add precise volume/tool/integrity messages.
-- [ ] **C9** Connect the focused RAR fixtures and named tests to existing Foundry qualification and Linux helper test paths without widening their default test selection.
-- [ ] **C10** Update README.md and the maintained user-guide source, regenerate the HTML guide, and document RAR extraction-only support, passwords, multipart limits and Windows prerequisites.
+- [ ] **C9** In resources/scripts/build-server-linux.sh, copy resources/fixtures/rar/ and Tests/ServerRarExtractionTests.swift to devtest and add the test file to the ServerArchiveOperationsTests sources, as ServerArchiveStreamTests is today; add both to resources/scripts/server-cache-hash.sh. RarExtractionUITests run through the guarded installed-smoke runner's --test-filter without joining a default workflow group.
+- [ ] **C10** Update README.md and resources/docs/USER_GUIDE.md, regenerate resources/docs/USER_GUIDE.html with resources/scripts/render-user-guide.mjs, and document RAR extraction-only support, passwords, multipart limits and Windows prerequisites.
 
 ---
 
@@ -137,9 +137,9 @@ Create missing-part and deterministic damaged copies only within test-owned Foun
 
 Follow the repository machine boundary: edit and commit on Spectre, synchronize Foundry to the same clean commit, build using resources/scripts/build.sh, and run tests on Foundry. Linux helper checks use the existing Foundry-controlled devtest path; Windows checks use the existing detours-windows fixture host. No fixture setup, runtime probes or tests run on Spectre. The final normal Spectre build/install follows successful Foundry verification and the required relaunch notice.
 
-Each named case below is a focused filter, not authorization for a broad campaign. Update Tests/TEST_LOG.md after every run. Run relevant existing regressions individually. A full suite requires Marco's separate approval after every targeted test is green. Missing required tools, fixtures or hosts block qualification rather than silently skipping it.
+Each named case below is a focused filter, not authorization for a broad campaign. Update Tests/TEST_LOG.md after every run. Run the existing regressions in T18–T22 individually. A full suite requires Marco's separate approval after every targeted test is green. Missing required tools, fixtures or hosts block qualification rather than silently skipping it.
 
-Shared reader tests live in Tests/DetoursProcessTests/RarArchiveStreamTests.swift; local tests in Tests/RarArchiveOperationTests.swift; helper tests in Tests/ServerRarExtractionTests.swift; Windows cases extend WindowsAcceptedOperationLiveTests in a RarExtraction file. Installed-app tests use RarExtractionUITests beside ArchivePasswordUITests.
+Shared reader tests live in Tests/DetoursProcessTests/RarArchiveStreamTests.swift; local tests in Tests/RarArchiveOperationTests.swift; helper tests in Tests/ServerRarExtractionTests.swift; Windows cases extend WindowsAcceptedOperationLiveTests in Tests/WindowsAcceptedOperationLiveTests+RarExtraction.swift. Installed-app tests use RarExtractionUITests beside ArchivePasswordUITests.
 
 ### Reader and local tests
 
@@ -148,7 +148,7 @@ Shared reader tests live in Tests/DetoursProcessTests/RarArchiveStreamTests.swif
 - [ ] **T3** (C2, C3, C9) RarArchiveStreamTests/testReadsAllRarFixtureFamilies compares ordinary, solid, Unicode, empty, encrypted-content and encrypted-header RAR4/RAR5 output against the independent manifest on macOS and Linux.
 - [ ] **T4** (C2, C3, C4) RarArchiveStreamTests/testVolumeCallbacksRefuseUnacceptedPaths covers missing first/middle/final parts, mixed sets, the 1,024-part limit, ambiguous names, source-link substitutions, forbidden path requests and descriptor cleanup.
 - [ ] **T5** (C2, C3) RarArchiveStreamTests/testSeparatesPasswordIntegrityAndCancellation covers absent/wrong/correct passwords, ambiguous encrypted corruption, checksum failure, declared-size mismatch, cancellation and closed owned handles.
-- [ ] **T6** (C3, C4, C5) RarArchiveOperationTests/testMultipartExtractionUsesEveryObservedPart covers both naming schemes, encrypted multipart input, selected continuation, changed parts and final source-proof rejection.
+- [ ] **T6** (C3, C4, C5) RarArchiveOperationTests/testMultipartExtractionUsesEveryObservedPart covers both naming schemes, encrypted multipart input, selected continuation, changed parts, final source-proof rejection and absence of the password from operation records and diagnostics.
 - [ ] **T7** (C3, C5) RarArchiveOperationTests/testUnsafeOrDamagedRarCannotPublish covers traversal, duplicate normalized names, link escapes, truncation, disk-full failure and no changes to existing occupants.
 - [ ] **T8** (C3, C5) RarArchiveOperationTests/testRarConflictCancellationAndUndoPreserveFiles covers Keep Both, Replace, Stop, destination races, pre-publication cancellation, commit-race reporting and restoration of displaced files.
 
@@ -165,7 +165,7 @@ Shared reader tests live in Tests/DetoursProcessTests/RarArchiveStreamTests.swif
 - [ ] **T14** (C3, C5, C8, C9) RarExtractionUITests/testEncryptedMultipartRarRetriesAndUndoes uses the guarded installed-smoke runner to open a later part, reject a password, extract with the correct one, select the result and undo.
 - [ ] **T15** (C3, C5, C8, C9) RarExtractionUITests/testMissingVolumeExplainsFailure uses the guarded runner to confirm actionable missing-part text, no partial result and no incorrect-password prompt.
 - [ ] **T16** (C3, C5, C8, C9) RarExtractionUITests/testSelectingSeveralPartsExtractsOnce confirms one operation/result for a multi-selected set and inspects the actual progress and result UI.
-- [ ] **T17** (C10) Validate the generated guide and links, open the local GitHub preview and HTML guide in a browser, and inspect the rendered archive descriptions against the tested platform matrix.
+- [ ] **T17** (C10) Regenerate USER_GUIDE.html, render README.md to a scratch HTML file with the bundled markdown-it, open both with /agent-browser, confirm every link resolves and compare the archive descriptions with the platforms T3, T9 and T11 proved.
 
 ### Focused regressions
 
