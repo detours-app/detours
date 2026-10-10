@@ -32,7 +32,7 @@ final class QuietProCaptureTests: BaseUITest {
         try captureCopyActivity()
     }
 
-    /// Browses the persistent screenshot samples without creating or changing their files.
+    /// Browses persistent samples read-only; the data preview uses the guarded fixture root.
     func testCaptureReleaseScenes() throws {
         continueAfterFailure = false
         try resizeMainWindow(width: 1280, height: 640)
@@ -62,16 +62,72 @@ final class QuietProCaptureTests: BaseUITest {
         clickRow("Budget-2026.xlsx", in: app.leftPaneOutlineView)
         setPreferenceToggle("rowStripesToggle", on: true)
 
-        for theme in ["light", "dark"] {
-            try applyAppearanceSettings(theme: theme, fontSize: 13, density: "compact")
-            XCTAssertFalse(app.outlines["sidebarOutlineView"].staticTexts[testFolderName].exists, "The public screenshot should not show a qualification identifier")
-            attachScreenshot("release-\(theme)-main", of: app.windows.firstMatch)
-            openQuickNavForKeyboardInput()
-            app.textFields["quickNavSearchField"].typeText("INV-2025-01")
-            XCTAssertTrue(app.staticTexts["INV-2025-010.pdf"].waitForExistence(timeout: 10), "Quick Open should find the sample invoices")
-            attachScreenshot("release-\(theme)-quick-open", of: app.windows.firstMatch)
-            pressKey(.escape)
-        }
+        try applyAppearanceSettings(theme: "dark", fontSize: 13, density: "compact")
+        XCTAssertFalse(app.outlines["sidebarOutlineView"].staticTexts[testFolderName].exists, "The public screenshot should not show a qualification identifier")
+        attachScreenshot("release-dark-main", of: app.windows.firstMatch)
+        openQuickNavForKeyboardInput()
+        app.textFields["quickNavSearchField"].typeText("INV-2025-01")
+        XCTAssertTrue(app.staticTexts["INV-2025-010.pdf"].waitForExistence(timeout: 10), "Quick Open should find the sample invoices")
+        attachScreenshot("release-dark-quick-open", of: app.windows.firstMatch)
+        pressKey(.escape)
+
+        captureReleaseHostPicker()
+        clickRow("database.py", in: app.rightPaneOutlineView)
+        pressKey(.upArrow, modifiers: .command)
+        captureReleasePreview("README.md", marker: "TaskFlow", pane: app.rightPaneOutlineView, attachment: "release-dark-markdown")
+        try captureReleaseDataPreview()
+    }
+
+    private func captureReleaseHostPicker() {
+        pressCharKey("k", modifiers: .command)
+        let sheet = app.sheets.firstMatch
+        XCTAssertTrue(sheet.waitForExistence(timeout: 5), "Cmd-K should open Add Remote Host")
+        let search = sheet.textFields.firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 3))
+        search.click()
+        search.typeText("devtest")
+        XCTAssertTrue(sheet.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "devtest")).firstMatch.waitForExistence(timeout: 5), "The configured sample host should be suggested")
+        attachScreenshot("release-dark-add-host", of: sheet)
+        pressKey(.escape)
+        XCTAssertTrue(waitForCondition(timeout: 3) { !sheet.exists }, "The picker should close without connecting")
+    }
+
+    private func captureReleasePreview(_ name: String, marker: String, pane: XCUIElement, attachment: String) {
+        clickRow(name, in: pane)
+        pressKey(.space)
+        let preview = app.windows[name]
+        XCTAssertTrue(preview.waitForExistence(timeout: 10), "The sample should open in the Detours preview window")
+        XCTAssertTrue(preview.staticTexts[marker].firstMatch.waitForExistence(timeout: 10), "Rendered sample content should be visible")
+        attachScreenshot(attachment, of: preview)
+        pressKey(.escape)
+        XCTAssertTrue(waitForCondition(timeout: 3) { !preview.exists }, "The preview should close")
+    }
+
+    private func captureReleaseDataPreview() throws {
+        let contents = """
+        Invoice,Client,Project,Issued,Due,Amount CHF,Status
+        INV-2026-001,Northstar Studio,Brand identity,2026-09-01,2026-10-01,8400.00,Paid
+        INV-2026-002,Alpine Labs,Research portal,2026-09-03,2026-10-03,12600.00,Paid
+        INV-2026-003,Harbour Coffee,Online shop,2026-09-05,2026-10-05,3250.00,Paid
+        INV-2026-004,Juniper Design,Website refresh,2026-09-08,2026-10-08,7800.00,Paid
+        INV-2026-005,Atlas Partners,Quarterly report,2026-09-10,2026-10-10,2400.00,Sent
+        INV-2026-006,Northstar Studio,Launch campaign,2026-09-12,2026-10-12,4600.00,Sent
+        INV-2026-007,Cedar Works,Product catalogue,2026-09-15,2026-10-15,5900.00,Sent
+        INV-2026-008,Alpine Labs,Data migration,2026-09-17,2026-10-17,9200.00,Sent
+        INV-2026-009,Harbour Coffee,Autumn campaign,2026-09-19,2026-10-19,1800.00,Sent
+        INV-2026-010,Atlas Partners,Client portal,2026-09-22,2026-10-22,14800.00,Sent
+        INV-2026-011,Juniper Design,Photography,2026-09-24,2026-10-24,3600.00,Sent
+        INV-2026-012,Cedar Works,Content planning,2026-09-26,2026-10-26,2200.00,Sent
+        INV-2026-013,Northstar Studio,Annual review,2026-10-01,2026-10-31,6800.00,Draft
+        INV-2026-014,Alpine Labs,Dashboard design,2026-10-03,2026-11-02,5400.00,Draft
+        INV-2026-015,Harbour Coffee,Packaging update,2026-10-05,2026-11-04,2900.00,Draft
+        INV-2026-016,Atlas Partners,Investor presentation,2026-10-07,2026-11-06,4100.00,Draft
+        INV-2026-017,Juniper Design,Winter collection,2026-10-08,2026-11-07,7200.00,Draft
+        INV-2026-018,Cedar Works,Print production,2026-10-09,2026-11-08,1650.00,Draft
+        """
+        try performFixtureMutation(action: "write", relativePath: "Client-invoices.csv", contents: contents)
+        try navigatePaneToFixtureRoot(paneIndex: 0, pane: "left")
+        captureReleasePreview("Client-invoices.csv", marker: "Northstar Studio", pane: app.leftPaneOutlineView, attachment: "release-dark-data")
     }
 
     private func openReleaseSample(_ name: String, pane: String) throws {
