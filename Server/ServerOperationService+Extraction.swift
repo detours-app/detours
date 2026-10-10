@@ -23,7 +23,7 @@ extension ServerOperationService {
             case ServerArchiveFormat.tarGz.rawValue: format = .gzip
             case ServerArchiveFormat.tarBz2.rawValue: format = .bzip2
             case ServerArchiveFormat.tarXz.rawValue: format = .xz
-            case ServerArchiveFormat.rar.rawValue: format = .rar
+            case "rar": format = .rar
             default: throw OperationFilesystemError.unsupported
             }
             guard let encrypted = intent.archiveEncrypted, encrypted == (password?.isEmpty == false), password?.contains("\0") != true else {

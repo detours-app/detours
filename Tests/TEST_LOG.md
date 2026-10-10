@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry helper RAR build | `f681d67c` | FAIL before tests: three extraction checks refer to a nonexistent RAR case in the creation-only server format enum. Use the extraction protocol string; keep creation formats unchanged. |
 | Foundry `RarArchiveOperationTests/testRarConflictCancellationAndUndoPreserveFiles`, dangling links | `a1ad9672` | PASS: 1 test, 0 failures in 0.25 seconds. Keep Both skips dangling links; replacement, undo, cancellation and destination races remain green. |
 | Foundry `ArchiveOperationTests/testCreateAndExtractEncryptedZipRoundTrips` | `a1ad9672` | PASS: 1 test, 0 failures in 0.30 seconds. |
 | Foundry `ArchiveOperationTests/testEncryptedZipWrongPasswordRetriesWithoutPartialOutput` | `a1ad9672` | PASS: 1 test, 0 failures in 0.42 seconds. |
