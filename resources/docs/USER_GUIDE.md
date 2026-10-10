@@ -1,6 +1,10 @@
+<!-- lint-ignore: max-lines -- one complete user manual feeds the single-page HTML guide and its navigation. -->
+
 # Detours User Guide
 
-A fast, keyboard-driven file manager for macOS with dual-pane layout.
+Find files, inspect their contents, and work across folders and SSH hosts without leaving your file manager.
+
+This guide covers the current release draft, reviewed on 10 October 2026. Shortcuts below are the defaults; Preferences lets you change the main actions.
 
 ---
 
@@ -35,7 +39,7 @@ Tabs can be reordered by dragging, and moved between panes by dragging to the ot
 
 Below the tabs, the path bar shows:
 
-- **Back and Forward buttons**: Go back and forward in the tab's history
+- **Back and Forward buttons**: At the right of the breadcrumbs, go back and forward in the tab's history
 - **Home button**: Go to home directory
 - **iCloud button**: Go to iCloud Drive
 - **Path**: Click any segment to navigate; the current folder is shown in a heavier weight
@@ -74,7 +78,7 @@ The sidebar shows remote hosts, mounted volumes, network shares, and favorite fo
 
 **Remote hosts:** The sidebar has a dedicated Remote hosts section for SSH targets added in Detours. Selecting a connected host opens that host in the active pane. Unreachable hosts remain visible with a reconnect state.
 
-**Network shares:** The sidebar has a dedicated File servers section showing servers discovered via Bonjour. Servers group their mounted volumes underneath. Offline servers appear dimmed. Use File → Connect to Network Share... to connect to a server manually (SMB/AFP). Connecting runs in the background, so the window stays usable while the server answers, and a failed attempt shows one message. When a sidebar server asks for a name and password, macOS shows its share picker after the login so you can choose the share to mount.
+**Network shares:** The sidebar has a dedicated File servers section showing servers discovered via Bonjour. Servers group their mounted volumes underneath. Offline servers appear dimmed. Use File → Connect to Network Share... with an `smb://` or `nfs://` address to connect manually. Connecting runs in the background, so the window stays usable while the server answers, and a failed attempt shows one message. When a sidebar server asks for a name and password, macOS shows its share picker after the login so you can choose the share to mount.
 
 ---
 
@@ -102,16 +106,20 @@ Quick Open follows the active tab:
 - Remote tabs search the active SSH host by file and folder name through the Detours helper on macOS and Linux, or PowerShell on Windows.
 - Disconnected remote tabs show a Reconnect action instead of silently searching the Mac.
 
-1. Press **Cmd-P** to open
-2. Type to search (substring matching)
-3. Press **Enter** to navigate to selected folder
-4. Press **Cmd-Enter** to reveal file's enclosing folder
+1. Press **Cmd-P**. With no query, recent places appear.
+2. Type part of a file or folder name, then use the arrow keys to choose a result.
+3. Press **Enter** to enter a folder. A local file opens in its default app; a remote file is revealed in its remote parent folder.
+4. Press **Cmd-Enter** to reveal a result in its enclosing folder instead of opening it.
 
-Results are ranked by "frecency" - frequently and recently visited directories appear first (marked with a star).
+Results take both frequency and recency into account. Stars mark automatically ranked places, not manually pinned files. There is no pin/unpin action in Quick Open. Local recent places can include connected remote locations; use a tab on the relevant remote host to search that host.
 
-**Tip:** Quick Open searches the whole Mac through Spotlight. Enable "Include hidden files in Quick Open" in Preferences to also search hidden files.
+![Quick Open recent places with automatic stars and remote host labels](quick-open.png)
+
+**Tip:** Local Quick Open combines Spotlight with a search of the active folder. "Include hidden files in Quick Open" applies to local search; it does not enable hidden folders in remote search.
 
 Remote Quick Open keeps recent places scoped to the active host and searches names case-insensitively. On macOS and Linux helper hosts, it searches the remote home folder and `/opt` first, then the rest of the host with hidden folders, `node_modules`, pseudo filesystems and external mounts left out, and streams results as the helper finds them. On Windows hosts, it searches from the active folder through the PowerShell backend.
+
+![Quick Open searching TypeScript files on a connected SSH host](quick-open-remote.png)
 
 ### Selection
 
@@ -149,7 +157,7 @@ The inline Rename field grows as you type or paste a longer name, up to the visi
 
 A new folder or file starts as "Folder" or "Text File", or the next free number when that name is in use. If the name you type is already taken, Detours says so and returns you to the name field; type another name, or press Escape to discard the new item.
 
-**Duplicate Structure** creates a copy of a folder's entire directory hierarchy without copying files. Ideal for year-based folder templates (e.g., `Clients/2025/` → `Clients/2026/`). Auto-detects years in folder names and offers to substitute them.
+**Duplicate Structure** creates a copy of a folder's entire directory hierarchy without copying files. Useful for year-based folder templates (e.g., `Clients/2026/` → `Clients/2027/`). Auto-detects years in folder names and offers to substitute them. Duplicate and Duplicate Structure are local-only.
 
 ### Cross-Pane Operations
 
@@ -183,7 +191,7 @@ An item a running copy is still writing cannot be renamed; Detours refuses with 
 | Quick Look preview | Space |
 | Get Info | Cmd-I |
 | Copy Path | Cmd-Option-C |
-| Open in Editor | F4 (opens in TextEdit) |
+| Open local file in Editor | F4 (opens in TextEdit) |
 | Reveal in Finder | File menu → Reveal in Finder |
 | Show Package Contents | File menu (for .app bundles etc.) |
 
@@ -191,11 +199,39 @@ Copy Path puts the selected paths on the clipboard wrapped in single quotes, one
 
 On remote selections, Get Info opens a Detours info window with host, path, kind, size, modified date, hidden/readable state, and symlink target when applicable. Reveal in Finder and Share are local-only because Finder and macOS sharing services require local files.
 
-Quick Look opens supported text, data, document and image files in a themed Detours preview window. A file whose contents are text previews as text whatever its name ends in, including UTF-16 files such as Windows registry exports; source files and security assessment files such as nmap output, Nessus reports, certificates and wordlists are shown with syntax colouring. PDF, SVG and RTF go to the macOS preview. PDFs open in the system Quick Look panel, which offers page thumbnails and page-by-page navigation. Markdown and HTML previews have Rendered and Source views. Comma, semicolon and tab separated data files and Excel workbooks show as tables with the column names and row numbers held in place while scrolling; Word documents show their headings, lists and tables in the active theme. Rendered HTML keeps inline styling and self-contained images but removes scripts, forms, navigation, external resources, and other active content. Long lines wrap by default; use View > Wrap Lines in Preview (`Option-W`) to change the current source preview. In a table that same setting switches between showing a value too wide for its column in full and trimming it to one line per row, and the toolbar names whichever it is doing. View > Open in System Preview (`Option-P`) hands the file you are looking at to the macOS panel, for the times its viewer suits the file better; it applies to that file, and moving to another previews it the usual way again. Unsupported files use the system Quick Look panel. Remote previews download into the same Detours window and are limited to 100 MB. A symbolic link previews the file it points at, under that file's name; a link to a folder closes the preview, as selecting a folder does.
+## Previews (Space)
+
+Select a file and press **Space** to inspect it without opening another app. Supported files appear in a Detours window using the active theme. Move to another file to update the preview.
+
+### Text, Markdown and HTML
+
+Text previews include syntax colouring for source code and specialist formats such as nmap output, Nessus reports, certificates and wordlists. Detours can recognise text by its contents rather than its extension, including UTF-16 files such as Windows registry exports.
+
+Markdown and HTML offer **Rendered** and **Source** views. Rendered HTML keeps inline styling and self-contained images, but removes scripts, forms, navigation, external resources and other active content.
+
+![Rendered Markdown in the dark Detours preview](preview-markdown.png)
+
+### Tables and Office documents
+
+CSV, semicolon-separated and tab-separated data appear as tables with column names and row numbers held in place while scrolling.
+
+![Invoice data preview with column headings and readable amounts](preview-data.png)
+
+Excel **.xlsx** previews show the first non-hidden worksheet, or the first sheet when all are hidden. Formula cells use their saved results; the preview does not recalculate formulas or edit the workbook. Word **.docx** previews show text, headings, lists and tables. Pictures and embedded objects are placeholders, and links are plain text. These are reading views, not full Office layouts. Older binary Office formats, presentations, encrypted documents and unsupported files use the system viewer.
+
+### Preview controls and limits
+
+- **Option-W** or View → Wrap Lines in Preview changes wrapping. In tables, it switches between full values and one-line rows.
+- **Option-P** or View → Open in System Preview hands the current file to macOS Quick Look. Moving to another file returns to its usual viewer.
+- PDF, SVG and RTF use the system viewer. PDF previews include page thumbnails and page-by-page navigation.
+- Remote previews download into the same Detours window, with a **100 MB** limit per file.
+- A symbolic link previews its target under the target's name. A folder, or a link to a folder, closes the preview.
+
+## Archives and encryption
 
 ### Archives
 
-Create and extract archives directly from the file list.
+Create, extract and password-protect archives directly from the file list, without switching to a separate archive app. Detours supports **ZIP, 7Z, TAR.GZ, TAR.BZ2 and TAR.XZ**. RAR is not currently supported.
 
 | Action | Shortcut |
 | ------ | -------- |
@@ -205,9 +241,9 @@ Create and extract archives directly from the file list.
 **Creating archives:**
 
 - Select files/folders, then File > Archive... (or right-click > Archive...)
-- Five formats: ZIP, 7Z, TAR.GZ, TAR.BZ2, TAR.XZ
-- Formats requiring external tools (7z, xz, bzip2) are shown dimmed if not installed
-- ZIP and 7Z offer **Encrypt with password**. TAR formats do not support passwords.
+- Choose a name and one of the five supported formats
+- Formats requiring unavailable tools, such as 7z or xz, are shown dimmed
+- For ZIP or 7Z, enable **Encrypt with password**, enter a password, then create the archive. TAR formats do not support passwords.
 - ZIP passwords may contain up to 80 UTF-8 bytes. 7Z passwords do not have this Detours limit.
 - Last-used format is remembered between sessions
 
@@ -220,7 +256,13 @@ Create and extract archives directly from the file list.
 
 Archive and Extract Here work locally and on supported remote hosts. Password-protected ZIP and 7Z work locally and through the bundled helper on supported macOS and Linux hosts. Windows remote hosts support unencrypted archives only and can always create and extract unencrypted ZIP archives through the built-in PowerShell backend. Available formats otherwise depend on the tools installed on the Mac or remote host.
 
-Encrypted ZIP archives use AES-256. Encrypted 7Z archives also encrypt the archive headers so filenames are hidden. Detours sends archive passwords only through a terminal prompt and never puts them in the archive tool's command-line arguments, progress text, or error text. This protects the password from ordinary process-list inspection but does not protect caller-owned memory from privileged inspection.
+### Encryption: which format to choose
+
+**Choose 7Z for stronger encryption on your Mac.** It uses AES-256 and encrypts the archive headers, hiding filenames as well as file contents. Local 7Z operations require an installed 7-Zip command-line tool.
+
+**Local ZIP password protection is not AES-256.** It uses the legacy encryption supplied by macOS's `zip` tool. Do not treat it as equivalent to encrypted 7Z. ZIP archives created by the helper on supported remote macOS and Linux hosts use AES-256 instead; ZIP filenames remain visible. Windows remote hosts do not support password-protected archives.
+
+Local command-line archive tools receive passwords through their terminal prompts, not command-line arguments. Remote helper archives receive passwords through the SSH request and use the bundled archive library. The password is not included in archive progress text.
 
 ### Share
 
@@ -272,6 +314,8 @@ Detours can browse supported remote machines directly over SSH without mounting 
 3. Confirm the host. Detours connects with the system `/usr/bin/ssh`, using the same SSH config, known-hosts files, and agent as Terminal.
 
 The Add Remote Host sheet suggests entries from `~/.ssh/config`. Adding a host saves it in the Remote hosts section and opens it in the active pane.
+
+![Cmd-K suggests hosts from SSH configuration](add-remote-host.png)
 
 ### Supported Remote Hosts
 
@@ -451,7 +495,7 @@ Open with **Cmd-,** (or Detours menu → Preferences)
 
 - **Restore session on launch**: Reopen tabs from last session
 - **Show hidden files by default**: New tabs show hidden files
-- **Include hidden files in Quick Open**: Search includes hidden files
+- **Include hidden files in Quick Open**: Local search includes hidden files
 - **Enable folder expansion**: Show disclosure triangles
 - **Folders on top**: List folders before files whatever the sort column
 - **Wrap long lines**: Wrap long lines in Detours text previews
@@ -567,7 +611,7 @@ With "Restore session" enabled:
 | ------ | -------- |
 | Open | Enter, Cmd-O, or Cmd-Down |
 | Quick Look | Space |
-| Open in Editor | F4 |
+| Open local file in TextEdit | F4 |
 | Get Info | Cmd-I |
 | Copy Path | Cmd-Option-C |
 | Show Package Contents | (menu only) |

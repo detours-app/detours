@@ -21,3 +21,7 @@ Use the deep-sea icon at 112 px and preserve its existing transparency. Keep scr
 At narrow widths, text reflows, images scale within the article, and tables and code blocks scroll within their own bounds. No page-level horizontal overflow. Inspect the rendered output at desktop and narrow widths before review.
 
 The [positioning document](261010-product-positioning.md) owns the message hierarchy, screenshot purposes and publication boundary.
+
+## User guide
+
+The reader-facing guide is a standalone HTML page, generated from the maintained Markdown manual with the bundled Markdown renderer. Use the same dark surface, system typography and deep-sea icon as the release preview. Keep a sticky contents column on desktop and a collapsible contents list on narrow screens. Screenshots retain their transparent corners; tables scroll within their own bounds. The HTML embeds its stylesheet and images so it also works offline. Regenerate with `node resources/scripts/render-user-guide.mjs`; `--check` rejects stale output. GitHub Pages hosting is selected but remains unpublished during review.

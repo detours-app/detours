@@ -50,6 +50,8 @@ Evidence: [native text previews](../specs/done/260617-detours-native-text-previe
 
 True cut and paste, F5/F6 cross-pane operations, inline rename, archive creation and extraction, and per-tab undo cover routine file work. Duplicate Structure addresses a specific recurring task: recreate a folder hierarchy without its files, optionally substituting a year in folder names.
 
+Archive creation and encryption deserve a dedicated section, not a supporting bullet. Marco's concrete use case is avoiding a separate archive app to package or password-protect files. Name the five supported formats: ZIP, 7Z, TAR.GZ, TAR.BZ2 and TAR.XZ. ZIP and 7Z support passwords; encrypted 7Z hides filenames too. Do not claim every archive format or uniformly strong encryption: local ZIP uses legacy encryption, while encrypted 7Z and helper-created remote ZIP use AES-256. Some local formats need installed command-line tools. RAR is not currently supported. An archive-dialog screenshot should show the format choice and encryption option once Foundry is available for capture.
+
 After an operation, selecting and revealing the result matters as much as performing the operation. Preserved expansion, selection, focus and session state reduce the work needed to recover one's place. Independent small local operations can proceed while unrelated bulk work runs, subject to operation scheduling constraints.
 
 These behaviours explain the product's emphasis on continuity. Avoid promising that every operation is instantaneous or that every task can run concurrently.
