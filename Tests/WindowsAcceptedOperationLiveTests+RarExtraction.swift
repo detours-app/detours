@@ -67,7 +67,7 @@ extension WindowsAcceptedOperationLiveTests {
                     let layout = try await fixture.layout(relative, password: nil)
                     let identity = try await fixture.accept(layout, destination: "hostile/output-\(index)", encrypted: false)
                     let result = try await fixture.receipt(.prepareArchive(identity: identity, password: nil))
-                    XCTAssertEqual(result.outcome, .failedUnchanged)
+                    XCTAssertEqual(result.outcome, .failedUnchanged, "Hostile RAR case \(index): \(result)")
                 } catch { XCTAssertFalse(String(describing: error).isEmpty) }
                 try await fixture.assertMissing("hostile/output-\(index)")
             }
