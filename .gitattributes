@@ -1,0 +1,2 @@
+# Preserve vendored upstream source bytes.
+SevenZip/** -whitespace
