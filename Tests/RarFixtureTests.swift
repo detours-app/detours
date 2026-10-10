@@ -26,7 +26,8 @@ final class RarFixtureTests: XCTestCase {
         let tool = try XCTUnwrap(ProcessInfo.processInfo.environment["DETOURS_RAR_REFERENCE_7ZZ"],
             "Set DETOURS_RAR_REFERENCE_7ZZ to the official full 7-Zip executable for reference qualification.")
         XCTAssertTrue(FileManager.default.isExecutableFile(atPath: tool))
-        let destination = FileManager.default.temporaryDirectory.appendingPathComponent("detours-rar-reference-\(UUID().uuidString)")
+        let destination = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
+            .appendingPathComponent("detours-rar-reference-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: false)
         defer {
             do { try FileManager.default.removeItem(at: destination) } catch {
@@ -49,7 +50,12 @@ final class RarFixtureTests: XCTestCase {
         }
         XCTAssertEqual(actualFiles, Set(fixture.expected.map(\.name)))
         for expected in fixture.expected {
-            let original = try Data(contentsOf: root.appendingPathComponent(expected.reference))
+            var original = try Data(contentsOf: root.appendingPathComponent(expected.reference))
+            if expected.referenceLineEndings == "crlf" {
+                let text = try XCTUnwrap(String(data: original, encoding: .utf8))
+                XCTAssertFalse(text.contains("\r"))
+                original = Data(text.replacingOccurrences(of: "\n", with: "\r\n").utf8)
+            }
             XCTAssertEqual(original.count, expected.bytes)
             XCTAssertEqual(Self.digest(original), expected.sha256)
             let decoded = try Data(contentsOf: destination.appendingPathComponent(expected.name))
@@ -91,5 +97,6 @@ final class RarFixtureTests: XCTestCase {
         let reference: String
         let bytes: Int
         let sha256: String
+        let referenceLineEndings: String?
     }
 }

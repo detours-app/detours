@@ -78,6 +78,13 @@
       "url": "https://raw.githubusercontent.com/adamhathcock/sharpcompress/eab8154e3fd03fade8925e82456048ed49afd02b/LICENSE.txt",
       "bytes": 1081,
       "sha256": "b7ca2b6174cee11afe41d78b48527e3d7659a4435c25019a4a5e072299a2f8ed"
+    },
+    {
+      "path": "sharpcompress.gitattributes.txt",
+      "upstreamPath": ".gitattributes",
+      "url": "https://raw.githubusercontent.com/adamhathcock/sharpcompress/eab8154e3fd03fade8925e82456048ed49afd02b/.gitattributes",
+      "bytes": 141,
+      "sha256": "5d1514e836d36ff6cd71a44b65159527f2882e32a493688601e9f9d5bb1f9758"
     }
   ],
   "archives": [
@@ -110,8 +117,9 @@
         {
           "name": "тест.txt",
           "reference": "references/sharpcompress/тест.txt",
-          "bytes": 15044,
-          "sha256": "1a3de4e51eb2f58672e42443b0e8ea618ba464931166539498ff2ab77eec3838"
+          "bytes": 15498,
+          "sha256": "4d581d93d369f6e1c9b295ff38d82dabd577f927dfaf0c35818c015c85e322d9",
+          "referenceLineEndings": "crlf"
         }
       ]
     }
