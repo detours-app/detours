@@ -29,7 +29,7 @@ struct RarTestCorpus: Decodable {
 
         func assertBytes(_ data: Data) throws {
             XCTAssertEqual(UInt64(data.count), bytes, name)
-            if let sha256 { XCTAssertEqual(OperationContentProof.data(data).sha256, sha256, name) }
+            if let sha256 { XCTAssertEqual(try OperationContentProof.data(data).sha256, sha256, name) }
             if let crc32, linkType != "HARD_LINK", linkType != "FILE_COPY" {
                 XCTAssertEqual(String(format: "%08x", RarTestCorpus.crc(data)), crc32, name)
             }

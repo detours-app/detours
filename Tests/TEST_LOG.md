@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry and devtest native RAR corpus build | `f7f13aef` | FAIL: Linux test compilation stopped because the new checksum assertion omitted `try` on the throwing content-proof function. No tests ran; correct both corpus assertions and rebuild. |
 | Foundry `RarArchiveOperationTests/testRecognizesRarSetsWithoutOfferingRarCreation` | `4737757a` | PASS: 1 test, 0 failures, 0.013 seconds. Later parts and multiple RAR selections are extractable; creation choices remain unchanged. Signed app build passed. |
 | Foundry `RarArchiveOperationTests/testMultipartExtractionUsesEveryObservedPart` | `4737757a` | PASS: 1 test, 0 failures, 0.887 seconds. Successful extraction reports the complete ordered part set once for selection deduplication. |
 | Foundry and Windows `WindowsArchiveScriptTests/testRarCapabilitiesDoNotChangeOtherFormats` | `4737757a` | PASS: 1 test, 0 failures, 3.411 seconds. Updated native diagnostics compile and existing capability refusals remain correct. |

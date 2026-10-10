@@ -37,7 +37,7 @@ extension RarArchiveStreamTests {
                 }
                 let bytes = try Data(contentsOf: root.appendingPathComponent("output-\(member.index)"))
                 XCTAssertEqual(UInt64(bytes.count), expected.bytes, expected.name)
-                if let hash = expected.sha256 { XCTAssertEqual(OperationContentProof.data(bytes).sha256, hash, expected.name) }
+                if let hash = expected.sha256 { XCTAssertEqual(try OperationContentProof.data(bytes).sha256, hash, expected.name) }
                 if let crc = expected.crc32, expected.linkType != "FILE_COPY" {
                     XCTAssertEqual(String(format: "%08x", Self.familyCRC(bytes)), crc, expected.name)
                 }
