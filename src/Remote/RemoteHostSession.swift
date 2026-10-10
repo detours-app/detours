@@ -315,6 +315,11 @@ actor RemoteHostSession: RemoteConnectionHandle {
             }
         }
         if error is OperationCompatibilityError { return .compatibility(String(describing: error)) }
+        if case RPCProtocolError.unexpectedMessageTag = error { return .compatibility(String(describing: error)) }
+        if case RemoteFileProviderError.invalidResponse(let detail) = error,
+           detail.hasPrefix("unexpectedMessageTag(") {
+            return .compatibility(detail)
+        }
         if let trust = error as? SSHHostTrustError {
             switch trust {
             case .hostKeyChanged, .hostKeyRejected: return .hostKeyChanged
