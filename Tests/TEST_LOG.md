@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry guarded `ArchivePasswordUITests/testCreationControlsFollowSelectedFormat` | `f0228ea8` | PASS. Archive creation controls follow the selected format. One pass, zero skips, failures or runtime warnings; guarded cleanup completed. |
 | Foundry guarded `RarExtractionUITests/testSelectingSeveralPartsExtractsOnce` | `4b463dfc` | PASS. Three selected parts produced one selected vols 2 folder, preserved the existing vols contents and undid only the extraction. Viewed both screenshots: Keep Both/Replace/Stop with progress visible, then one result. One pass, zero skips or runtime warnings. |
 | Foundry guarded `RarExtractionUITests/testSelectingSeveralPartsExtractsOnce` | `f74bfa86` | FAIL. Three parts were selected and Keep Both appeared, but the internal pane-state request timed out while that modal dialog was open. Check visible progress through accessibility and retain the post-dialog state assertions. |
 | Foundry guarded `RarExtractionUITests/testMissingVolumeExplainsFailure` | `dc595a71` | PASS. Viewed the screenshot: the error names rar3-vols.part2.rar and asks for every part in the same folder. No incorrect-password prompt, partial output or scratch remained; source bytes were unchanged. One pass, zero skips or runtime warnings. |
