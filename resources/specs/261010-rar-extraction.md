@@ -145,7 +145,7 @@ Shared reader tests live in Tests/DetoursProcessTests/RarArchiveStreamTests.swif
 
 - [x] **T1** (C3) RarFixtureTests/testPinnedInputsMatchIndependentReferences checks fixture hashes and licences, decodes the six-part encrypted reference with full free 7-Zip on Foundry and compares every output byte to upstream originals.
 - [x] **T2** (C1, C4) RarArchiveOperationTests/testRecognizesRarSetsWithoutOfferingRarCreation covers case variants, later-part entry, false numbered-file matches, unchanged creation choices and direct RAR-creation rejection.
-- [ ] **T3** (C2, C3, C9) RarArchiveStreamTests/testReadsAllRarFixtureFamilies compares ordinary, solid, Unicode, empty, encrypted-content and encrypted-header RAR4/RAR5 output against the independent manifest on macOS and Linux.
+- [x] **T3** (C2, C3, C9) RarArchiveStreamTests/testReadsAllRarFixtureFamilies compares ordinary, solid, Unicode, empty, encrypted-content and encrypted-header RAR4/RAR5 output against the independent manifest on macOS and Linux.
 - [x] **T4** (C2, C3, C4) RarArchiveStreamTests/testVolumeCallbacksRefuseUnacceptedPaths covers missing first/middle/final parts, mixed sets, the 1,024-part limit, ambiguous names, source-link substitutions, forbidden path requests and descriptor cleanup.
 - [x] **T5** (C2, C3) RarArchiveStreamTests/testSeparatesPasswordIntegrityAndCancellation covers absent/wrong/correct passwords, ambiguous encrypted corruption, checksum failure, declared-size mismatch, cancellation and closed owned handles.
 - [x] **T6** (C3, C4, C5) RarArchiveOperationTests/testMultipartExtractionUsesEveryObservedPart covers both naming schemes, encrypted multipart input, selected continuation, changed parts, final source-proof rejection and absence of the password from operation records and diagnostics.
@@ -154,8 +154,8 @@ Shared reader tests live in Tests/DetoursProcessTests/RarArchiveStreamTests.swif
 
 ### Helper and Windows tests
 
-- [ ] **T9** (C3, C4, C6, C9) ServerRarExtractionTests/testAcceptedRarVerifiesAllPartsAndCommitsOnce runs on macOS and Linux, checking every fixture family, unpublished preparation, changed volumes, source proofs and idempotent commit.
-- [ ] **T10** (C3, C4, C6, C9) ServerRarExtractionTests/testRarFailurePreservesFilesAndPasswordPrivacy covers missing parts, wrong passwords, corruption, unsafe links, cancellation and absence of passwords from records and diagnostics.
+- [x] **T9** (C3, C4, C6, C9) ServerRarExtractionTests/testAcceptedRarVerifiesAllPartsAndCommitsOnce runs on macOS and Linux, checking every fixture family, unpublished preparation, changed volumes, source proofs and idempotent commit.
+- [x] **T10** (C3, C4, C6, C9) ServerRarExtractionTests/testRarFailurePreservesFilesAndPasswordPrivacy covers missing parts, wrong passwords, corruption, unsafe links, cancellation and absence of passwords from records and diagnostics.
 - [ ] **T11** (C3, C4, C7, C9) WindowsAcceptedOperationLiveTests/testAcceptedRarMatchesFixtureManifest exercises real RAR4/RAR5 ordinary, solid, both encryption modes and encrypted multipart extraction through the installed free DLL.
 - [ ] **T12** (C3, C4, C7, C9) WindowsAcceptedOperationLiveTests/testRarVolumesAndFailuresCannotEscape covers continuation selection, replaced/missing parts, idempotent commit, drive/UNC/ADS paths, unsafe links/reparse points, cancellation and password privacy.
 - [x] **T13** (C7) WindowsArchiveScriptTests/testRarCapabilitiesDoNotChangeOtherFormats covers missing/incompatible DLL errors, no archive-folder DLL lookup and unchanged Windows ZIP/7Z password restrictions.
@@ -204,3 +204,5 @@ Run each filter separately, after its related RAR checks pass. Required Windows 
 - **T13** Live Windows capability checks passed at `0aba96f9` after correcting the test's SSH socket path. The native callback assembly compiled, missing/incompatible DLLs and archive-folder lookup produced the official-download message, and ZIP/7Z password restrictions remained unchanged.
 - **C7** Extended the selected free Windows DLL reader with RAR4/RAR5 handlers, private password callbacks, pinned sibling discovery, ordered accepted volume proofs, bounded streams and link properties. RAR preparation validates names, links, sizes and free space before owned output; readiness and publication revalidate every accepted part. Signed Foundry build and paired Windows checks passed at `0aba96f9`; fixture-family extraction coverage remains paired with C9.
 - **T21** Existing Windows 7Z creation/extraction and escaping-entry regressions passed individually at `0aba96f9`, including actual DLL extraction, layout, links and cancellation.
+
+- **T3, T9, T10** Foundry and Linux at `024d193b` passed every positive fixture family and accepted extraction failure checks. Independent plaintext SHA-256 takes precedence over keyed encrypted-header checksums. Mac cases passed individually; Linux passed 21 process and 127 helper checks, including complete source proofs, private preparation, repeat commit, corruption, cancellation and password privacy.

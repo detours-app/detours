@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Linux RAR reader and accepted extraction corpus | `024d193b` | PASS: 21 process and 127 helper tests. T3 passed in 8.272s, T9 in 2.832s and T10 in 0.668s; existing password and controlled-volume reader checks also passed. Signed app build remains in progress. |
 | Foundry native RAR corpus and accepted extraction checks | `024d193b` | PASS: T3 `RarArchiveStreamTests/testReadsAllRarFixtureFamilies` (1.220s), T9 `ServerRarExtractionTests/testAcceptedRarVerifiesAllPartsAndCommitsOnce` (2.333s) and T10 `ServerRarExtractionTests/testRarFailurePreservesFilesAndPasswordPrivacy` (0.480s), each run separately. Linux counterparts and the signed build remain in progress. |
 | Spectre install-only delivery, Wraith repair | `e55a15e4` | PASS: normal signed build completed, installed the Foundry-verified repair and relaunched Detours. Copied helper binaries match Foundry's SHA-256 values and source cache hash. No runtime probe or test ran on Spectre. |
 | Foundry guarded `QualificationConnectionUITests/testConnectionLoadsCapturedPaneWithoutDisturbingOtherPane`, Wraith repair | `f29f51eb` | PASS: 1 passed, 0 failed, 0 skipped, no runtime warnings; 10.173 seconds. Build and guarded cleanup passed. Exported and visually inspected the installed app: Wraith's home directory is populated, with no reconnect banner or spinner, and the active local pane is preserved. Run `wraith-repair-261010`. |
