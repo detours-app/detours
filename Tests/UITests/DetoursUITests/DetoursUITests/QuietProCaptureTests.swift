@@ -94,6 +94,7 @@ final class QuietProCaptureTests: BaseUITest {
         for target in ["devtest", "dockerhost", "detours-windows"] {
             XCTAssertTrue(sheet.descendants(matching: .any).matching(NSPredicate(format: "label == %@", target)).firstMatch.waitForExistence(timeout: 5), "The configured host \(target) should be suggested")
         }
+        pressKey(.downArrow)
         attachScreenshot("release-dark-add-host", of: sheet)
         pressKey(.escape)
         XCTAssertTrue(waitForCondition(timeout: 3) { !sheet.exists }, "The picker should close without connecting")
