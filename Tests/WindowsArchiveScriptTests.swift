@@ -3,7 +3,7 @@ import XCTest
 
 final class WindowsArchiveScriptTests: XCTestCase {
     func testRarCapabilitiesDoNotChangeOtherFormats() async throws {
-        let control = FileManager.default.temporaryDirectory.appendingPathComponent("rar-win-" + UUID().uuidString.prefix(6))
+        let control = URL(fileURLWithPath: "/tmp").appendingPathComponent("rar-win-" + UUID().uuidString.prefix(6))
         try FileManager.default.createDirectory(at: control, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         defer { XCTAssertNoThrow(try FileManager.default.removeItem(at: control)) }
         let channel = PowerShellChannel(hostID: UUID(), sshTarget: "detours-windows", controlDirectory: control)

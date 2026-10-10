@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry `WindowsArchiveScriptTests/testRarCapabilitiesDoNotChangeOtherFormats` | `4093707d` | FAIL: PowerShellChannel returned `Broken pipe` after 0.644 seconds. The new fixture used the long macOS temporary directory; direct reproduction confirmed SSH rejects its 104-byte control socket. Shorten the fixture root to `/tmp`, matching existing live tests. Signed app build passed. |
 | Foundry `RarArchiveStreamTests/testVolumeCallbacksRefuseUnacceptedPaths` | `a829813f` | PASS: 1 test, 0 failures, 1.426 seconds; signed app and both helper builds passed. |
 | Foundry `AcceptedExtractionCallerTests/testSingleItemNamesAndWrappersMatchAllExistingFormats` | `a829813f` | PASS: 1 test, 0 failures, 2.245 seconds. |
 | Foundry `AcceptedExtractionCallerTests/testEncryptedExtractionRequestsPasswordAndRetainsRetry` | `a829813f` | PASS: 1 test, 0 failures, 0.736 seconds. |
