@@ -16,7 +16,7 @@ extension FileOperationQueue {
         let parent = archive.deletingLastPathComponent()
         enterProtectedPaths([parent])
         defer { leaveProtectedPaths([parent]) }
-        let progress: @Sendable (UInt64) throws -> Void = { bytes in
+        let progress: @Sendable (UInt64) throws -> Void = { [weak self] bytes in
             guard !cancellation.isCancelled else { throw FileOperationError.cancelled }
             try Task.checkCancellation()
             Task { @MainActor [weak self] in
@@ -74,6 +74,7 @@ extension FileOperationQueue {
                 }
             case .missing: break
             case .denied: throw POSIXError(.EACCES)
+            case .disconnected: throw POSIXError(.ENOTCONN)
             case .unsupported: throw OperationFilesystemError.unsupported
             }
             try checkCancelled()

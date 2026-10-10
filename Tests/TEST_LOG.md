@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry local RAR app build | `0880cb0b` | FAIL before Mac tests: the destination lookup switch omits an outcome, and nested progress capture emits a weak-ownership warning. Linux and Intel Mac helpers built successfully. Complete the lookup switch and use a consistent weak capture before retrying. |
 | Foundry build, devtest `ServerArchiveOperationsTests` with local RAR planner | `0880cb0b` | PASS: 125 tests, 0 failures in 16.32 seconds. Linux release helper built successfully. |
 | Foundry build, devtest `DetoursProcessTests` with local RAR planner | `0880cb0b` | PASS: 20 tests, 0 failures in 15.90 seconds. Password/integrity and controlled volume checks pass with the new planner compiled. |
 | Foundry `RarArchiveOperationTests/testRecognizesRarSetsWithoutOfferingRarCreation` | `d834b705` | PASS: 1 test, 0 failures in 0.009 seconds. Case variants, continuation selection, false numbered files, creation rejection and older-helper compatibility pass. Both helpers and signed Mac app built successfully. |
