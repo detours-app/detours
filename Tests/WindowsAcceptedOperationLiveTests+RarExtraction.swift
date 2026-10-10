@@ -12,6 +12,7 @@ extension WindowsAcceptedOperationLiveTests {
             for mutation in ["missing", "replaced", "junction"] {
                 for prepared in [false, true] {
                     let folder = "\(mutation)-\(prepared)"
+                    print("Windows RAR failure case: \(folder)")
                     let parts = try await fixture.stage(multipart, folder: folder)
                     let layout = try await fixture.layout(parts[2], password: nil)
                     let destination = folder + "-result"
@@ -38,6 +39,7 @@ extension WindowsAcceptedOperationLiveTests {
                 }
             }
             for id in ["rar5-psw", "rar5-hpsw", "encrypted-multipart-rar4"] {
+                print("Windows RAR password case: \(id)")
                 let archive = try XCTUnwrap(corpus.archives.first { $0.id == id })
                 let parts = try await fixture.stage(archive, folder: id)
                 let layout = try await fixture.layout(try XCTUnwrap(parts.last), password: archive.password)
@@ -50,7 +52,7 @@ extension WindowsAcceptedOperationLiveTests {
                 try await fixture.assertPrivate(secret)
             }
             let original = try Data(contentsOf: RarTestCorpus.source("rarfile/seektest.rar"))
-            var hostile = try ["C:/xx.txt", "//x/a.txt", "file:adsx", "../xx.txt", "stest2.txt"].map {
+            var hostile = try ["C:/xxx.txt", "//xx/a.txt", "file:adsxx", "../xxx.txt", "stest2.txt"].map {
                 try RarTestCorpus.renameRar4(original, from: "stest1.txt", to: $0)
             }
             for archive in corpus.archives where archive.expectedRefusal != nil {
@@ -58,6 +60,7 @@ extension WindowsAcceptedOperationLiveTests {
             }
             hostile.append(Data(original.dropLast(100)))
             for (index, bytes) in hostile.enumerated() {
+                print("Windows RAR hostile case: \(index)")
                 let relative = "hostile/\(index).rar"
                 try await fixture.write(relative, bytes: bytes)
                 do {
@@ -69,6 +72,7 @@ extension WindowsAcceptedOperationLiveTests {
                 try await fixture.assertMissing("hostile/output-\(index)")
             }
             let parts = try await fixture.stage(multipart, folder: "cancel")
+            print("Windows RAR cancellation case")
             let layout = try await fixture.layout(parts[2], password: nil)
             let identity = try await fixture.accept(layout, destination: "cancel-result", encrypted: false)
             let ready = try await fixture.receipt(.prepareArchive(identity: identity, password: nil))
