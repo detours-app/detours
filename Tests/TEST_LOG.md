@@ -2,6 +2,9 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry and Windows `WindowsAcceptedOperationLiveTests/testAcceptedSevenZipCreationAndExtractionMatchExistingLayout` | `0aba96f9` | PASS: 1 test, 0 failures, 53.735 seconds. Existing 7Z creation, layout, owned extraction, links and cancellation passed through the updated DLL reader. |
+| Foundry `WindowsArchiveScriptTests/testArchiveExtractRejectsEscapingEntries` | `0aba96f9` | PASS: 1 test, 0 failures, 0.001 seconds. |
+| Foundry and Windows `WindowsArchiveScriptTests/testRarCapabilitiesDoNotChangeOtherFormats` | `0aba96f9` | PASS: 1 test, 0 failures, 3.185 seconds. Native callback code compiled on Windows; missing/incompatible DLLs and archive-folder lookup are refused, ZIP/7Z password restrictions remain. Signed Foundry build passed. |
 | Foundry `WindowsArchiveScriptTests/testRarCapabilitiesDoNotChangeOtherFormats` | `4093707d` | FAIL: PowerShellChannel returned `Broken pipe` after 0.644 seconds. The new fixture used the long macOS temporary directory; direct reproduction confirmed SSH rejects its 104-byte control socket. Shorten the fixture root to `/tmp`, matching existing live tests. Signed app build passed. |
 | Foundry `RarArchiveStreamTests/testVolumeCallbacksRefuseUnacceptedPaths` | `a829813f` | PASS: 1 test, 0 failures, 1.426 seconds; signed app and both helper builds passed. |
 | Foundry `AcceptedExtractionCallerTests/testSingleItemNamesAndWrappersMatchAllExistingFormats` | `a829813f` | PASS: 1 test, 0 failures, 2.245 seconds. |
