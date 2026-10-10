@@ -231,6 +231,7 @@ extension WindowsOperationScripts {
             Assert-WindowsOperationActive $Context
             if (-not $Replacing) { $destination = Assert-WindowsDestination $Context }
             elseif (-not (Get-WindowsOperationLookup $destination).ContainsKey('missing')) { throw 'Replacement destination was occupied.' }
+            Assert-WindowsRarSources $intent $Context.account
             $receipt = New-WindowsReceipt $Context 'committing' 'running'
             $receipt.preparedPayload = $payload
             $receipt.plannedPaths = @($intent.destination)

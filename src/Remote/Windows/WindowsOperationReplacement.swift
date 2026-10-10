@@ -92,6 +92,7 @@ extension WindowsOperationScripts {
             try {
                 Assert-WindowsOperationActive $Context
                 Assert-WindowsDestination $Context | Out-Null
+                Assert-WindowsRarSources $intent $Context.account
                 $Context.record | Add-Member -NotePropertyName windowsReplacementBackup -NotePropertyValue @{
                     location = $location; observation = $before; manifest = $backupManifest } -Force
                 Save-WindowsWorkspace $Context

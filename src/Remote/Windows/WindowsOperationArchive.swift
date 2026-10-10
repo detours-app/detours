@@ -7,7 +7,7 @@ extension WindowsOperationScripts {
         if ($intent.action -eq 'archiveExtract' -and $intent.archiveFormat -in @('tarGz', 'tarBz2', 'tarXz')) {
             return Prepare-WindowsTarExtraction $Context $Parameters
         }
-        if ($intent.action -eq 'archiveExtract' -and $intent.archiveFormat -eq 'sevenZ') {
+        if ($intent.action -eq 'archiveExtract' -and $intent.archiveFormat -in @('sevenZ', 'rar')) {
             return Prepare-WindowsSevenZipExtraction $Context $Parameters
         }
         if ($intent.action -eq 'archiveExtract') { return Prepare-WindowsZipExtraction $Context $Parameters }
