@@ -14,7 +14,7 @@ Keep a source and destination open together, with independent tabs in each pane.
 
 - **Local and remote files together.** Connect over SSH to macOS, Linux and Windows hosts. Copy and move between your Mac and servers, or between servers, with progress and transfer speed visible in the status bar.
 - **Undo and recovery.** Undo file operations per tab. Remote Operations keeps the results of remote changes across navigation and restarts, including what finished and what still needs checking after a connection drops.
-- **Previews without opening another app.** Press Space for code, Markdown, HTML, images, delimited tables, Word documents and Excel workbooks. Remote files use the same preview window; PDFs open in the macOS preview.
+- **Previews without opening another app.** Press Space for code, Markdown, HTML, images, delimited tables, Word (.docx) documents and Excel (.xlsx) workbooks. Remote files use the same preview window; PDFs open in the macOS preview.
 - **Archives and sharing.** Create and extract ZIP, 7Z and TAR archives, use password protection where supported, and share local files through AirDrop and macOS sharing services.
 - **Git status at a glance.** Distinct shapes identify modified, staged, untracked and conflicted files, including in remote repositories.
 - **Light, dark or your system appearance.** Detours follows the macOS accent colour, with teal under Multicolor, optional row stripes and an alternative deep-sea Dock icon.

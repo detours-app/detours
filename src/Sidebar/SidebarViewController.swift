@@ -240,7 +240,8 @@ final class SidebarViewController: NSViewController {
     }
 
     func favoritesItems() -> [URL] {
-        if let uiTestRoot = UITestEnvironment.rootDirectory {
+        if let uiTestRoot = UITestEnvironment.rootDirectory,
+           ProcessInfo.processInfo.environment["DETOURS_UI_TEST_RELEASE_CAPTURE"] != "1" {
             return [uiTestRoot]
         }
 

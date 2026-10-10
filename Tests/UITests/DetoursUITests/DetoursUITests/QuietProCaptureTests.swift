@@ -4,6 +4,12 @@ import XCTest
 /// Screenshots for the Quiet Pro visual checks, kept in the run's result bundle. They are judged
 /// by eye against the mockup board; the assertions only prove each scene was really on screen.
 final class QuietProCaptureTests: BaseUITest {
+    override func configureLaunchEnvironment(_ environment: inout [String: String]) {
+        if name.contains("testCaptureReleaseScenes") {
+            environment["DETOURS_UI_TEST_RELEASE_CAPTURE"] = "1"
+        }
+    }
+
     override func setUpWithError() throws {
         try super.setUpWithError()
         // One missing scene should not cost the rest of the captures.
@@ -29,13 +35,7 @@ final class QuietProCaptureTests: BaseUITest {
     /// Browses the persistent screenshot samples without creating or changing their files.
     func testCaptureReleaseScenes() throws {
         continueAfterFailure = false
-        try resizeMainWindow(width: 1280, height: 760)
-
-        let sidebar = app.outlines["sidebarOutlineView"]
-        let fixtureFavorite = sidebar.staticTexts[testFolderName]
-        XCTAssertTrue(fixtureFavorite.waitForExistence(timeout: 3))
-        fixtureFavorite.rightClick()
-        app.menuItems["Remove from Favorites"].click()
+        try resizeMainWindow(width: 1280, height: 640)
 
         try openReleaseSample("acme-corp", pane: "left")
         pressKey(.upArrow, modifiers: .command)
@@ -49,15 +49,25 @@ final class QuietProCaptureTests: BaseUITest {
         XCTAssertTrue(waitForCondition(timeout: 10) {
             ((try? self.requestRemotePaneState(pane: "right"))?.gitStatuses.count ?? 0) >= 3
         }, "The sample API should show Git status")
+        for folder in ["middleware", "schemas"] {
+            let row = app.rightPaneOutlineView.outlineRow(withStaticText: folder)
+            row.disclosureTriangles.firstMatch.click()
+        }
+        XCTAssertTrue(app.rightPaneOutlineView.staticTexts["auth.py"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.rightPaneOutlineView.staticTexts["user.py"].waitForExistence(timeout: 5))
+        let invoices = app.leftPaneOutlineView.outlineRow(withStaticText: "invoices")
+        invoices.disclosureTriangles.firstMatch.click()
+        XCTAssertTrue(app.leftPaneOutlineView.staticTexts["INV-2025-012.pdf"].waitForExistence(timeout: 5))
         clickRow("database.py", in: app.rightPaneOutlineView)
         clickRow("Budget-2026.xlsx", in: app.leftPaneOutlineView)
 
         for theme in ["light", "dark"] {
             try applyAppearanceSettings(theme: theme, fontSize: 13, density: "compact")
+            XCTAssertFalse(app.outlines["sidebarOutlineView"].staticTexts[testFolderName].exists, "The public screenshot should not show a qualification identifier")
             attachScreenshot("release-\(theme)-main", of: app.windows.firstMatch)
             openQuickNavForKeyboardInput()
-            app.textFields["quickNavSearchField"].typeText("INV-2025")
-            XCTAssertTrue(app.staticTexts["INV-2025-001.pdf"].waitForExistence(timeout: 10), "Quick Open should find the sample invoices")
+            app.textFields["quickNavSearchField"].typeText("INV-2025-01")
+            XCTAssertTrue(app.staticTexts["INV-2025-010.pdf"].waitForExistence(timeout: 10), "Quick Open should find the sample invoices")
             attachScreenshot("release-\(theme)-quick-open", of: app.windows.firstMatch)
             pressKey(.escape)
         }
