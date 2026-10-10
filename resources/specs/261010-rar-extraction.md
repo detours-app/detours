@@ -35,7 +35,7 @@ Add RAR extraction alongside the existing archive formats, including password-pr
 - [x] **A3** Split archives, including password-protected split archives, extract once when any recognized part is selected and all required parts are together.
 - [x] **A4** Missing, damaged, changed or unsafe archive contents leave original archives and existing destination files intact and explain why extraction stopped.
 - [x] **A5** Progress, cancellation, destination naming, conflict handling, selection and undo follow the existing archive workflow.
-- [ ] **A6** No RAR creation option or paid dependency is introduced, and existing ZIP, 7Z and TAR features continue to work.
+- [x] **A6** No RAR creation option or paid dependency is introduced, and existing ZIP, 7Z and TAR features continue to work.
 - [x] **A7** Passwords are absent from saved operation records and diagnostic output.
 - [ ] **A8** The GitHub page and formatted HTML user guide accurately describe RAR extraction, passwords, split archives and the Windows requirement.
 
@@ -128,7 +128,7 @@ Create missing-part and deterministic damaged copies only within test-owned Foun
 - [x] **C6** Extend Server/ServerArchiveExtractionReader.swift, ServerArchiveExtractionPlan and ServerOperationService extraction handling for encrypted multipart RAR and all-volume source proofs.
 - [x] **C7** Extend src/Remote/Windows/WindowsOperationArchiveLayout.swift and WindowsOperationSevenZipInterfaces/Reader/Runtime/Extraction.swift for RAR/RAR5, password and volume callback interfaces, controlled volumes and safe link properties.
 - [x] **C8** Update file opening, Extract Here availability, multi-selection deduplication and FileOperationQueue error mapping; reuse the existing password sheet and add precise volume/tool/integrity messages.
-- [ ] **C9** In resources/scripts/build-server-linux.sh, copy Tests/ServerRarExtractionTests.swift to devtest and add the test file to the ServerArchiveOperationsTests sources, as ServerArchiveStreamTests is today; add it to resources/scripts/server-cache-hash.sh. Fixture copying and cache tracking are prerequisites completed under C3. RarExtractionUITests run through the guarded installed-smoke runner's --test-filter without joining a default workflow group.
+- [x] **C9** In resources/scripts/build-server-linux.sh, copy Tests/ServerRarExtractionTests.swift to devtest and add the test file to the ServerArchiveOperationsTests sources, as ServerArchiveStreamTests is today; add it to resources/scripts/server-cache-hash.sh. Fixture copying and cache tracking are prerequisites completed under C3. RarExtractionUITests run through the guarded installed-smoke runner's --test-filter without joining a default workflow group.
 - [ ] **C10** Update README.md and resources/docs/USER_GUIDE.md, regenerate resources/docs/USER_GUIDE.html with resources/scripts/render-user-guide.mjs, and document RAR extraction-only support, passwords, multipart limits and Windows prerequisites.
 
 ---
@@ -175,11 +175,13 @@ Run each filter separately, after its related RAR checks pass. Required Windows 
 - [x] **T19** (C4, C5, C6) Pass AcceptedExtractionCallerTests/testSingleItemNamesAndWrappersMatchAllExistingFormats, testEncryptedExtractionRequestsPasswordAndRetainsRetry and testChangedArchiveAfterInspectionCannotBeExtracted individually.
 - [x] **T20** (C2, C6) Pass ServerArchiveStreamTests/testNativeReaderListsAndExtractsOwnedStreamsAcrossFormats, testNativeReaderRefusesNonemptyOutputAndPropagatesCancellation and testExternalLinkArchiveRetainsExistingExtractionRefusal individually.
 - [x] **T21** (C7) Pass WindowsAcceptedOperationLiveTests/testAcceptedSevenZipCreationAndExtractionMatchExistingLayout and WindowsArchiveScriptTests/testArchiveExtractRejectsEscapingEntries individually.
-- [ ] **T22** (C1, C8, C9) Pass ArchivePasswordUITests/testCreationControlsFollowSelectedFormat and testWrongPasswordShowsRetrySheet individually through the guarded installed-smoke runner.
+- [x] **T22** (C1, C8, C9) Pass ArchivePasswordUITests/testCreationControlsFollowSelectedFormat and testWrongPasswordShowsRetrySheet individually through the guarded installed-smoke runner.
 
 ---
 
 ## Build Log
+
+- **C9, T22, A6** Linux builds include and cache the RAR accepted-operation tests; Mac/Linux T3/T9/T10 and Windows T11/T12 passed. All three RAR UI cases passed individually. Existing creation controls (`f0228ea8`) and ZIP password retry (`e59fa1ed`) passed as separate guarded Foundry cases with no skips or runtime warnings. Together with T18-T21, these confirm the existing archive formats still work and RAR remains extraction-only with no paid dependency.
 
 - **T16, A3, A5** Foundry guarded UI at `4b463dfc` passed multi-selected multipart extraction, visible progress during Keep Both, one selected result, retained occupants and undo. Both screenshots were inspected. T14 proves encrypted continuation selection; T6/T8/T9/T11 cover naming, cancellation, replacement restoration and accepted publication. The test reads visible progress while the modal dialog is open and requests internal completion state afterwards.
 

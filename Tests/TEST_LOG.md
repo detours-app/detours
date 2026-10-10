@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry guarded `ArchivePasswordUITests/testWrongPasswordShowsRetrySheet` | `e59fa1ed` | PASS. Wrong ZIP passwords still reopen the retry sheet. One pass, zero skips, failures or runtime warnings; guarded cleanup completed. |
 | Foundry guarded `ArchivePasswordUITests/testCreationControlsFollowSelectedFormat` | `f0228ea8` | PASS. Archive creation controls follow the selected format. One pass, zero skips, failures or runtime warnings; guarded cleanup completed. |
 | Foundry guarded `RarExtractionUITests/testSelectingSeveralPartsExtractsOnce` | `4b463dfc` | PASS. Three selected parts produced one selected vols 2 folder, preserved the existing vols contents and undid only the extraction. Viewed both screenshots: Keep Both/Replace/Stop with progress visible, then one result. One pass, zero skips or runtime warnings. |
 | Foundry guarded `RarExtractionUITests/testSelectingSeveralPartsExtractsOnce` | `f74bfa86` | FAIL. Three parts were selected and Keep Both appeared, but the internal pane-state request timed out while that modal dialog was open. Check visible progress through accessibility and retain the post-dialog state assertions. |
