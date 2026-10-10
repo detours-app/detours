@@ -20,13 +20,15 @@ typedef struct {
 
 typedef int (*detours_archive_progress)(void *context, uint64_t bytes);
 typedef int (*detours_archive_input)(void *context, uint32_t index);
+typedef int (*detours_archive_volume)(void *context, const char *name);
 
 /* Entry storage and output are borrowed for this synchronous call.
    open_input transfers a readable descriptor, closed after that member.
    Output must be an empty regular file exclusively created by the caller. */
 enum detours_archive_format {
     DETOURS_ARCHIVE_SEVEN_Z = 0, DETOURS_ARCHIVE_ZIP = 1, DETOURS_ARCHIVE_TAR = 2,
-    DETOURS_ARCHIVE_GZIP = 3, DETOURS_ARCHIVE_BZIP2 = 4, DETOURS_ARCHIVE_XZ = 5
+    DETOURS_ARCHIVE_GZIP = 3, DETOURS_ARCHIVE_BZIP2 = 4, DETOURS_ARCHIVE_XZ = 5,
+    DETOURS_ARCHIVE_RAR = 6, DETOURS_ARCHIVE_RAR5 = 7
 };
 
 int32_t detours_archive_create(int32_t format, int output, const detours_archive_entry *entries,
@@ -52,6 +54,7 @@ typedef int (*detours_archive_visit)(void *context, uint32_t index, const detour
    output transfers an empty regular-file descriptor, which this call closes.
    The archive descriptor is borrowed and its seek offset is never changed. */
 int32_t detours_archive_read(int32_t format, int input, const char *password,
+                            const char *input_name, detours_archive_volume open_volume,
                             detours_archive_visit visit, detours_archive_input output,
                             detours_archive_progress progress, void *context);
 
