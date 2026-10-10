@@ -122,13 +122,13 @@ Create missing-part and deterministic damaged copies only within test-owned Foun
 
 - [x] **C1** Separate extraction and creation capabilities in src/Utilities/CompressionTools.swift, Shared/SevenZipArchiveReader.swift and ArchiveDialog; add RAR recognition and explicit app/helper/Windows creation rejection.
 - [x] **C2** Extend SevenZip/ and ArchiveStreamBridge/ with pinned RAR/RAR5 handlers, codecs, complete-open error inspection, password/volume callbacks and retained licence notices.
-- [ ] **C3** Add the fixture corpus and manifest under resources/fixtures/rar/ with independent expected contents, pinned provenance, public fixture-password metadata and qualification of the encrypted multipart reference set.
+- [ ] **C3** Add the fixture corpus and manifest under resources/fixtures/rar/ with independent expected contents, pinned provenance, public fixture-password metadata and qualification of the encrypted multipart reference set. Copy these fixtures to devtest and include them in the helper cache hash so paired reader tests run during the required Linux build.
 - [ ] **C4** Add shared RAR volume discovery and extend archive inspection, accepted source observations and commit validation to bind the complete ordered volume set.
 - [ ] **C5** Add local RAR extraction through the shared reader in src/Operations/, preserving owned-output validation, existing conflict publication, cancellation and undo.
 - [ ] **C6** Extend Server/ServerArchiveExtractionReader.swift, ServerArchiveExtractionPlan and ServerOperationService extraction handling for encrypted multipart RAR and all-volume source proofs.
 - [ ] **C7** Extend src/Remote/Windows/WindowsOperationArchiveLayout.swift and WindowsOperationSevenZipInterfaces/Reader/Runtime/Extraction.swift for RAR/RAR5, password and volume callback interfaces, controlled volumes and safe link properties.
 - [ ] **C8** Update file opening, Extract Here availability, multi-selection deduplication and FileOperationQueue error mapping; reuse the existing password sheet and add precise volume/tool/integrity messages.
-- [ ] **C9** In resources/scripts/build-server-linux.sh, copy resources/fixtures/rar/ and Tests/ServerRarExtractionTests.swift to devtest and add the test file to the ServerArchiveOperationsTests sources, as ServerArchiveStreamTests is today; add both to resources/scripts/server-cache-hash.sh. RarExtractionUITests run through the guarded installed-smoke runner's --test-filter without joining a default workflow group.
+- [ ] **C9** In resources/scripts/build-server-linux.sh, copy Tests/ServerRarExtractionTests.swift to devtest and add the test file to the ServerArchiveOperationsTests sources, as ServerArchiveStreamTests is today; add it to resources/scripts/server-cache-hash.sh. Fixture copying and cache tracking are prerequisites completed under C3. RarExtractionUITests run through the guarded installed-smoke runner's --test-filter without joining a default workflow group.
 - [ ] **C10** Update README.md and resources/docs/USER_GUIDE.md, regenerate resources/docs/USER_GUIDE.html with resources/scripts/render-user-guide.mjs, and document RAR extraction-only support, passwords, multipart limits and Windows prerequisites.
 
 ---
@@ -180,6 +180,8 @@ Run each filter separately, after its related RAR checks pass. Required Windows 
 ---
 
 ## Build Log
+
+- **C3 ordering** Marco approved moving fixture copying and cache tracking from C9 into C3 because C3's paired shared-reader test is automatically included in the required Linux helper build. The remaining C9 work stays in sequence.
 
 - **C1** Added reader-specific formats and an explicit writable-format list, retained serialized creation values, recognized `.rar` case-insensitively, and rejected RAR creation before output allocation in app/helper/Windows paths. Creation-based round trips enumerate writable formats. SwiftLint passed. Foundry `resources/scripts/build.sh --no-install` at `bedd0349` built both helpers and the signed app; embedded Linux checks passed 18 process and 125 helper tests. Continuation/signature recognition and its paired T2 remain with C4; RAR decoding remains unavailable until C2/C5.
 - **C2** Imported the RAR/RAR5 handlers and dependencies from the same verified 26.02 source archive, retaining licence notices. The bridge exposes controlled sibling-volume callbacks, limits distinct parts to 1,024, opens additional part handles only while reading, checks archive error properties before member output, enforces declared lengths and separates password/integrity/volume outcomes. An unnecessary disk-image implementation caused an initial Linux link failure and was removed. Foundry build at `afe6a720` passed for both helpers and the signed app; embedded Linux checks passed 18 process and 125 helper tests. RAR fixture qualification follows in C3 and its paired tests.

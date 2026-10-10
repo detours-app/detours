@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 {
-    for DETOURS_PATH in Server Shared RemoteOperationSupport FilesystemPrimitives SevenZip ArchiveStreamBridge LinuxStaticFoundationGuard Tests/DetoursProcessTests; do
+    for DETOURS_PATH in Server Shared RemoteOperationSupport FilesystemPrimitives SevenZip ArchiveStreamBridge LinuxStaticFoundationGuard Tests/DetoursProcessTests resources/fixtures/rar; do
         if [ -d "$DETOURS_PATH" ]; then
             find "$DETOURS_PATH" -type f -print0 | sort -z | xargs -0 shasum -a 256
         fi

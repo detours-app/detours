@@ -39,6 +39,7 @@ COPYFILE_DISABLE=1 tar --no-xattrs -czf - \
     FilesystemPrimitives \
     LinuxStaticFoundationGuard \
     Tests/DetoursProcessTests \
+    resources/fixtures/rar \
     Tests/ServerArchiveOperationsTests.swift \
     Tests/ServerArchiveStreamTests.swift \
     Tests/ServerOperationArchiveTests.swift \

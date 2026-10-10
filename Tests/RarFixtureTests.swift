@@ -42,15 +42,16 @@ final class RarFixtureTests: XCTestCase {
         XCTAssertEqual(result.status, 0, "Full 7-Zip failed to qualify the reference: \(result.outputString)")
         guard result.status == 0 else { return }
         var actualFiles = Set<String>()
-        let enumerator = try XCTUnwrap(FileManager.default.enumerator(at: destination, includingPropertiesForKeys: [.isRegularFileKey]))
-        for case let file as URL in enumerator {
+        let enumerator = try XCTUnwrap(FileManager.default.enumerator(atPath: destination.path))
+        for case let relative as String in enumerator {
+            let file = destination.appendingPathComponent(relative)
             if try file.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true {
-                actualFiles.insert(String(file.path.dropFirst(destination.path.count + 1)))
+                actualFiles.insert(relative)
             }
         }
         XCTAssertEqual(actualFiles, Set(fixture.expected.map(\.name)))
         for expected in fixture.expected {
-            var original = try Data(contentsOf: root.appendingPathComponent(expected.reference))
+            var original = try Data(contentsOf: root.appendingPathComponent(try XCTUnwrap(expected.reference)))
             if expected.referenceLineEndings == "crlf" {
                 let text = try XCTUnwrap(String(data: original, encoding: .utf8))
                 XCTAssertFalse(text.contains("\r"))
@@ -94,9 +95,9 @@ final class RarFixtureTests: XCTestCase {
 
     private struct Expected: Decodable {
         let name: String
-        let reference: String
+        let reference: String?
         let bytes: Int
-        let sha256: String
+        let sha256: String?
         let referenceLineEndings: String?
     }
 }

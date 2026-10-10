@@ -1,0 +1,273 @@
+"""Extract tests.
+"""
+
+import io
+import os
+import sys
+from datetime import datetime
+from pathlib import Path
+
+import pytest
+
+import rarfile
+
+
+def get_props(rf: rarfile.RarFile, name: str) -> str:
+    inf = rf.getinfo(name)
+    return "".join([
+        inf.is_file() and "F" or "-",
+        inf.is_dir() and "D" or "-",
+        inf.is_symlink() and "L" or "-",
+    ])
+
+
+def san_unix(fn: str) -> str:
+    return rarfile.sanitize_filename(fn, "/", False)
+
+
+def san_win32(fn: str) -> str:
+    return rarfile.sanitize_filename(fn, "/", True)
+
+
+def test_sanitize_unix() -> None:
+    assert san_unix("asd/asd") == "asd/asd"
+    assert san_unix("asd/../asd") == "asd/asd"
+    assert san_unix("c:/a/x") == r"c:/a/x"
+    assert san_unix("z/./../a /b./c") == "z/a /b./c"
+    assert san_unix("z<>*?:") == "z____:"
+
+
+def test_sanitize_win32() -> None:
+    assert san_win32("asd/asd") == "asd/asd"
+    assert san_win32("asd/../asd") == "asd/asd"
+    assert san_win32("c:/a/x") == "a/x"
+    assert san_win32("z/./../a /b./c") == "z/a_/b_/c"
+    assert san_win32("z<>*?:\\^") == "z_______"
+
+
+def checktime(fn: Path, exp_mtime: datetime | None) -> None:
+    # cannot check subsecond precision as filesystem may not support it
+    assert exp_mtime is not None
+    cut = len("0000-00-00 00:00:00")
+    st = os.stat(fn)
+    got_mtime = datetime.fromtimestamp(st.st_mtime, exp_mtime.tzinfo)
+    exp_stamp = exp_mtime.isoformat(" ", "seconds")[:cut]
+    got_stamp = got_mtime.isoformat(" ", "seconds")[:cut]
+    assert exp_stamp == got_stamp
+
+
+def checkfile(fn: Path, data: str, mtime: datetime | None) -> None:
+    with open(fn, "r", encoding="utf8") as f:
+        got = f.read()
+        assert got.strip() == data
+
+    checktime(fn, mtime)
+
+
+def check_subdir(rf: rarfile.RarFile, tmp_path: Path) -> None:
+    # pre-mkdir
+    ext1 = tmp_path / "ext1"
+    inf = rf.getinfo("sub/dir1/file1.txt")
+    os.mkdir(ext1)
+    rf.extract(inf, ext1)
+    assert sorted(os.listdir(tmp_path)) == ["ext1"]
+    assert os.listdir(ext1 / "sub") == ["dir1"]
+    checkfile(ext1 / "sub/dir1/file1.txt", "file1", inf.mtime)
+
+    # no mkdir
+    ext2 = tmp_path / "ext2"
+    inf = rf.getinfo("sub/dir2/file2.txt")
+    rf.extract("sub/dir2/file2.txt", ext2)
+    assert sorted(os.listdir(tmp_path)) == ["ext1", "ext2"]
+    assert os.listdir(ext2 / "sub") == ["dir2"]
+    checkfile(ext2 / "sub/dir2/file2.txt", "file2", inf.mtime)
+
+    # spaced
+    ext3 = tmp_path / "ext3"
+    inf = rf.getinfo("sub/with space/long fn.txt")
+    rf.extract("sub/with space/long fn.txt", ext3)
+    checkfile(ext3 / "sub/with space/long fn.txt", "long fn", inf.mtime)
+
+    # unicode
+    ext4 = tmp_path / "ext4"
+    inf = rf.getinfo("sub/üȵĩöḋè/file.txt")
+    rf.extract("sub/üȵĩöḋè/file.txt", ext4)
+    checkfile(ext4 / "sub/üȵĩöḋè/file.txt", "file", inf.mtime)
+
+    # dir only
+    ext5 = tmp_path / "ext5"
+    inf = rf.getinfo("sub/dir2")
+    rf.extract("sub/dir2", ext5)
+    assert os.listdir(ext5 / "sub") == ["dir2"]
+    assert os.listdir(ext5 / "sub/dir2") == []
+    checktime(ext5 / "sub/dir2", inf.mtime)
+
+    # cwd
+    ext6 = tmp_path / "ext6"
+    os.mkdir(ext6)
+    old = os.getcwd()
+    try:
+        os.chdir(ext6)
+        rf.extract("sub/dir1")
+        assert os.listdir(".") == ["sub"]
+        assert os.listdir("sub") == ["dir1"]
+        assert os.listdir("sub/dir1") == []
+    finally:
+        os.chdir(old)
+
+    # errors
+    with pytest.raises(io.UnsupportedOperation):
+        rf.open("sub/dir1")
+
+
+@pytest.mark.parametrize("fn", [
+    "test/files/rar3-subdirs.rar",
+    "test/files/rar5-subdirs.rar",
+])
+def test_subdirs(fn: str, tmp_path: Path) -> None:
+    with rarfile.RarFile(fn) as rf:
+        check_subdir(rf, tmp_path)
+
+
+@pytest.mark.parametrize("fn", [
+    "test/files/rar3-readonly-unix.rar",
+    "test/files/rar3-readonly-win.rar",
+    "test/files/rar5-readonly-unix.rar",
+    "test/files/rar5-readonly-win.rar",
+])
+def test_readonly(fn: str, tmp_path: Path) -> None:
+    with rarfile.RarFile(fn) as rf:
+        assert get_props(rf, "ro_dir") == "-D-"
+        assert get_props(rf, "ro_dir/ro_file.txt") == "F--"
+
+        rf.extractall(tmp_path)
+
+    assert os.access(tmp_path / "ro_dir/ro_file.txt", os.R_OK)
+    assert not os.access(tmp_path / "ro_dir/ro_file.txt", os.W_OK)
+
+    if sys.platform != "win32":
+        assert os.access(tmp_path / "ro_dir", os.R_OK)
+        assert not os.access(tmp_path / "ro_dir", os.W_OK)
+
+
+@pytest.mark.parametrize("fn", [
+    "test/files/rar3-symlink-unix.rar",
+    "test/files/rar5-symlink-unix.rar",
+])
+def test_symlink(fn: str, tmp_path: Path) -> None:
+    with rarfile.RarFile(fn) as rf:
+        assert get_props(rf, "data.txt") == "F--"
+        assert get_props(rf, "data_link") == "--L"
+        assert get_props(rf, "random_link") == "--L"
+
+        rf.extract('data.txt', tmp_path)
+        rf.extract('data_link', tmp_path)
+        with pytest.raises(rarfile.BadSymLinkError):
+            rf.extract('random_link', tmp_path)
+
+        assert sorted(os.listdir(tmp_path)) == ["data.txt", "data_link"]
+
+        data = rf.getinfo("data.txt")
+        data_link = rf.getinfo("data_link")
+
+        assert not data.is_symlink()
+        assert data_link.is_symlink()
+
+        assert rf.read(data) == b"data\n"
+        assert rf.read(data_link) == b"data.txt"
+
+        assert os.path.isfile(tmp_path / "data.txt")
+        assert os.path.islink(tmp_path / "data_link")
+
+        # str - work around pypy3 bug
+        assert os.readlink(str(tmp_path / "data_link")) == "data.txt"
+
+
+def test_symlink_win(tmp_path: Path) -> None:
+    fn = "test/files/rar5-symlink-win.rar"
+    with rarfile.RarFile(fn) as rf:
+        assert get_props(rf, "content/dir1") == "-D-"
+        assert get_props(rf, "content/dir2") == "-D-"
+        assert get_props(rf, "content/file.txt") == "F--"
+        assert get_props(rf, "links/bad_link") == "--L"
+        assert get_props(rf, "links/dir_junction") == "--L"
+        assert get_props(rf, "links/dir_link") == "--L"
+        assert get_props(rf, "links/file_link") == "--L"
+
+        rf.extract('content/dir1', tmp_path)
+        rf.extract('content/dir2', tmp_path)
+        rf.extract('content/file.txt', tmp_path)
+        rf.extract('links/dir_link', tmp_path)
+        rf.extract('links/file_link', tmp_path)
+
+        with pytest.warns(rarfile.UnsupportedWarning):
+            rf.extract('links/dir_junction', tmp_path)
+
+        with pytest.raises(rarfile.BadSymLinkError):
+            rf.extract('links/bad_link', tmp_path)
+
+        assert sorted(os.listdir(tmp_path)) == ["content", "links"]
+        assert sorted(os.listdir(tmp_path / "content")) == ["dir1", "dir2", "file.txt"]
+        assert sorted(os.listdir(tmp_path / "links")) == ["dir_link", "file_link"]
+
+        assert os.path.islink(tmp_path / "links/dir_link")
+        assert os.path.islink(tmp_path / "links/file_link")
+
+
+@pytest.mark.parametrize("fn", [
+    "test/files/rar3-old.rar",
+    "test/files/rar3-vols.part1.rar",
+    "test/files/rar5-vols.part1.rar",
+])
+def test_vols(fn: str, tmp_path: Path) -> None:
+    with rarfile.RarFile(fn) as rf:
+        rarfile.FORCE_TOOL = True
+        try:
+            rf.extractall(str(tmp_path))
+        finally:
+            rarfile.FORCE_TOOL = False
+
+        assert sorted(os.listdir(tmp_path)) == ["vols"]
+        assert sorted(os.listdir(tmp_path / "vols")) == ["bigfile.txt", "smallfile.txt"]
+
+        assert os.path.isfile(tmp_path / "vols" / "bigfile.txt")
+        assert os.path.isfile(tmp_path / "vols" / "smallfile.txt")
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlink semantics differ on Windows")
+def test_symlink_chained_traversal_blocked(tmp_path: Path) -> None:
+    """Regression test for symlink-chained zip-slip (CWE-22 + CWE-59).
+
+    The fixture rar5-evil-symlink-traversal.rar contains two members:
+      1. up           -- symlink whose target is the relative path '..'
+      2. up/pwned.txt -- regular file whose extraction path traverses
+                         the symlink above and lands outside the extract dir.
+
+    Without the realpath containment check in _extract_one, extractall
+    silently writes pwned.txt outside the extraction directory (in
+    tmp_path rather than tmp_path/extract).
+    """
+    extract = tmp_path / "extract"
+    extract.mkdir()
+
+    fn = "test/files/rar5-evil-symlink-traversal.rar"
+    with rarfile.RarFile(fn) as rf:
+        with pytest.raises(rarfile.BadSymLinkError):
+            rf.extractall(str(extract))
+
+    check = extract / "up"
+    assert check.is_dir()
+
+    # test if pre-existing symlink is detected
+    extract = tmp_path / "extract2"
+    extract.mkdir()
+
+    up = extract / "up"
+    up.symlink_to('..')
+    assert str(up.readlink()) == '..'
+
+    with pytest.raises(rarfile.BadRarFile):
+        rf.extract('up/pwned.txt', extract)
+
+    # The second member would land at tmp_path/pwned.txt without the guard.
+    assert not (tmp_path / "pwned.txt").exists()
