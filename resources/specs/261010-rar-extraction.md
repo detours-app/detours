@@ -31,7 +31,7 @@ Add RAR extraction alongside the existing archive formats, including password-pr
 ### Acceptance Criteria
 
 - [x] **A1** Ordinary and solid RAR4 and RAR5 archives extract correctly on the Mac and supported macOS, Linux and Windows remote hosts.
-- [ ] **A2** Password-protected contents and concealed filenames open with the correct password, and a confirmed wrong password can be corrected without partial results.
+- [x] **A2** Password-protected contents and concealed filenames open with the correct password, and a confirmed wrong password can be corrected without partial results.
 - [ ] **A3** Split archives, including password-protected split archives, extract once when any recognized part is selected and all required parts are together.
 - [ ] **A4** Missing, damaged, changed or unsafe archive contents leave original archives and existing destination files intact and explain why extraction stopped.
 - [ ] **A5** Progress, cancellation, destination naming, conflict handling, selection and undo follow the existing archive workflow.
@@ -162,7 +162,7 @@ Shared reader tests live in Tests/DetoursProcessTests/RarArchiveStreamTests.swif
 
 ### Installed-app and documentation tests
 
-- [ ] **T14** (C3, C5, C8, C9) RarExtractionUITests/testEncryptedMultipartRarRetriesAndUndoes uses the guarded installed-smoke runner to open a later part, reject a password, extract with the correct one, select the result and undo.
+- [x] **T14** (C3, C5, C8, C9) RarExtractionUITests/testEncryptedMultipartRarRetriesAndUndoes uses the guarded installed-smoke runner to open a later part, reject a password, extract with the correct one, select the result and undo.
 - [ ] **T15** (C3, C5, C8, C9) RarExtractionUITests/testMissingVolumeExplainsFailure uses the guarded runner to confirm actionable missing-part text, no partial result and no incorrect-password prompt.
 - [ ] **T16** (C3, C5, C8, C9) RarExtractionUITests/testSelectingSeveralPartsExtractsOnce confirms one operation/result for a multi-selected set and inspects the actual progress and result UI.
 - [ ] **T17** (C10) Regenerate USER_GUIDE.html, render README.md to a scratch HTML file with the bundled markdown-it, open both with /agent-browser, confirm every link resolves and compare the archive descriptions with the platforms T3, T9 and T11 proved.
@@ -180,6 +180,8 @@ Run each filter separately, after its related RAR checks pass. Required Windows 
 ---
 
 ## Build Log
+
+- **T14, A2** Foundry guarded UI at `1e0f7103` passed confirmed password retry, empty validation, ambiguous encrypted multipart failure, correct extraction from part six, independent output bytes, selection and undo. All three screenshots were opened and inspected; messages are readable and the result is selected. Native and Windows fixture tests separately cover concealed filenames. Fixed the test query to read native accessibility values as well as labels.
 
 - **T12** Foundry passed the complete Windows refusal journey with both 7-Zip 23.01 (`cb91191b`, 150.669s) and 26.02 (`f6def964`, 149.769s). Missing/replaced parts, junctions, drive/UNC/ADS paths, unsafe links, corruption, wrong passwords, cancellation and cleanup all passed. The fixture header mutations now preserve filename byte lengths. T11 independently covers continuation selection and repeat commits.
 
