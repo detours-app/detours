@@ -12,7 +12,7 @@ Stage this capture state:
 - Devices section: local boot volume plus mounted `Specs.sparsebundle` and `Detours.dmg` fixture volumes, both with eject affordances.
 - Left pane tabs: `Tools`, `Finance`, `acme-corp`, `Specs.sparsebundle`; `acme-corp` selected.
 - Left pane path: `~/Projects/acme-corp`.
-- Left pane selection: `Budget-2026.xlsx`.
+- Left pane selection: `Budget-2027.xlsx`.
 - Remote Hosts section: `devtest`, connected.
 - File Servers section: `Acme NAS`, labeled `SMB`, with a `Projects` share.
 - Right pane tabs: `INBOX`, `Downloads`, `api`, `Detours.dmg`; `api` selected.
@@ -72,7 +72,7 @@ It writes these session defaults for bundle id `com.detours.app`:
 
 - `Detours.LeftPaneTabs`: `~/Projects/Tools`, `~/Projects/Finance`, `~/Projects/acme-corp`, `/Volumes/Specs.sparsebundle`
 - `Detours.LeftPaneSelectedIndex`: `2`
-- `Detours.LeftPaneSelections`: the `acme-corp` tab selects `~/Projects/acme-corp/Budget-2026.xlsx`; the `Specs.sparsebundle` tab selects `/Volumes/Specs.sparsebundle/token`
+- `Detours.LeftPaneSelections`: the `acme-corp` tab selects `~/Projects/acme-corp/Budget-2027.xlsx`; the `Specs.sparsebundle` tab selects `/Volumes/Specs.sparsebundle/token`
 - `Detours.RightPaneTabs`: `~/Projects/INBOX`, `~/Projects/Downloads`, `~/Projects/taskflow/api`, `/Volumes/Detours.dmg`
 - `Detours.RightPaneSelectedIndex`: `2`
 - `Detours.RightPaneSelections`: the `api` tab selects `/home/maf/Projects/taskflow/api/database.py`; the `Detours.dmg` tab selects `/Volumes/Detours.dmg/Detours.app`
@@ -90,7 +90,9 @@ Wait for both panes to load before capturing.
 
 The legacy direct UI-test capture route is suspended. It bypasses the mandatory qualification prompt sentry and can leave an `Allow` dialog unattended. Do not invoke `resources/scripts/uitest.sh` directly for screenshot capture.
 
-Until screenshot capture is integrated with the guarded qualification launcher, use the fixture setup above and capture from Foundry's logged-in GUI session. Any future automated route must stream output while the test runs and inherit the same fail-closed visible-prompt monitoring used by `qualification-foundry.sh`.
+Release captures now run through `qualification-foundry.sh installed-smoke`, with one repetition and an explicit test filter. `QuietProCaptureTests/testCaptureReleaseScenes` uses `opening LOCAL_ROOT` for the main workspace and document previews. `ReleaseQuickOpenCaptureTests/testCaptureRecentPlacesAndRemoteSearch` uses `activation LINUX_TARGET` for recent places and a real remote search. `QuietProCaptureTests/testCaptureReleaseHostSuggestions` captures Cmd-K without connecting. All inherit the qualification prompt sentries and cleanup contract. Export attachments from the completed result bundle and inspect them before replacing public images.
+
+The release samples use 2026 invoice, contract and report names, a Q3 2026 financial report, and `Budget-2027.xlsx`. Keep modification dates in the past. Update existing samples in place; do not rerun the destructive legacy setup merely to refresh names or dates. The older setup instructions above describe a full fixture rebuild, not the release refresh workflow.
 
 ## Manual Capture
 

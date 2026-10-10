@@ -131,7 +131,7 @@ defaults write "$DOMAIN" Detours.RightPaneICloudListingModes -array normal norma
 defaults write "$DOMAIN" Detours.ActivePane -int 0
 
 reset_indexed_arrays "Detours.LeftPaneSelections" "$LEFT_TAB_COUNT"
-"$PLIST_BUDDY" -c "Add :Detours.LeftPaneSelections:$LEFT_LOCAL_TAB_INDEX:0 string $BASE/acme-corp/Budget-2026.xlsx" "$PLIST"
+"$PLIST_BUDDY" -c "Add :Detours.LeftPaneSelections:$LEFT_LOCAL_TAB_INDEX:0 string $BASE/acme-corp/Budget-2027.xlsx" "$PLIST"
 "$PLIST_BUDDY" -c "Add :Detours.LeftPaneSelections:$LEFT_SPARSEBUNDLE_TAB_INDEX:0 string $SPARSEBUNDLE_MOUNT/token" "$PLIST"
 
 reset_indexed_arrays "Detours.RightPaneSelections" "$RIGHT_TAB_COUNT"

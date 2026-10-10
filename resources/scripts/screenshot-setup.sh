@@ -126,18 +126,18 @@ mkdir -p "$CORP"
 
 # Folders with content
 mkdir -p "$CORP/contracts"
-dd if=/dev/urandom bs=1024 count=300 2>/dev/null | base64 > "$CORP/contracts/ClientA-2025.pdf"
+dd if=/dev/urandom bs=1024 count=300 2>/dev/null | base64 > "$CORP/contracts/ClientA-2026.pdf"
 dd if=/dev/urandom bs=1024 count=400 2>/dev/null | base64 > "$CORP/contracts/ClientB-2026.pdf"
 dd if=/dev/urandom bs=1024 count=250 2>/dev/null | base64 > "$CORP/contracts/Vendor-NDA.pdf"
 
 mkdir -p "$CORP/invoices"
 for i in {1..12}; do
-    dd if=/dev/urandom bs=1024 count=$((10 + RANDOM % 20)) 2>/dev/null | base64 > "$CORP/invoices/INV-2025-$(printf '%03d' "$i").pdf"
+    dd if=/dev/urandom bs=1024 count=$((10 + RANDOM % 20)) 2>/dev/null | base64 > "$CORP/invoices/INV-2026-$(printf '%03d' "$i").pdf"
 done
 
 mkdir -p "$CORP/reports"
-dd if=/dev/urandom bs=1024 count=1500 2>/dev/null | base64 > "$CORP/reports/Q4-2025-Financial.pdf"
-dd if=/dev/urandom bs=1024 count=2000 2>/dev/null | base64 > "$CORP/reports/Annual-Review-2025.pdf"
+dd if=/dev/urandom bs=1024 count=1500 2>/dev/null | base64 > "$CORP/reports/Q3-2026-Financial.pdf"
+dd if=/dev/urandom bs=1024 count=2000 2>/dev/null | base64 > "$CORP/reports/Annual-Review-2026.pdf"
 dd if=/dev/urandom bs=1024 count=800 2>/dev/null | base64 > "$CORP/reports/Market-Analysis.pdf"
 
 mkdir -p "$CORP/team"
@@ -146,13 +146,13 @@ dd if=/dev/urandom bs=1024 count=150 2>/dev/null | base64 > "$CORP/team/Employee
 dd if=/dev/urandom bs=1024 count=30 2>/dev/null | base64 > "$CORP/team/contact-list.csv"
 
 # Files in root
-dd if=/dev/urandom bs=1024 count=95 2>/dev/null | base64 > "$CORP/Budget-2026.xlsx"
+dd if=/dev/urandom bs=1024 count=95 2>/dev/null | base64 > "$CORP/Budget-2027.xlsx"
 dd if=/dev/urandom bs=1024 count=1600 2>/dev/null | base64 > "$CORP/Company-Handbook.pdf"
 
 cat > "$CORP/Meeting-Notes.md" << 'NOTES'
-# Meeting Notes - January 2026
+# Meeting Notes - October 2026
 
-## Q1 Planning Session
+## Q4 Planning Session
 
 ### Attendees
 - Sarah Chen (CEO)
@@ -161,55 +161,55 @@ cat > "$CORP/Meeting-Notes.md" << 'NOTES'
 - James Park (VP Sales)
 
 ### Agenda
-1. Q4 2025 Review
-2. Budget allocation for Q1
+1. Q3 2026 Review
+2. Budget allocation for 2027
 3. Hiring roadmap
 4. Product launch timeline
 
 ### Key Decisions
 - Approved $2.4M budget for engineering expansion
-- Green-lit Project Horizon for March release
+- Green-lit Project Horizon for November release
 - New office space lease signed through 2028
 
 ### Action Items
-- [ ] Marcus to finalize Q1 budget spreadsheet
+- [ ] Marcus to finalize the 2027 budget spreadsheet
 - [ ] Elena to draft technical hiring plan
 - [ ] James to prepare sales forecasts
 - [ ] Sarah to communicate changes to board
 
 ### Next Meeting
-February 3rd, 2026 at 10:00 AM
+October 20th, 2026 at 10:00 AM
 NOTES
 
 # Set varied dates for acme-corp files
-touch -t 202503151000 "$CORP/contracts/ClientA-2025.pdf"
-touch -t 202506201430 "$CORP/contracts/ClientB-2026.pdf"
-touch -t 202504101100 "$CORP/contracts/Vendor-NDA.pdf"
+touch -t 202601151000 "$CORP/contracts/ClientA-2026.pdf"
+touch -t 202603201430 "$CORP/contracts/ClientB-2026.pdf"
+touch -t 202601101100 "$CORP/contracts/Vendor-NDA.pdf"
 
-touch -t 202501150900 "$CORP/invoices/INV-2025-001.pdf"
-touch -t 202502151000 "$CORP/invoices/INV-2025-002.pdf"
-touch -t 202503151100 "$CORP/invoices/INV-2025-003.pdf"
-touch -t 202504151200 "$CORP/invoices/INV-2025-004.pdf"
-touch -t 202505151300 "$CORP/invoices/INV-2025-005.pdf"
-touch -t 202506151400 "$CORP/invoices/INV-2025-006.pdf"
-touch -t 202507151500 "$CORP/invoices/INV-2025-007.pdf"
-touch -t 202508151600 "$CORP/invoices/INV-2025-008.pdf"
-touch -t 202509151700 "$CORP/invoices/INV-2025-009.pdf"
-touch -t 202510151800 "$CORP/invoices/INV-2025-010.pdf"
-touch -t 202511150900 "$CORP/invoices/INV-2025-011.pdf"
-touch -t 202512151000 "$CORP/invoices/INV-2025-012.pdf"
+touch -t 202601150900 "$CORP/invoices/INV-2026-001.pdf"
+touch -t 202601151000 "$CORP/invoices/INV-2026-002.pdf"
+touch -t 202601151100 "$CORP/invoices/INV-2026-003.pdf"
+touch -t 202601151200 "$CORP/invoices/INV-2026-004.pdf"
+touch -t 202602151300 "$CORP/invoices/INV-2026-005.pdf"
+touch -t 202603151400 "$CORP/invoices/INV-2026-006.pdf"
+touch -t 202604151500 "$CORP/invoices/INV-2026-007.pdf"
+touch -t 202605151600 "$CORP/invoices/INV-2026-008.pdf"
+touch -t 202606151700 "$CORP/invoices/INV-2026-009.pdf"
+touch -t 202607151800 "$CORP/invoices/INV-2026-010.pdf"
+touch -t 202608150900 "$CORP/invoices/INV-2026-011.pdf"
+touch -t 202609151000 "$CORP/invoices/INV-2026-012.pdf"
 
-touch -t 202512181400 "$CORP/reports/Q4-2025-Financial.pdf"
-touch -t 202601051030 "$CORP/reports/Annual-Review-2025.pdf"
-touch -t 202511201600 "$CORP/reports/Market-Analysis.pdf"
+touch -t 202610021400 "$CORP/reports/Q3-2026-Financial.pdf"
+touch -t 202610061030 "$CORP/reports/Annual-Review-2026.pdf"
+touch -t 202608201600 "$CORP/reports/Market-Analysis.pdf"
 
-touch -t 202508101200 "$CORP/team/org-chart.pdf"
-touch -t 202510051430 "$CORP/team/Employee-Directory.xlsx"
-touch -t 202512011100 "$CORP/team/contact-list.csv"
+touch -t 202605101200 "$CORP/team/org-chart.pdf"
+touch -t 202607051430 "$CORP/team/Employee-Directory.xlsx"
+touch -t 202609011100 "$CORP/team/contact-list.csv"
 
-touch -t 202512101500 "$CORP/Budget-2026.xlsx"
-touch -t 202509151100 "$CORP/Company-Handbook.pdf"
-touch -t 202601151430 "$CORP/Meeting-Notes.md"
+touch -t 202610091500 "$CORP/Budget-2027.xlsx"
+touch -t 202606151100 "$CORP/Company-Handbook.pdf"
+touch -t 202610071430 "$CORP/Meeting-Notes.md"
 
 # ============================================
 # RIGHT PANE: taskflow (dev project with git)
@@ -1141,30 +1141,30 @@ REQ
 # ========================================
 
 # Older files (months ago)
-touch -t 202509151430 api/__init__.py
-touch -t 202509201015 api/main.py
-touch -t 202510050900 api/models.py
-touch -t 202510121145 api/routes.py
-touch -t 202510181600 api/database.py
-touch -t 202511031030 api/config.py
-touch -t 202511100845 api/utils.py
+touch -t 202606151430 api/__init__.py
+touch -t 202606201015 api/main.py
+touch -t 202607050900 api/models.py
+touch -t 202607121145 api/routes.py
+touch -t 202607181600 api/database.py
+touch -t 202608031030 api/config.py
+touch -t 202608100845 api/utils.py
 
 # Middleware (weeks ago)
-touch -t 202512011400 api/middleware/__init__.py
-touch -t 202512031130 api/middleware/auth.py
-touch -t 202512051700 api/middleware/logging.py
-touch -t 202512081015 api/middleware/cors.py
+touch -t 202609011400 api/middleware/__init__.py
+touch -t 202609031130 api/middleware/auth.py
+touch -t 202609051700 api/middleware/logging.py
+touch -t 202609081015 api/middleware/cors.py
 
 # Schemas (weeks ago)
-touch -t 202512101200 api/schemas/__init__.py
-touch -t 202512101230 api/schemas/task.py
-touch -t 202512101245 api/schemas/user.py
+touch -t 202609101200 api/schemas/__init__.py
+touch -t 202609101230 api/schemas/task.py
+touch -t 202609101245 api/schemas/user.py
 
 # Docs (various dates)
-touch -t 202510251400 docs/architecture.md
-touch -t 202511151030 docs/api-reference.md
-touch -t 202512201600 docs/deployment.md
-touch -t 202512220900 docs/contributing.md
+touch -t 202607251400 docs/architecture.md
+touch -t 202608151030 docs/api-reference.md
+touch -t 202609201600 docs/deployment.md
+touch -t 202609220900 docs/contributing.md
 
 # Tests (recent)
 touch -t 202601051100 tests/__init__.py
@@ -1176,49 +1176,49 @@ touch -t 202601121345 tests/test_tasks.py
 touch -t 202601121400 tests/test_users.py
 
 # Web - older
-touch -t 202510281100 web/App.tsx
-touch -t 202510281130 web/index.tsx
-touch -t 202511051400 web/api.ts
-touch -t 202511051430 web/types.ts
-touch -t 202511081015 web/styles.css
+touch -t 202607281100 web/App.tsx
+touch -t 202607281130 web/index.tsx
+touch -t 202608051400 web/api.ts
+touch -t 202608051430 web/types.ts
+touch -t 202608081015 web/styles.css
 
 # Web components (various)
-touch -t 202511121000 web/components/TaskCard.tsx
-touch -t 202511121030 web/components/Header.tsx
-touch -t 202511151100 web/components/Sidebar.tsx
-touch -t 202511181400 web/components/Button.tsx
-touch -t 202511201600 web/components/Modal.tsx
-touch -t 202511201630 web/components/index.ts
+touch -t 202608121000 web/components/TaskCard.tsx
+touch -t 202608121030 web/components/Header.tsx
+touch -t 202608151100 web/components/Sidebar.tsx
+touch -t 202608181400 web/components/Button.tsx
+touch -t 202608201600 web/components/Modal.tsx
+touch -t 202608201630 web/components/index.ts
 
 # Web hooks (recent)
-touch -t 202512151030 web/hooks/useTasks.ts
-touch -t 202512181430 web/hooks/useAuth.ts
+touch -t 202609151030 web/hooks/useTasks.ts
+touch -t 202609181430 web/hooks/useAuth.ts
 
 # Web pages
-touch -t 202511251200 web/pages/Dashboard.tsx
-touch -t 202511281100 web/pages/TaskList.tsx
-touch -t 202512021400 web/pages/Settings.tsx
+touch -t 202608251200 web/pages/Dashboard.tsx
+touch -t 202608281100 web/pages/TaskList.tsx
+touch -t 202609021400 web/pages/Settings.tsx
 
 # Config and scripts
-touch -t 202509101000 config/default.json
-touch -t 202511201500 config/production.json
-touch -t 202510011200 scripts/migrate.sh
-touch -t 202510011230 scripts/seed.sh
+touch -t 202606101000 config/default.json
+touch -t 202608201500 config/production.json
+touch -t 202607011200 scripts/migrate.sh
+touch -t 202607011230 scripts/seed.sh
 
 # Migrations
-touch -t 202509101030 migrations/001_initial.sql
-touch -t 202511051100 migrations/002_add_projects.sql
+touch -t 202606101030 migrations/001_initial.sql
+touch -t 202608051100 migrations/002_add_projects.sql
 
 # Root files (various)
-touch -t 202509101000 pyproject.toml
-touch -t 202509101100 README.md
-touch -t 202510281200 package.json
-touch -t 202510281230 tsconfig.json
-touch -t 202511101000 Dockerfile
-touch -t 202511101030 docker-compose.yml
-touch -t 202509101000 .gitignore
-touch -t 202510151400 Makefile
-touch -t 202511051200 requirements.txt
+touch -t 202606101000 pyproject.toml
+touch -t 202606101100 README.md
+touch -t 202607281200 package.json
+touch -t 202607281230 tsconfig.json
+touch -t 202608101000 Dockerfile
+touch -t 202608101030 docker-compose.yml
+touch -t 202606101000 .gitignore
+touch -t 202607151400 Makefile
+touch -t 202608051200 requirements.txt
 
 # Initial commit
 git add -A
@@ -1366,4 +1366,4 @@ fi
 echo ""
 echo "==> Open Detours and navigate to these folders"
 echo "==> Make sure sidebar is visible (Cmd-0)"
-echo "==> Select Budget-2026.xlsx in left pane for highlight"
+echo "==> Select Budget-2027.xlsx in left pane for highlight"
