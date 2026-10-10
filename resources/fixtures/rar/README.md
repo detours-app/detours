@@ -10,4 +10,6 @@ Source: [SharpCompress at eab8154e3fd03fade8925e82456048ed49afd02b](https://gith
 
 `RarFixtureTests/testPinnedInputsMatchIndependentReferences` checks every pinned hash and licence, then uses full free 7-Zip on Foundry to extract all six parts and compares every output byte against the originals. Qualification is required before this set is used as a positive Detours fixture. This set does not provide combined RAR5 encryption-and-multipart coverage.
 
+Set `DETOURS_RAR_REFERENCE_7ZZ` to the official [7-Zip 26.02 macOS executable](https://github.com/ip7z/7zip/releases/download/26.02/7z2602-mac.tar.xz). Its distribution archive has SHA-256 `1cf6760579502f87e591ff5c73a005ec50b3e4d6f507e8b038382d563c3175b9`. Foundry's Homebrew 26.02 copy lists RAR formats but omits RAR decompression codecs; it cannot qualify this set.
+
 Missing and damaged copies belong only in test-owned verification workspaces. The committed archives and references are immutable inputs.

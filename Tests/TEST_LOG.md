@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry `RarFixtureTests/testPinnedInputsMatchIndependentReferences`, concealed prompt retry | `26304e30` | FAIL: Homebrew 7zz 26.02 accepts the header password and finds all six parts, then exits 2 with Unsupported Method for all three files. One test failed in 0.62 seconds. Inspection of this executable's `i` output confirms RAR format handlers but no RAR decompression codecs; this is not full-7-Zip fixture qualification. |
 | Foundry `RarFixtureTests/testPinnedInputsMatchIndependentReferences` | `0944dd20` | FAIL: pinned-file checks passed, but the full 7-Zip invocation threw `promptTimedOut(tool: "7zz")` after 11.76 seconds. Fixture decoding is not qualified; inspect password invocation and prompt handling. Temporary output cleanup completed without a reported error. |
 | Foundry build, devtest `ServerArchiveOperationsTests` target with RAR handlers | `afe6a720` | PASS: 125 tests, 0 failures, including existing archive read/write, cancellation and owned-output regressions. Linux release helper built successfully; RAR fixture decoding is not yet qualified. |
 | Foundry build, devtest `DetoursProcessTests` with RAR handlers | `afe6a720` | PASS: 18 tests, 0 failures. Removing the unused disk image implementation resolves the Linux linker error. |

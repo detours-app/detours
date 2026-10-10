@@ -23,9 +23,9 @@ final class RarFixtureTests: XCTestCase {
         let fixture = try XCTUnwrap(manifest.archives.first { $0.id == "encrypted-multipart-rar4" })
         XCTAssertEqual(fixture.parts.count, 6)
         XCTAssertEqual(fixture.expected.count, 3)
-        let tool = try XCTUnwrap(["/opt/homebrew/bin/7zz", "/usr/local/bin/7zz"].first {
-            FileManager.default.isExecutableFile(atPath: $0)
-        }, "Full free 7-Zip is required to qualify the encrypted multipart reference.")
+        let tool = try XCTUnwrap(ProcessInfo.processInfo.environment["DETOURS_RAR_REFERENCE_7ZZ"],
+            "Set DETOURS_RAR_REFERENCE_7ZZ to the official full 7-Zip executable for reference qualification.")
+        XCTAssertTrue(FileManager.default.isExecutableFile(atPath: tool))
         let destination = FileManager.default.temporaryDirectory.appendingPathComponent("detours-rar-reference-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: false)
         defer {
