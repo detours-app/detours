@@ -53,6 +53,10 @@ public enum OperationPublication {
         guard try journal.read(id) == accepted else { throw OperationContractError.conflictingRevision }
         guard try !journal.cancellationRequested(id) else { throw OperationContractError.cancelled }
         try Task.checkCancellation()
+        try intent.proveRarSources { _ in
+            guard try !journal.cancellationRequested(id) else { throw OperationContractError.cancelled }
+            try Task.checkCancellation()
+        }
         if let manifest = accepted.payloadManifest, let record = accepted.workspace {
             let workspace = try OperationWorkspace(parent: targetDirectory, record: record)
             try workspace.validateManifest(manifest, root: source.name)

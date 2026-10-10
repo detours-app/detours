@@ -292,6 +292,12 @@ HRESULT visitMember(IInArchive *archive, UInt32 index, detours_archive_visit vis
     RINOK(archive->GetProperty(index, kpidEncrypted, &value))
     member.is_encrypted = value.vt == VT_BOOL && value.boolVal != VARIANT_FALSE;
     value.Clear();
+    RINOK(archive->GetProperty(index, kpidSplitBefore, &value))
+    member.split_before = value.vt == VT_BOOL && value.boolVal != VARIANT_FALSE;
+    value.Clear();
+    RINOK(archive->GetProperty(index, kpidSplitAfter, &value))
+    member.split_after = value.vt == VT_BOOL && value.boolVal != VARIANT_FALSE;
+    value.Clear();
     RINOK(archive->GetProperty(index, kpidSize, &value))
     if (value.vt == VT_UI8) { member.size = value.uhVal.QuadPart; member.has_size = 1; }
     value.Clear();
@@ -346,6 +352,44 @@ HRESULT checkRarIntegrity(IInArchive *archive, ReaderState &state) {
     }
     return S_OK;
 }
+}
+
+extern "C" int32_t detours_rar_inspect(int32_t format, int input, const char *password,
+                                       detours_rar_volume_info *info, detours_archive_visit visit,
+                                       detours_archive_progress progress, void *context) {
+    try {
+        struct stat information;
+        if ((format != 6 && format != 7) || !info || !visit || fstat(input, &information) != 0 ||
+            !S_ISREG(information.st_mode) || information.st_size < 0) return E_INVALIDARG;
+        ReaderState state{progress, context, password, nullptr, nullptr, true};
+        CMyComPtr<IInArchive> archive;
+        RINOK(openFormat(format, archive))
+        CMyComPtr<IInStream> stream = new Input(input, static_cast<uint64_t>(information.st_size), state);
+        CMyComPtr<IArchiveOpenCallback> opener = new Open(state);
+        const HRESULT opened = archive->Open(stream, nullptr, opener);
+        if (state.passwordRejected) return -1001;
+        if (opened != S_OK) return state.passwordRequested ? -1003 : -1004;
+        NWindows::NCOM::CPropVariant flags, volume, index;
+        RINOK(archive->GetArchiveProperty(kpidErrorFlags, &flags))
+        if (flags.vt == VT_UI4 && flags.ulVal) {
+            if (flags.ulVal & (kpv_ErrorFlags_UnsupportedMethod | kpv_ErrorFlags_UnsupportedFeature)) return -1005;
+            if (flags.ulVal & kpv_ErrorFlags_EncryptedHeadersError) return -1003;
+            return -1004;
+        }
+        RINOK(archive->GetArchiveProperty(kpidIsVolume, &volume))
+        RINOK(archive->GetArchiveProperty(kpidVolumeIndex, &index))
+        *info = {};
+        info->is_volume = volume.vt == VT_BOOL && volume.boolVal != VARIANT_FALSE;
+        info->has_index = index.vt == VT_UI4;
+        if (info->has_index) info->index = index.ulVal;
+        UInt32 count = 0;
+        RINOK(archive->GetNumberOfItems(&count))
+        for (UInt32 item = 0; item < count; ++item) {
+            RINOK(state.report())
+            RINOK(visitMember(archive, item, visit, context))
+        }
+        return archive->Close();
+    } catch (...) { return E_FAIL; }
 }
 
 extern "C" int32_t detours_archive_read(int32_t format, int input, const char *password,

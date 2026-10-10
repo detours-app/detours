@@ -22,6 +22,7 @@ struct ServerOperationService: Sendable {
               try OperationContentProof.data(intent.canonicalData()).sha256 == identity.intentDigest else {
             throw OperationContractError.intentMismatch
         }
+        try intent.validateRarSources()
         let ownership = try await journal.acquireItem(identity.id)
         return try journal.accept(intent, digest: identity.intentDigest, ownership: ownership)
     }

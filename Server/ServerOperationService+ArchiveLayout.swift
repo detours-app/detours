@@ -11,6 +11,7 @@ extension ServerOperationService {
     func archiveLayout(_ location: OperationLocation, format: String, password: String?) throws -> OperationReply {
         try journal.validateEpoch()
         guard location.account == journal.account else { return .incompatible(.accountMismatch) }
+        if format == "rar" { return try rarLayout(location, password: password) }
         let codec: SevenZipArchiveReader.Format
         switch format {
         case "zip": codec = .zip
@@ -41,5 +42,23 @@ extension ServerOperationService {
             default: throw OperationFilesystemError.system(code)
             }
         } catch OperationFilesystemError.unsupported { return .archiveLayout(.unsupported) }
+    }
+
+    private func rarLayout(_ location: OperationLocation, password: String?) throws -> OperationReply {
+        do {
+            let source = try resolve(location)
+            guard let selected = String(data: source.name, encoding: .utf8) else { throw OperationFilesystemError.invalidPath }
+            let volumes = try RarVolumeSet.discover(directory: source.directory, selected: selected, password: password,
+                                                    progress: { _ in try Task.checkCancellation() })
+            guard let first = volumes.parts.first else { throw OperationFilesystemError.invalidPath }
+            let locations = try volumes.parts.map {
+                OperationLocation(account: location.account, path: .unix(try source.directory.childPath(Data($0.name.utf8))))
+            }
+            let root = try ArchiveExtractionLayout.singleRoot(members: volumes.members, password: password)
+            return .archiveLayout(.found(.init(source: first.observation, singleRoot: root, rarSources: locations,
+                rarObservations: volumes.parts.map(\.observation), rarBaseName: volumes.baseName)))
+        } catch SevenZipArchiveError.passwordRequired {
+            return .archivePasswordRequired
+        }
     }
 }

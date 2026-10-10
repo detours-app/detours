@@ -13,7 +13,9 @@ extension FileOperationQueue {
             throw FileProviderError.unsupportedOperation("The archive layout could not be verified.")
         }
         let base: String
-        if let single = layout.singleRoot { base = single } else {
+        if let single = layout.singleRoot { base = single } else if format == .rar, let name = layout.rarBaseName {
+            base = name
+        } else {
             let filename = archive.lastPathComponent
             let suffixes = [".tar.gz", ".tar.bz2", ".tar.xz", ".tgz", ".tbz2", ".txz", ".zip", ".7z"]
             guard let suffix = suffixes.first(where: { filename.lowercased().hasSuffix($0) }) else {
@@ -41,8 +43,21 @@ extension FileOperationQueue {
             break
         }
         let operation = try await coordinator.create()
+        let sources: [OperationLocation]
+        let observations: [OperationObservation]
+        if format == .rar {
+            guard let boundSources = layout.rarSources, let boundObservations = layout.rarObservations,
+                  !boundSources.isEmpty, boundSources.count == boundObservations.count else {
+                throw OperationCompatibilityError.missingCapabilities([.rarExtraction])
+            }
+            sources = boundSources
+            observations = boundObservations
+        } else {
+            sources = [inspected.location]
+            observations = [layout.source]
+        }
         let intent = OperationIntent(id: .init(operation: operation, item: UUID()), action: .archiveExtract,
-            sources: [inspected.location], destination: target, sourceObservations: [layout.source], conflict: .createNew,
+            sources: sources, destination: target, sourceObservations: observations, conflict: .createNew,
             archiveFormat: format.rawValue, archiveEncrypted: password?.isEmpty == false)
         let result = try await performAcceptedMutation(.init(intent: intent, hostID: hostID, work: .archive(password: password)))
         if let item = result.items.first, item.outcome == .failedUnchanged, item.result.receipt?.failure == "passwordRequired" {

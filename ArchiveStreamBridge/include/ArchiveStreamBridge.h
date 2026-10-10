@@ -47,8 +47,20 @@ typedef struct {
     int has_size;
     int has_modified;
     int is_encrypted;
+    int split_before;
+    int split_after;
 } detours_archive_member;
 typedef int (*detours_archive_visit)(void *context, uint32_t index, const detours_archive_member *member);
+typedef struct {
+    int is_volume;
+    int has_index;
+    uint32_t index;
+} detours_rar_volume_info;
+/* Inspects one volume without following siblings or allocating output. A complete
+   archive read remains mandatory before accepting or extracting a volume set. */
+int32_t detours_rar_inspect(int32_t format, int input, const char *password,
+                           detours_rar_volume_info *info, detours_archive_visit visit,
+                           detours_archive_progress progress, void *context);
 /* All members are visited before output is requested. Metadata strings are borrowed
    only for the visit. A null output callback lists without extracting. Otherwise
    output transfers an empty regular-file descriptor, which this call closes.

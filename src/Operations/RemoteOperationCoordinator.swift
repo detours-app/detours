@@ -114,6 +114,9 @@ actor RemoteOperationCoordinator {
         let lifetime = try await endpoint.session.acquireLifetime(.reader)
         defer { lifetime.release() }
         let ready = try await endpoint.session.ensureReady()
+        if format == "rar", !ready.handshake.capabilities.contains(.rarExtraction) {
+            throw OperationCompatibilityError.missingCapabilities([.rarExtraction])
+        }
         let location = OperationLocation(account: ready.handshake.account, path: path)
         switch try await endpoint.request(.archiveLayout(location: location, format: format, password: password)) {
         case .archiveLayout(let result): return (location, result)

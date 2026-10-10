@@ -44,7 +44,7 @@ let package = Package(
         ),
         .target(
             name: "DetoursProcess",
-            dependencies: ["ArchiveStreamBridge"],
+            dependencies: ["ArchiveStreamBridge", "RemoteOperationSupport"],
             path: "Shared",
             linkerSettings: [
                 .linkedLibrary("util", .when(platforms: [.linux]))

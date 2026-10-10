@@ -31,6 +31,10 @@ public enum ArchiveExtractionLayout {
         } else {
             members = try SevenZipArchiveReader.read(input: input, format: format, password: password, progress: progress)
         }
+        return try singleRoot(members: members, password: password)
+    }
+
+    public static func singleRoot(members: [SevenZipArchiveReader.Member], password: String?) throws -> String? {
         var roots: Set<String> = []
         if members.contains(where: \.encrypted), password?.isEmpty != false { throw SevenZipArchiveError.passwordRequired }
         for member in members {

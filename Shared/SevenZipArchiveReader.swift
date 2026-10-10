@@ -21,6 +21,36 @@ public enum SevenZipArchiveReader {
         public let mode: UInt32
         public let directory: Bool
         public let encrypted: Bool
+        public let splitBefore: Bool
+        public let splitAfter: Bool
+    }
+
+    public struct RarVolume: Sendable {
+        public let isVolume: Bool
+        public let index: UInt32?
+        public let members: [Member]
+    }
+
+    public static func inspectRarVolume(input: FileHandle, format: Format, password: String?,
+                                        progress: @escaping @Sendable (UInt64) throws -> Void) throws -> RarVolume {
+        guard [.rar, .rar5].contains(format), password?.contains("\0") != true else {
+            throw SevenZipArchiveError.invalidEntry
+        }
+        let state = State(output: nil, volume: nil, rar: true, progress: progress)
+        var info = detours_rar_volume_info()
+        func invoke(_ secret: UnsafePointer<CChar>?) -> Int32 {
+            detours_rar_inspect(format.rawValue, input.fileDescriptor, secret, &info, { context, index, member in
+                guard let context, let member else { return 1 }
+                return Unmanaged<State>.fromOpaque(context).takeUnretainedValue().visit(index, member.pointee)
+            }, { context, bytes in
+                guard let context else { return 1 }
+                return Unmanaged<State>.fromOpaque(context).takeUnretainedValue().report(bytes)
+            }, Unmanaged.passUnretained(state).toOpaque())
+        }
+        let result = password.map { secret in secret.withCString { invoke($0) } } ?? invoke(nil)
+        if let failure = state.failure { throw failure }
+        try checkResult(result)
+        return RarVolume(isVolume: info.is_volume != 0, index: info.has_index == 0 ? nil : info.index, members: state.members)
     }
 
     /// Lists before extracting. Output returns a new empty handle which this call closes.
@@ -53,6 +83,11 @@ public enum SevenZipArchiveReader {
         }
         let result = password.map { secret in secret.withCString { withName($0) } } ?? withName(nil)
         if let failure = state.failure { throw failure }
+        try checkResult(result)
+        return state.members
+    }
+
+    private static func checkResult(_ result: Int32) throws {
         switch result {
         case 0: break
         case -1001: throw SevenZipArchiveError.passwordRequired
@@ -64,7 +99,6 @@ public enum SevenZipArchiveReader {
         case -1007: throw SevenZipArchiveError.volumeLimitExceeded
         default: throw SevenZipArchiveError.nativeFailure(result)
         }
-        return state.members
     }
 
     private final class State: @unchecked Sendable {
@@ -123,7 +157,8 @@ public enum SevenZipArchiveReader {
                                  size: native.has_size == 0 ? nil : native.size,
                                  modified: native.has_modified == 0 ? nil : Date(
                                     timeIntervalSince1970: Double(native.modified_filetime) / 10_000_000 - 11_644_473_600
-                                 ), mode: native.mode, directory: native.is_directory != 0, encrypted: native.is_encrypted != 0))
+                                 ), mode: native.mode, directory: native.is_directory != 0, encrypted: native.is_encrypted != 0,
+                                 splitBefore: native.split_before != 0, splitAfter: native.split_after != 0))
             return 0
         }
 

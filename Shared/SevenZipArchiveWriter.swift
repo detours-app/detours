@@ -18,6 +18,8 @@ public enum SevenZipArchiveError: Error, Equatable {
     case unsupportedMethod
     case missingVolume(String?)
     case volumeLimitExceeded
+    case ambiguousVolumes(String)
+    case inconsistentVolumes(String)
 }
 
 public enum SevenZipArchiveWriter {
