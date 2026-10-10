@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry guarded `QuietProCaptureTests/testCaptureReleaseScenes`, refreshed release images | `082c059b` | PASS: 1 passed, 0 failed, 0 skipped in 87 seconds, no runtime warnings. Signed app and UI-test builds passed; guarded cleanup passed. Exported five scene attachments and inspected the refreshed workspace, 2026 invoice table and Markdown preview. Regenerated and browser-inspected the GitHub mockup and HTML guide; all images load, and transparent corners work on dark and white backgrounds with RGB/interior pixels preserved. Run `release-years-261010c`. |
 | Foundry `RarArchiveStreamTests/testSeparatesPasswordIntegrityAndCancellation` | `02e63cb5` | PASS: 1 test, 0 failures in 0.32 seconds. Mac reader outcomes, integrity checks, cancellation and owned-handle cleanup match the passing Linux case. |
 | Foundry `RarFixtureTests/testPinnedInputsMatchIndependentReferences` | `02e63cb5` | PASS: 1 test, 0 failures in 0.11 seconds. All pinned inputs match their hashes; full official 7-Zip decodes the encrypted six-part set and every output name and byte matches upstream references with their declared text checkout convention. Both helpers and the signed app built successfully. |
 | Foundry build, devtest `ServerArchiveOperationsTests` with pinned RAR fixtures | `02e63cb5` | PASS: 125 tests, 0 failures in 15.72 seconds. Linux release helper built successfully after the process and helper checks. |
