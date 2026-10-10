@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry guarded `RarExtractionUITests/testSelectingSeveralPartsExtractsOnce` | `f74bfa86` | FAIL. Three parts were selected and Keep Both appeared, but the internal pane-state request timed out while that modal dialog was open. Check visible progress through accessibility and retain the post-dialog state assertions. |
 | Foundry guarded `RarExtractionUITests/testMissingVolumeExplainsFailure` | `dc595a71` | PASS. Viewed the screenshot: the error names rar3-vols.part2.rar and asks for every part in the same folder. No incorrect-password prompt, partial output or scratch remained; source bytes were unchanged. One pass, zero skips or runtime warnings. |
 | Foundry guarded `RarExtractionUITests/testEncryptedMultipartRarRetriesAndUndoes` | `1e0f7103` | PASS. Confirmed wrong-password retry, empty-password validation, ambiguous encrypted multipart error, correct six-part extraction, independent byte comparison, selection, undo, unchanged archive parts and no scratch folders. Viewed all three screenshots: readable retry and ambiguity messages, then one selected result. One pass, zero skips or runtime warnings. |
 | Foundry guarded `RarExtractionUITests/testEncryptedMultipartRarRetriesAndUndoes` | `b9293f4e` | FAIL. Signed app and UI bundle built, then the assertion for the encrypted multipart wrong-password message timed out. Inspect the captured UI and result bundle before changing the app or expectation. |

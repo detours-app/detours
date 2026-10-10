@@ -87,9 +87,6 @@ final class RarExtractionUITests: BaseUITest {
         chooseFileMenuItem("Extract Here")
         let keepBoth = app.dialogs.buttons["Keep Both"]
         XCTAssertTrue(keepBoth.waitForExistence(timeout: 5))
-        let preparing = try requestRemotePaneState(pane: "left")
-        XCTAssertTrue(preparing.operationRunning)
-        XCTAssertNotNil(preparing.operationProgress)
         XCTAssertTrue(app.progressIndicators.matching(identifier: "File operation progress").firstMatch.exists)
         capture("RAR extraction progress while preserving an existing destination")
         keepBoth.click()
