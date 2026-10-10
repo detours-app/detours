@@ -4,6 +4,87 @@ import XCTest
 @testable import Detours
 
 extension WindowsAcceptedOperationLiveTests {
+    func testRarVolumesAndFailuresCannotEscape() async throws {
+        let fixture = try await RarWindowsFixture.create()
+        do {
+            let corpus = try RarTestCorpus.load()
+            let multipart = try XCTUnwrap(corpus.archives.first { $0.id == "rar5-vols.part1" })
+            for mutation in ["missing", "replaced", "junction"] {
+                for prepared in [false, true] {
+                    let folder = "\(mutation)-\(prepared)"
+                    let parts = try await fixture.stage(multipart, folder: folder)
+                    let layout = try await fixture.layout(parts[2], password: nil)
+                    let destination = folder + "-result"
+                    let identity = try await fixture.accept(layout, destination: destination, encrypted: false)
+                    if prepared {
+                        let ready = try await fixture.receipt(.prepareArchive(identity: identity, password: nil))
+                        XCTAssertEqual(ready.phase, .readyToCommit, ready.failure ?? "")
+                    }
+                    _ = try await fixture.probe("""
+                        $folder = Join-Path $Arguments.root $Arguments.folder
+                        $part = Join-Path $Arguments.root $Arguments.part
+                        if ($Arguments.mutation -eq 'junction') {
+                            [System.IO.Directory]::Move($folder, ($folder + '-saved'))
+                            New-Item -ItemType Junction -Path $folder -Target ($folder + '-saved') -ErrorAction Stop | Out-Null
+                        } else {
+                            [System.IO.File]::Delete($part)
+                            if ($Arguments.mutation -eq 'replaced') { [System.IO.File]::WriteAllText($part, 'replacement part') }
+                        }
+                        @{ changed = 'True' }
+                        """, values: ["folder": folder, "part": parts[1], "mutation": mutation])
+                    let result = try await fixture.receipt(prepared ? .commit(identity) : .prepareArchive(identity: identity, password: nil))
+                    XCTAssertEqual(result.outcome, .failedUnchanged, result.failure ?? "")
+                    try await fixture.assertMissing(destination)
+                }
+            }
+            for id in ["rar5-psw", "rar5-hpsw", "encrypted-multipart-rar4"] {
+                let archive = try XCTUnwrap(corpus.archives.first { $0.id == id })
+                let parts = try await fixture.stage(archive, folder: id)
+                let layout = try await fixture.layout(try XCTUnwrap(parts.last), password: archive.password)
+                let identity = try await fixture.accept(layout, destination: id + "/wrong", encrypted: true)
+                let secret = "windows-rar-private-wrong-password-82917"
+                let result = try await fixture.receipt(.prepareArchive(identity: identity, password: secret))
+                XCTAssertEqual(result.outcome, .failedUnchanged)
+                XCTAssertFalse(String(describing: result).contains(secret))
+                try await fixture.assertMissing(id + "/wrong")
+                try await fixture.assertPrivate(secret)
+            }
+            let original = try Data(contentsOf: RarTestCorpus.source("rarfile/seektest.rar"))
+            var hostile = try ["C:/xx.txt", "//x/a.txt", "file:adsx", "../xx.txt", "stest2.txt"].map {
+                try RarTestCorpus.renameRar4(original, from: "stest1.txt", to: $0)
+            }
+            for archive in corpus.archives where archive.expectedRefusal != nil {
+                hostile.append(try Data(contentsOf: RarTestCorpus.source(XCTUnwrap(archive.parts.first))))
+            }
+            hostile.append(Data(original.dropLast(100)))
+            for (index, bytes) in hostile.enumerated() {
+                let relative = "hostile/\(index).rar"
+                try await fixture.write(relative, bytes: bytes)
+                do {
+                    let layout = try await fixture.layout(relative, password: nil)
+                    let identity = try await fixture.accept(layout, destination: "hostile/output-\(index)", encrypted: false)
+                    let result = try await fixture.receipt(.prepareArchive(identity: identity, password: nil))
+                    XCTAssertEqual(result.outcome, .failedUnchanged)
+                } catch { XCTAssertFalse(String(describing: error).isEmpty) }
+                try await fixture.assertMissing("hostile/output-\(index)")
+            }
+            let parts = try await fixture.stage(multipart, folder: "cancel")
+            let layout = try await fixture.layout(parts[2], password: nil)
+            let identity = try await fixture.accept(layout, destination: "cancel-result", encrypted: false)
+            let ready = try await fixture.receipt(.prepareArchive(identity: identity, password: nil))
+            XCTAssertEqual(ready.phase, .readyToCommit)
+            _ = try await fixture.send(.cancel(identity))
+            let cancelled = try await fixture.receipt(.commit(identity))
+            XCTAssertEqual(cancelled.outcome, .failedUnchanged)
+            try await fixture.assertMissing("cancel-result")
+            try await fixture.assertPrivate("windows-rar-private-wrong-password-82917")
+            try await fixture.cleanup()
+        } catch {
+            do { try await fixture.cleanup() } catch { XCTFail("RAR fixture cleanup failed: \(error)") }
+            throw error
+        }
+    }
+
     func testAcceptedRarMatchesFixtureManifest() async throws {
         let fixture = try await RarWindowsFixture.create()
         do {

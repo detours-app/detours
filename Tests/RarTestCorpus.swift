@@ -58,4 +58,27 @@ struct RarTestCorpus: Decodable {
         }
         return ~value
     }
+
+    static func renameRar4(_ original: Data, from source: String, to target: String) throws -> Data {
+        guard source.utf8.count == target.utf8.count else { throw OperationFilesystemError.invalidPath }
+        var bytes = original
+        var offset = 7
+        while offset + 7 <= bytes.count {
+            let length = Int(bytes[offset + 5]) | Int(bytes[offset + 6]) << 8
+            guard length >= 7, offset + length <= bytes.count else { throw OperationFilesystemError.invalidPath }
+            var packed = 0
+            if bytes[offset + 2] == 0x74 {
+                packed = (0..<4).reduce(0) { $0 | Int(bytes[offset + 7 + $1]) << (8 * $1) }
+                if let range = bytes.range(of: Data(source.utf8), in: (offset + 7)..<(offset + length)) {
+                    bytes.replaceSubrange(range, with: target.utf8)
+                    let checksum = crc(bytes.subdata(in: (offset + 2)..<(offset + length)))
+                    bytes[offset] = UInt8(truncatingIfNeeded: checksum)
+                    bytes[offset + 1] = UInt8(truncatingIfNeeded: checksum >> 8)
+                    return bytes
+                }
+            }
+            offset += length + packed
+        }
+        throw OperationFilesystemError.invalidPath
+    }
 }

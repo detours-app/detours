@@ -245,6 +245,12 @@ Z7_COM7F_IMF(Extract::GetStream(UInt32 index, ISequentialOutStream **stream, Int
     NWindows::NCOM::CPropVariant directory;
     RINOK(archive->GetProperty(index, kpidIsDir, &directory))
     if (directory.vt == VT_BOOL && directory.boolVal != VARIANT_FALSE) return S_OK;
+    if (state.rar) {
+        NWindows::NCOM::CPropVariant hardLink;
+        RINOK(archive->GetProperty(index, kpidHardLink, &hardLink))
+        // Hard links have no decoded stream; the validated plan links their verified target.
+        if (hardLink.vt == VT_BSTR && SysStringLen(hardLink.bstrVal) != 0) return S_OK;
+    }
     const int descriptor = output(state.context, index);
     if (descriptor < 0) return E_ABORT;
     struct stat information;

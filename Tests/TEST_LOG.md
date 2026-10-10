@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Linux `RarArchiveStreamTests/testReadsAllRarFixtureFamilies` | `03fd378a` | FAIL: 2 assertions in 5.558 seconds. The encrypted multipart reference lists files but also contains directory entries; compare file names and validate directory ancestry. RAR5 hard links were incorrectly given output streams although they carry no decoded contents; preserve their validated link metadata instead. Existing T4 and T5 passed in the same 21-test process run; helper and app builds did not run. |
 | Foundry and devtest native RAR corpus build | `f7f13aef` | FAIL: Linux test compilation stopped because the new checksum assertion omitted `try` on the throwing content-proof function. No tests ran; correct both corpus assertions and rebuild. |
 | Foundry `RarArchiveOperationTests/testRecognizesRarSetsWithoutOfferingRarCreation` | `4737757a` | PASS: 1 test, 0 failures, 0.013 seconds. Later parts and multiple RAR selections are extractable; creation choices remain unchanged. Signed app build passed. |
 | Foundry `RarArchiveOperationTests/testMultipartExtractionUsesEveryObservedPart` | `4737757a` | PASS: 1 test, 0 failures, 0.887 seconds. Successful extraction reports the complete ordered part set once for selection deduplication. |

@@ -25,7 +25,11 @@ extension RarArchiveStreamTests {
                 try Data().write(to: url, options: .withoutOverwriting)
                 return try FileHandle(forWritingTo: url)
             }, progress: { _ in })
-            XCTAssertEqual(Set(members.map(\.name)), Set(archive.expected.map(\.name)), archive.id)
+            XCTAssertEqual(Set(members.filter { !$0.directory }.map(\.name)),
+                           Set(archive.expected.filter { $0.kind != "directory" }.map(\.name)), archive.id)
+            for directory in members where directory.directory {
+                XCTAssertTrue(archive.expected.contains { $0.name == directory.name || $0.name.hasPrefix(directory.name + "/") })
+            }
             for expected in archive.expected {
                 let member = try XCTUnwrap(members.first { $0.name == expected.name })
                 XCTAssertEqual(member.directory, expected.kind == "directory", expected.name)

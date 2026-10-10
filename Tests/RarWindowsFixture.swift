@@ -139,6 +139,29 @@ final class RarWindowsFixture {
         guard case .lookup(.missing) = reply else { return XCTFail("Unexpected RAR output: \(reply)") }
     }
 
+    func probe(_ body: String, values: [String: String] = [:]) async throws -> [String: String] {
+        var arguments = values
+        arguments["root"] = root
+        let script = try PowerShellScript(source: PowerShellScript.prelude(operationBody: """
+            param($Arguments)
+            \(WindowsOperationScripts.filesystemHelpers)
+            \(body)
+            """), arguments: arguments)
+        return try JSONDecoder().decode([String: String].self, from: await channel.run(script, operation: "RarFixtureVerification"))
+    }
+
+    func assertPrivate(_ secret: String) async throws {
+        let result = try await probe("""
+            $found = $false
+            foreach ($file in [System.IO.Directory]::GetFiles((Join-Path $Arguments.root 'journal'), '*', 'AllDirectories')) {
+                if ([System.IO.File]::ReadAllText($file).Contains($Arguments.secret)) { $found = $true }
+            }
+            @{ leaked = $found.ToString(); scratch = @([System.IO.Directory]::GetDirectories($Arguments.root, '.detours-partial-*', 'AllDirectories')).Count.ToString() }
+            """, values: ["secret": secret])
+        XCTAssertEqual(result["leaked"], "False")
+        XCTAssertEqual(result["scratch"], "0")
+    }
+
     func cleanup() async throws {
         do {
             try await WindowsAcceptedOperationLiveTests.cleanupFixture(channel: channel, root: root)
