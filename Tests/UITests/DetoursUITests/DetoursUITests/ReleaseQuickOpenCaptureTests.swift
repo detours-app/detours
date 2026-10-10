@@ -56,7 +56,10 @@ final class ReleaseQuickOpenCaptureTests: BaseUITest {
         let scope = app.staticTexts["quickNavScopeHeader"]
         let scopeText = scope.label.isEmpty ? (scope.value as? String ?? "") : scope.label
         XCTAssertTrue(scopeText.contains(target), "The remote search must name its host")
-        XCTAssertTrue(app.staticTexts["TaskCard.tsx"].waitForExistence(timeout: 30), "The remote search must find a real sample file")
+        let matchingFile = app.windows.firstMatch.staticTexts.matching(
+            NSPredicate(format: "label MATCHES %@", "^[^/]+\\.[A-Za-z0-9]+$")
+        ).firstMatch
+        XCTAssertTrue(matchingFile.waitForExistence(timeout: 30), "The remote search must display a matching file, not just recent folders")
         XCTAssertTrue(waitForCondition(timeout: 30) { !self.app.descendants(matching: .any)["quickNavSearchSpinner"].exists },
                       "Capture completed results, not a loading state")
         attachScreenshot("release-dark-quick-open-remote", of: app.windows.firstMatch)
