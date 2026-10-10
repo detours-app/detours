@@ -36,7 +36,7 @@ final class RarFixtureTests: XCTestCase {
         let first = try XCTUnwrap(fixture.parts.first)
         let invocation = PtyProcessInvocation(executable: tool,
             arguments: ["x", "-y", "-o\(destination.path)", "--", root.appendingPathComponent(first).path],
-            password: fixture.password, responses: [.password])
+            password: fixture.password, responses: [.password], passwordEchoPolicy: .disableBeforeResponse)
         let result = try PtyProcessRunner().run(invocation)
         XCTAssertEqual(result.status, 0, "Full 7-Zip failed to qualify the reference: \(result.outputString)")
         guard result.status == 0 else { return }
