@@ -50,7 +50,7 @@ extension WindowsOperationScripts {
     }
     function New-WindowsWorkspace($Context, [string]$Destination) {
         Assert-WindowsOperationActive $Context
-        $name = '.detours-partial-' + (Get-OperationKey $Context.identity.id) + '-' + [guid]::NewGuid().ToString('D')
+        $name = '.detours-partial-' + [guid]::NewGuid().ToString('N')
         $path = Join-Path ([System.IO.Path]::GetDirectoryName($Destination)) $name
         $location = Get-WindowsOperationLocation $path $Context.account
         $receipt = New-WindowsReceipt $Context 'preparing' 'running'
