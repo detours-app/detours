@@ -60,6 +60,7 @@ final class QuietProCaptureTests: BaseUITest {
         XCTAssertTrue(app.leftPaneOutlineView.staticTexts["INV-2025-012.pdf"].waitForExistence(timeout: 5))
         clickRow("database.py", in: app.rightPaneOutlineView)
         clickRow("Budget-2026.xlsx", in: app.leftPaneOutlineView)
+        setPreferenceToggle("rowStripesToggle", on: true)
 
         for theme in ["light", "dark"] {
             try applyAppearanceSettings(theme: theme, fontSize: 13, density: "compact")
