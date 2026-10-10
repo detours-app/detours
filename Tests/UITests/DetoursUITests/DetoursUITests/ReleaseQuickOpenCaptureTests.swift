@@ -52,7 +52,7 @@ final class ReleaseQuickOpenCaptureTests: BaseUITest {
 
         app.leftPaneOutlineView.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
         openQuickNavForKeyboardInput()
-        app.textFields["quickNavSearchField"].typeText("task")
+        app.textFields["quickNavSearchField"].typeText(".tsx")
         let scope = app.staticTexts["quickNavScopeHeader"]
         let scopeText = scope.label.isEmpty ? (scope.value as? String ?? "") : scope.label
         XCTAssertTrue(scopeText.contains(target), "The remote search must name its host")
@@ -68,6 +68,7 @@ final class ReleaseQuickOpenCaptureTests: BaseUITest {
             NSPredicate(format: "label MATCHES %@ OR value MATCHES %@", filePattern, filePattern)
         ).firstMatch
         XCTAssertTrue(matchingFile.exists, "The remote search must display a matching file, not just recent folders")
+        XCTAssertTrue(searchPanel.staticTexts["TaskCard.tsx"].exists, "The sample project must be visible in the captured results")
         attachScreenshot("release-dark-quick-open-remote", of: searchPanel)
         pressKey(.escape)
     }
