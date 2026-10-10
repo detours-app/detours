@@ -15,7 +15,7 @@ extension ServerOperationService {
         }
         var preparation: ServerPayloadPreparation?
         do {
-            let format: SevenZipArchiveWriter.Format
+            let format: SevenZipArchiveReader.Format
             switch intent.archiveFormat {
             case ServerArchiveFormat.sevenZ.rawValue: format = .sevenZ
             case ServerArchiveFormat.zip.rawValue: format = .zip

@@ -11,7 +11,7 @@ extension ServerOperationService {
     func archiveLayout(_ location: OperationLocation, format: String, password: String?) throws -> OperationReply {
         try journal.validateEpoch()
         guard location.account == journal.account else { return .incompatible(.accountMismatch) }
-        let codec: SevenZipArchiveWriter.Format
+        let codec: SevenZipArchiveReader.Format
         switch format {
         case "zip": codec = .zip
         case "sevenZ": codec = .sevenZ

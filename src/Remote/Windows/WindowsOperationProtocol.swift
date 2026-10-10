@@ -193,6 +193,9 @@ extension WindowsOperationScripts {
                 finally { $hash.Dispose() }
                 if ($digest -cne $identity.intentDigest) { throw 'Operation intent digest mismatch.' }
                 $intent = [System.Text.Encoding]::UTF8.GetString($bytes) | ConvertFrom-Json
+                if ($intent.action -eq 'archiveCreate' -and $intent.archiveFormat -in @('rar', 'rar5')) {
+                    throw 'RAR archives can only be extracted.'
+                }
                 if ((Get-OperationKey $intent.id) -cne $key) { throw 'Operation item identity mismatch.' }
                 if ($intent.action -notin @('copy', 'editorUpload', 'rename', 'move', 'createFolder', 'trash', 'restore', 'archiveCreate', 'archiveExtract', 'permanentDelete')) {
                     throw 'This Windows operation action is not implemented.'

@@ -54,6 +54,9 @@ extension FileOperationQueue {
     }
 
     func performAcceptedArchive(items: [Location], format: ArchiveFormat, name: String, password: String?, undoManager: UndoManager? = nil) async throws -> Location {
+        guard format.supportsCreation else {
+            throw FileProviderError.unsupportedOperation("RAR archives can only be extracted.")
+        }
         guard let first = items.first, let groups = remoteGroups(from: items), groups.count == 1,
               let hostID = groups.keys.first else {
             throw FileProviderError.unsupportedOperation("Remote archive creation requires items on one host.")

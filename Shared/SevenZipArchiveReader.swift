@@ -7,6 +7,10 @@ import Glibc
 #endif
 
 public enum SevenZipArchiveReader {
+    public enum Format: Int32, Sendable {
+        case sevenZ = 0, zip = 1, tar = 2, gzip = 3, bzip2 = 4, xz = 5, rar = 6, rar5 = 7
+    }
+
     public struct Member: Equatable, Sendable {
         public let index: UInt32
         public let name: String
@@ -21,7 +25,7 @@ public enum SevenZipArchiveReader {
 
     /// Lists before extracting. Output returns a new empty handle which this call closes.
     /// Member names are metadata only; the caller must validate its complete filesystem plan.
-    public static func read(input: FileHandle, format: SevenZipArchiveWriter.Format, password: String?,
+    public static func read(input: FileHandle, format: Format, password: String?,
                             output: (@Sendable (Member) throws -> FileHandle)? = nil,
                             progress: @escaping @Sendable (UInt64) throws -> Void) throws -> [Member] {
         guard password?.contains("\0") != true else { throw SevenZipArchiveError.invalidEntry }

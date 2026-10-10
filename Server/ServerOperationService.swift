@@ -15,6 +15,9 @@ struct ServerOperationService: Sendable {
 
     func accept(_ identity: OperationRequestIdentity, intent: OperationIntent) async throws -> OperationJournal.Snapshot {
         try validate(identity)
+        if intent.action == .archiveCreate, intent.archiveFormat == "rar" || intent.archiveFormat == "rar5" {
+            throw ArchiveOperationsError.unsupportedFormat("RAR archives can only be extracted.")
+        }
         guard identity.id == intent.id,
               try OperationContentProof.data(intent.canonicalData()).sha256 == identity.intentDigest else {
             throw OperationContractError.intentMismatch

@@ -6,7 +6,7 @@ import Glibc
 #endif
 
 public enum ArchiveExtractionLayout {
-    public static func singleRoot(input: FileHandle, format: SevenZipArchiveWriter.Format, password: String?,
+    public static func singleRoot(input: FileHandle, format: SevenZipArchiveReader.Format, password: String?,
                                   progress: @escaping @Sendable (UInt64) throws -> Void) throws -> String? {
         let members: [SevenZipArchiveReader.Member]
         if [.gzip, .bzip2, .xz].contains(format) {

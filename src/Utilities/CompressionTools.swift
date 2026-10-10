@@ -6,6 +6,11 @@ enum ArchiveFormat: String, CaseIterable, Codable {
     case tarGz
     case tarBz2
     case tarXz
+    case rar
+
+    static let writableFormats: [ArchiveFormat] = [.zip, .sevenZ, .tarGz, .tarBz2, .tarXz]
+
+    var supportsCreation: Bool { Self.writableFormats.contains(self) }
 
     var displayName: String {
         switch self {
@@ -14,6 +19,7 @@ enum ArchiveFormat: String, CaseIterable, Codable {
         case .tarGz: return "TAR.GZ"
         case .tarBz2: return "TAR.BZ2"
         case .tarXz: return "TAR.XZ"
+        case .rar: return "RAR"
         }
     }
 
@@ -24,6 +30,7 @@ enum ArchiveFormat: String, CaseIterable, Codable {
         case .tarGz: return "tar.gz"
         case .tarBz2: return "tar.bz2"
         case .tarXz: return "tar.xz"
+        case .rar: return "rar"
         }
     }
 
@@ -34,12 +41,13 @@ enum ArchiveFormat: String, CaseIterable, Codable {
         case .tarGz: return "Standard Unix archive. Good compression speed. No encryption."
         case .tarBz2: return "Better compression ratio than gzip. Slower. No encryption."
         case .tarXz: return "Best compression for tar archives. Slowest. No encryption."
+        case .rar: return "Extraction only."
         }
     }
 
     var supportsPassword: Bool {
         switch self {
-        case .zip, .sevenZ: true
+        case .zip, .sevenZ, .rar: true
         case .tarGz, .tarBz2, .tarXz: false
         }
     }
@@ -51,6 +59,7 @@ enum ArchiveFormat: String, CaseIterable, Codable {
         case .tarGz: return [.tar]
         case .tarBz2: return [.tar]
         case .tarXz: return [.tar, .xz]
+        case .rar: return []
         }
     }
 
@@ -59,6 +68,7 @@ enum ArchiveFormat: String, CaseIterable, Codable {
         case .zip: return [.ditto]
         case .sevenZ: return [.sevenZip]
         case .tarGz, .tarBz2, .tarXz: return [.tar]
+        case .rar: return []
         }
     }
 
@@ -70,6 +80,7 @@ enum ArchiveFormat: String, CaseIterable, Codable {
         switch url.pathExtension.lowercased() {
         case "zip": return .zip
         case "7z": return .sevenZ
+        case "rar": return .rar
         default: return nil
         }
     }
@@ -144,7 +155,7 @@ enum CompressionTools {
     }
 
     static func isFormatAvailable(_ format: ArchiveFormat) -> Bool {
-        format.requiredTools.allSatisfy { isAvailable($0) }
+        format.supportsCreation && format.requiredTools.allSatisfy { isAvailable($0) }
     }
 
     static func unavailableToolName(for format: ArchiveFormat) -> String? {

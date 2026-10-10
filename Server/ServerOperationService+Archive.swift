@@ -17,6 +17,7 @@ extension ServerOperationService {
         do {
             let format: SevenZipArchiveWriter.Format
             switch intent.archiveFormat {
+            case "rar", "rar5": throw ArchiveOperationsError.unsupportedFormat("RAR archives can only be extracted.")
             case ServerArchiveFormat.sevenZ.rawValue: format = .sevenZ
             case ServerArchiveFormat.zip.rawValue: format = .zip
             case ServerArchiveFormat.tarGz.rawValue: format = .gzip

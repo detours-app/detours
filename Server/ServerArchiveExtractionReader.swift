@@ -7,7 +7,7 @@ struct ServerArchiveExtractionReader: Sendable {
     let identity: OperationRequestIdentity
     let ownership: OperationJournal.Ownership
     let input: OperationEffect
-    let format: SevenZipArchiveWriter.Format
+    let format: SevenZipArchiveReader.Format
     let password: String?
 
     func read(measuredBefore: UInt64, output: (@Sendable (SevenZipArchiveReader.Member) throws -> FileHandle)? = nil)

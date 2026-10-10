@@ -230,6 +230,9 @@ struct ArchiveOperations {
     }
 
     private func archiveFormat(_ rawFormat: String) throws -> ServerArchiveFormat {
+        guard rawFormat != "rar", rawFormat != "rar5" else {
+            throw ArchiveOperationsError.unsupportedFormat("RAR archives can only be extracted.")
+        }
         guard let format = ServerArchiveFormat(rawValue: rawFormat) else {
             throw ArchiveOperationsError.unsupportedFormat(rawFormat)
         }

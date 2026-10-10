@@ -22,6 +22,8 @@ extension FileOperationQueue {
         do {
             let result: URL
             switch format {
+            case .rar:
+                throw FileProviderError.unsupportedOperation("RAR extraction is not available in this build.")
             case .zip:
                 result = try await performExtractZip(
                     archive: archive,
@@ -659,6 +661,8 @@ extension FileOperationQueue {
 
         do {
             switch format {
+            case .rar:
+                throw FileProviderError.unsupportedOperation("RAR extraction requires the bundled archive reader.")
             case .sevenZ:
                 try await extractSevenZip(archive: archive, destination: extractionDir)
             case .tarGz, .tarBz2, .tarXz:
@@ -736,6 +740,8 @@ extension FileOperationQueue {
         process.standardError = Pipe()
 
         switch format {
+        case .rar:
+            return []
         case .zip:
             // ZIP listing is no longer used — performExtractZip discovers filenames
             // from the filesystem after extraction. Return empty to trigger wrapper folder.
