@@ -149,7 +149,7 @@ Shared reader tests live in Tests/DetoursProcessTests/RarArchiveStreamTests.swif
 - [x] **T4** (C2, C3, C4) RarArchiveStreamTests/testVolumeCallbacksRefuseUnacceptedPaths covers missing first/middle/final parts, mixed sets, the 1,024-part limit, ambiguous names, source-link substitutions, forbidden path requests and descriptor cleanup.
 - [x] **T5** (C2, C3) RarArchiveStreamTests/testSeparatesPasswordIntegrityAndCancellation covers absent/wrong/correct passwords, ambiguous encrypted corruption, checksum failure, declared-size mismatch, cancellation and closed owned handles.
 - [ ] **T6** (C3, C4, C5) RarArchiveOperationTests/testMultipartExtractionUsesEveryObservedPart covers both naming schemes, encrypted multipart input, selected continuation, changed parts, final source-proof rejection and absence of the password from operation records and diagnostics.
-- [ ] **T7** (C3, C5) RarArchiveOperationTests/testUnsafeOrDamagedRarCannotPublish covers traversal, duplicate normalized names, link escapes, truncation, disk-full failure and no changes to existing occupants.
+- [x] **T7** (C3, C5) RarArchiveOperationTests/testUnsafeOrDamagedRarCannotPublish covers traversal, duplicate normalized names, link escapes, truncation, disk-full failure and no changes to existing occupants.
 - [ ] **T8** (C3, C5) RarArchiveOperationTests/testRarConflictCancellationAndUndoPreserveFiles covers Keep Both, Replace, Stop, destination races, pre-publication cancellation, commit-race reporting and restoration of displaced files.
 
 ### Helper and Windows tests
@@ -180,6 +180,8 @@ Run each filter separately, after its related RAR checks pass. Required Windows 
 ---
 
 ## Build Log
+
+- **T7** Foundry at `0210b48e` passed the unsafe/damaged local RAR check with traversal, duplicate and equivalent names, escaping links, truncation, space shortage and injected output-boundary disk-full errors. Existing occupants and archive inputs remain intact; private staging is removed. Both helpers and the signed app built successfully.
 
 - **C4, T2, T4** Bound discovery and accepted requests to ordered, observed sibling volumes with all-part commit proofs and an explicit helper capability. Continuations are inspected without joining siblings, then the complete set receives strict integrity checks. Foundry at `d834b705` passed T2 and T4; Linux passed T4 among 20 process checks plus 125 helper checks. Both helpers and the signed app built successfully. Tests cover encrypted modern and legacy sets, missing/mixed/ambiguous parts, substituted links, forbidden paths, the 1,024-part limit and closed handles.
 

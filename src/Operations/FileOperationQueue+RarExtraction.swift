@@ -68,9 +68,8 @@ extension FileOperationQueue {
                     }
                     occupant = observed
                 case .keepBoth:
-                    destination = staged.manifest.entries.first?.observation.kind == .directory
-                        ? uniqueFolderDestination(in: parent, baseName: name)
-                        : uniqueFileDestination(in: parent, baseName: name)
+                    destination = try unusedRarDestination(in: directory, parent: parent, name: name,
+                        isDirectory: staged.manifest.entries.first?.observation.kind == .directory)
                 }
             case .missing: break
             case .denied: throw POSIXError(.EACCES)
@@ -122,6 +121,25 @@ extension FileOperationQueue {
                 throw replacementRollbackError(operationError: error, rollbackError: cleanup)
             }
             throw error
+        }
+    }
+
+    private func unusedRarDestination(in directory: OperationDirectory, parent: URL,
+                                      name: String, isDirectory: Bool) throws -> URL {
+        let suffix = isDirectory ? "" : (name as NSString).pathExtension
+        let stem = suffix.isEmpty ? name : (name as NSString).deletingPathExtension
+        var number = 2
+        while true {
+            let candidate = "\(stem) \(number)" + (suffix.isEmpty ? "" : ".\(suffix)")
+            let url = parent.appendingPathComponent(candidate)
+            switch try directory.lookup(Data(candidate.utf8)) {
+            case .missing: if !isReserved(url) { return url }
+            case .found: break
+            case .denied: throw POSIXError(.EACCES)
+            case .disconnected: throw POSIXError(.ENOTCONN)
+            case .unsupported: throw OperationFilesystemError.unsupported
+            }
+            number += 1
         }
     }
 }

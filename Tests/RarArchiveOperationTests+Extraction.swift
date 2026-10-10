@@ -55,6 +55,13 @@ extension RarArchiveOperationTests {
             try fixture.assertNoScratch()
         }
         queue.rarExtractionProbeForTesting = nil
+        let hidden = try RarLocalFixture([])
+        defer { hidden.cleanup() }
+        let hiddenArchive = hidden.root.appendingPathComponent("hidden.rar")
+        try RarLocalFixture.renaming(Data(contentsOf: RarLocalFixture.source("rarfile/seektest.rar")),
+                                    from: "stest1.txt", to: ".test1.txt").write(to: hiddenArchive)
+        let hiddenResult = try await queue.extract(archive: hiddenArchive)
+        XCTAssertEqual(try Data(contentsOf: hiddenResult.appendingPathComponent(".test1.txt")), RarLocalFixture.seekBytes)
         let fixture = try RarLocalFixture(["rarfile/rar5-psw.rar"])
         defer { fixture.cleanup() }
         let secret = "unique-wrong-secret-privacy-check"
@@ -145,6 +152,17 @@ extension RarArchiveOperationTests {
             try fixture.assertSourcesUnchanged()
             try fixture.assertNoScratch()
         }
+        let dangling = try RarLocalFixture(["rarfile/seektest.rar"])
+        defer { dangling.cleanup() }
+        for name in ["seektest", "seektest 2"] {
+            try FileManager.default.createSymbolicLink(atPath: dangling.root.appendingPathComponent(name).path,
+                                                       withDestinationPath: "missing-target")
+        }
+        queue.conflictChoiceOverrideForTesting = .keepBoth
+        let besideLinks = try await queue.extract(archive: dangling.parts[0])
+        XCTAssertEqual(besideLinks.lastPathComponent, "seektest 3")
+        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: dangling.root.appendingPathComponent("seektest").path),
+                       "missing-target")
         queue.conflictChoiceOverrideForTesting = .replace
         for stage in [RarExtractionStage.output, .prepared, .publishing, .published] {
             let fixture = try RarLocalFixture(["rarfile/seektest.rar"])

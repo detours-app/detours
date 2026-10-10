@@ -2,6 +2,11 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry `RarArchiveOperationTests/testMultipartExtractionUsesEveryObservedPart` | `0210b48e` | PASS: 1 test, 0 failures in 0.87 seconds. Modern, legacy and encrypted multipart outputs match independent expectations; changed sources and password privacy checks pass. Signed Mac app build passed. |
+| Foundry `RarArchiveOperationTests/testUnsafeOrDamagedRarCannotPublish` | `0210b48e` | PASS: 1 test, 0 failures in 0.09 seconds. Traversal, duplicate/equivalent names, escaping links, truncation, known space shortage and output-boundary disk-full errors leave occupants intact and remove private staging. |
+| Foundry `RarArchiveOperationTests/testRarConflictCancellationAndUndoPreserveFiles` | `0210b48e` | PASS: 1 test, 0 failures in 0.24 seconds. Keep Both, Replace, Stop, undo, cancellation before and after publication and racing destination occupants behave as required. |
+| Foundry build, devtest `ServerArchiveOperationsTests` with strict RAR links | `0210b48e` | PASS: 125 tests, 0 failures in 16.89 seconds. |
+| Foundry build, devtest `DetoursProcessTests` with strict RAR links | `0210b48e` | PASS: 20 tests, 0 failures in 15.76 seconds. Revised link validation compiles and reader checks remain green. |
 | Foundry local RAR app build | `0880cb0b` | FAIL before Mac tests: the destination lookup switch omits an outcome, and nested progress capture emits a weak-ownership warning. Linux and Intel Mac helpers built successfully. Complete the lookup switch and use a consistent weak capture before retrying. |
 | Foundry build, devtest `ServerArchiveOperationsTests` with local RAR planner | `0880cb0b` | PASS: 125 tests, 0 failures in 16.32 seconds. Linux release helper built successfully. |
 | Foundry build, devtest `DetoursProcessTests` with local RAR planner | `0880cb0b` | PASS: 20 tests, 0 failures in 15.90 seconds. Password/integrity and controlled volume checks pass with the new planner compiled. |
