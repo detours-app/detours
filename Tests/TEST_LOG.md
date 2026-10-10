@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry build, RAR decoder sources | `f2f493ed` | FAIL before tests: Linux linking reports undefined `IsArc_Ext` from the imported archive utility file. The build exits 1; RAR utility dependency correction is required before rerunning. |
 | Foundry build, devtest `ServerArchiveOperationsTests` target | `bedd0349` | PASS: 125 tests, 0 failures, including native archive reader round trips, output ownership and cancellation. Linux release helper built successfully. |
 | Foundry build, devtest `DetoursProcessTests` | `bedd0349` | PASS: the required helper build ran 18 process tests, with 0 failures. Reader format separation compiled on Linux. |
 | Foundry guarded `QuietProCaptureTests/testCaptureReleaseScenes`, approved retry | `200ad6d7` | CANCELLED: app and UI-test builds completed, then the exact run was stopped after Marco reported active Redmargin tests on Foundry. No process remains for this run and no screenshot was exported. Cleanup reports another active xcodebuild; do not interfere with Redmargin. Screenshot verification remains pending. Run `release-years-261010b`. |
