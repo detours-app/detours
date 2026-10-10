@@ -8,7 +8,7 @@ final class ReleaseQuickOpenCaptureTests: BaseUITest {
     func testCaptureRecentPlacesAndRemoteSearch() throws {
         continueAfterFailure = false
         let target = try XCTUnwrap(ProcessInfo.processInfo.environment["DETOURS_QUALIFICATION_REAL_REMOTE_TARGET"])
-        XCTAssertFalse(target.isEmpty, "This capture requires a declared live remote context")
+        XCTAssertEqual(target, "devtest", "This capture uses the verified demo host and its public key")
         try applyAppearanceSettings(theme: "dark", fontSize: 13, density: "compact")
         setPreferenceToggle("rowStripesToggle", on: true)
 
@@ -18,9 +18,15 @@ final class ReleaseQuickOpenCaptureTests: BaseUITest {
         let field = sheet.textFields.firstMatch
         field.click()
         field.typeText(target)
-        let host = sheet.staticTexts[target].firstMatch
+        let host = sheet.descendants(matching: .any).matching(NSPredicate(format: "label == %@", target)).firstMatch
         XCTAssertTrue(host.waitForExistence(timeout: 5))
         host.click()
+        let trust = app.buttons["Trust Host Key"]
+        XCTAssertTrue(trust.waitForExistence(timeout: 10))
+        let fingerprint = "SHA256:uvGrK9oDb9pIPpBLi5bm0w0ObUIT1SY5ciQaMNuE0lU"
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", fingerprint)).firstMatch.exists,
+                      "The displayed key must match devtest's public ED25519 key verified over the existing SSH connection")
+        trust.click()
         XCTAssertTrue(waitForCondition(timeout: 30) {
             let state = try? self.requestRemotePaneState(pane: "left")
             return state?.registeredRemoteProviderCount == 1 && state?.directoryWatchActive == true
@@ -47,9 +53,11 @@ final class ReleaseQuickOpenCaptureTests: BaseUITest {
         app.leftPaneOutlineView.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
         openQuickNavForKeyboardInput()
         app.textFields["quickNavSearchField"].typeText("task")
-        XCTAssertTrue(app.staticTexts["quickNavScopeHeader"].label.contains(target), "The remote search must name its host")
+        let scope = app.staticTexts["quickNavScopeHeader"]
+        let scopeText = scope.label.isEmpty ? (scope.value as? String ?? "") : scope.label
+        XCTAssertTrue(scopeText.contains(target), "The remote search must name its host")
         XCTAssertTrue(app.staticTexts["TaskCard.tsx"].waitForExistence(timeout: 30), "The remote search must find a real sample file")
-        XCTAssertTrue(waitForCondition(timeout: 30) { !self.app.progressIndicators["quickNavSearchSpinner"].exists },
+        XCTAssertTrue(waitForCondition(timeout: 30) { !self.app.descendants(matching: .any)["quickNavSearchSpinner"].exists },
                       "Capture completed results, not a loading state")
         attachScreenshot("release-dark-quick-open-remote", of: app.windows.firstMatch)
         pressKey(.escape)
