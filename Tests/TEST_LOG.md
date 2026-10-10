@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry guarded `RarExtractionUITests/testEncryptedMultipartRarRetriesAndUndoes` | `b9293f4e` | FAIL. Signed app and UI bundle built, then the assertion for the encrypted multipart wrong-password message timed out. Inspect the captured UI and result bundle before changing the app or expectation. |
 | Foundry live `WindowsAcceptedOperationLiveTests/testRarVolumesAndFailuresCannotEscape`, 7-Zip 26.02 | `f6def964` | PASS: 149.769s. Missing/replaced parts, junction substitution, wrong passwords, hostile paths, unsafe links, truncated data, cancellation and privacy all passed with the compatible DLL. No result or private staging remained. |
 | Foundry live `WindowsAcceptedOperationLiveTests/testAcceptedRarMatchesFixtureManifest`, 7-Zip 26.02 | `f6def964` | PASS: 301.848s. All 20 positive fixture families passed independent output checks, observed-part proofs and repeat commits using the official compatible DLL, including RAR4 Unix metadata and encrypted multipart archives. |
 | Foundry signed `build.sh --no-install` | `cb91191b` | PASS. Release compilation completed in 62.64s; icon compilation, bundle creation and signing succeeded with no reported warnings. |

@@ -24,8 +24,9 @@ final class RarExtractionUITests: BaseUITest {
         app.buttons["archiveExtractionConfirmButton"].click()
         XCTAssertTrue(app.staticTexts["Enter a password"].waitForExistence(timeout: 2))
         submitPassword("wrong-password")
-        let ambiguity = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "encrypted RAR data may be damaged"))
-        XCTAssertTrue(ambiguity.firstMatch.waitForExistence(timeout: 5))
+        let ambiguity = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@",
+            "encrypted RAR data may be damaged", "encrypted RAR data may be damaged"))
+        XCTAssertTrue(ambiguity.firstMatch.waitForExistence(timeout: 5), app.debugDescription)
         XCTAssertFalse(app.staticTexts["Incorrect Password"].exists)
         XCTAssertFalse(exists("Rar.EncryptedParts"))
         try assertNoScratch()
@@ -57,8 +58,9 @@ final class RarExtractionUITests: BaseUITest {
         for part in [1, 3] { try importArchive("rarfile/rar3-vols.part\(part).rar") }
         selectRow(named: "rar3-vols.part3.rar")
         chooseFileMenuItem("Extract Here")
-        let message = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@",
-            "rar3-vols.part2.rar", "Put every part in the same folder"))
+        let message = app.staticTexts.matching(NSPredicate(format:
+            "(label CONTAINS %@ OR value CONTAINS %@) AND (label CONTAINS %@ OR value CONTAINS %@)",
+            "rar3-vols.part2.rar", "rar3-vols.part2.rar", "Put every part in the same folder", "Put every part in the same folder"))
         XCTAssertTrue(message.firstMatch.waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["Incorrect Password"].exists)
         XCTAssertFalse(app.secureTextFields["archiveExtractionPasswordField"].exists)
