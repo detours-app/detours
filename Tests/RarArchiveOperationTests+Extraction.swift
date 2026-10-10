@@ -107,6 +107,9 @@ extension RarArchiveOperationTests {
             hardLink: nil, size: first.size, modified: first.modified, mode: first.mode, directory: false,
             encrypted: false, splitBefore: false, splitAfter: false)
         XCTAssertThrowsError(try RarExtractionPlan([first, equivalent], caseSensitive: false))
+        XCTAssertThrowsError(try RarExtractionPlan.validateLink("a/../outside", at: Data("payload/link".utf8)))
+        XCTAssertThrowsError(try RarExtractionPlan.validateLink("sibling", at: Data("payload".utf8)))
+        XCTAssertNoThrow(try RarExtractionPlan.validateLink("data.txt", at: Data("payload/link".utf8)))
         try fixture.assertNoScratch()
     }
 
@@ -179,9 +182,10 @@ private struct RarLocalFixture {
     static var seekBytes: Data { Data((0..<512).map { String(format: "%03d\n", $0) }.joined().utf8) }
 
     init(_ names: [String]) throws {
-        root = FileManager.default.temporaryDirectory.appendingPathComponent("detours-local-rar-\(UUID())")
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
-        parts = names.map { root.appendingPathComponent(URL(fileURLWithPath: $0).lastPathComponent) }
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("detours-local-rar-\(UUID())")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+        root = directory
+        parts = names.map { directory.appendingPathComponent(URL(fileURLWithPath: $0).lastPathComponent) }
         originals = try names.map { try Data(contentsOf: Self.source($0)) }
         for (url, bytes) in zip(parts, originals) { try bytes.write(to: url, options: .withoutOverwriting) }
     }

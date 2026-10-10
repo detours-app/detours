@@ -101,13 +101,9 @@ public struct RarExtractionPlan: Sendable {
     }
 
     public static func validateLink(_ target: String, at path: Data) throws {
-        guard !target.isEmpty, !target.hasPrefix("/"), !target.contains("\\"), !target.contains(":"),
-              !target.contains("\0") else { throw SevenZipArchiveError.invalidEntry }
-        var depth = path.split(separator: 47).count - 2
-        for component in target.split(separator: "/") {
-            if component == ".." { depth -= 1 } else if component != "." { depth += 1 }
-            guard depth >= 0 else { throw SevenZipArchiveError.invalidEntry }
-        }
+        guard path.split(separator: 47).count >= 2, !target.isEmpty,
+              !target.contains("\\"), !target.contains(":"), !target.contains("\0"),
+              ArchiveToolDiagnostics.firstUnsafeMemberPath([target]) == nil else { throw SevenZipArchiveError.invalidEntry }
     }
 
     private static func components(_ name: String) throws -> [String] {

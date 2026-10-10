@@ -2,6 +2,8 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry build, devtest `ServerArchiveOperationsTests` with local RAR planner | `0880cb0b` | PASS: 125 tests, 0 failures in 16.32 seconds. Linux release helper built successfully. |
+| Foundry build, devtest `DetoursProcessTests` with local RAR planner | `0880cb0b` | PASS: 20 tests, 0 failures in 15.90 seconds. Password/integrity and controlled volume checks pass with the new planner compiled. |
 | Foundry `RarArchiveOperationTests/testRecognizesRarSetsWithoutOfferingRarCreation` | `d834b705` | PASS: 1 test, 0 failures in 0.009 seconds. Case variants, continuation selection, false numbered files, creation rejection and older-helper compatibility pass. Both helpers and signed Mac app built successfully. |
 | Foundry `RarArchiveStreamTests/testVolumeCallbacksRefuseUnacceptedPaths` | `d834b705` | PASS: 1 test, 0 failures in 0.965 seconds. Mac volume validation and callback ownership match the passing Linux check. |
 | Foundry build, devtest `ServerArchiveOperationsTests` after volume binding | `d834b705` | PASS: 125 tests, 0 failures in 17.39 seconds, including existing archive preparation and publication checks. |
