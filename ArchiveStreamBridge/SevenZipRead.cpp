@@ -371,19 +371,33 @@ extern "C" int32_t detours_rar_inspect(int32_t format, int input, const char *pa
         if (opened != S_OK) return state.passwordRequested ? -1003 : -1004;
         NWindows::NCOM::CPropVariant flags, volume, index;
         RINOK(archive->GetArchiveProperty(kpidErrorFlags, &flags))
-        if (flags.vt == VT_UI4 && flags.ulVal) {
-            if (flags.ulVal & (kpv_ErrorFlags_UnsupportedMethod | kpv_ErrorFlags_UnsupportedFeature)) return -1005;
-            if (flags.ulVal & kpv_ErrorFlags_EncryptedHeadersError) return -1003;
-            return -1004;
-        }
         RINOK(archive->GetArchiveProperty(kpidIsVolume, &volume))
         RINOK(archive->GetArchiveProperty(kpidVolumeIndex, &index))
         *info = {};
         info->is_volume = volume.vt == VT_BOOL && volume.boolVal != VARIANT_FALSE;
         info->has_index = index.vt == VT_UI4;
         if (info->has_index) info->index = index.ulVal;
+        if (index.vt == VT_UI8) {
+            if (index.uhVal.QuadPart >= 1024) return -1007;
+            info->has_index = 1;
+            info->index = static_cast<UInt32>(index.uhVal.QuadPart);
+        }
         UInt32 count = 0;
         RINOK(archive->GetNumberOfItems(&count))
+        UInt32 allowedFlags = 0;
+        if (format == 7 && info->is_volume && info->has_index && info->index > 0 && count) {
+            NWindows::NCOM::CPropVariant split;
+            RINOK(archive->GetProperty(0, kpidSplitBefore, &split))
+            // RAR5 reports a split-header error when a continuation is opened alone.
+            // The complete-set read must still pass every integrity check.
+            if (split.vt == VT_BOOL && split.boolVal != VARIANT_FALSE) allowedFlags = kpv_ErrorFlags_HeadersError;
+        }
+        if (flags.vt != VT_EMPTY && flags.vt != VT_UI4) return -1004;
+        if (flags.vt == VT_UI4 && (flags.ulVal & ~allowedFlags)) {
+            if (flags.ulVal & (kpv_ErrorFlags_UnsupportedMethod | kpv_ErrorFlags_UnsupportedFeature)) return -1005;
+            if (flags.ulVal & kpv_ErrorFlags_EncryptedHeadersError) return -1003;
+            return -1004;
+        }
         for (UInt32 item = 0; item < count; ++item) {
             RINOK(state.report())
             RINOK(visitMember(archive, item, visit, context))
