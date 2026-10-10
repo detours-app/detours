@@ -24,7 +24,7 @@ final class ReleaseQuickOpenCaptureTests: BaseUITest {
         let trust = app.buttons["Trust Host Key"]
         XCTAssertTrue(trust.waitForExistence(timeout: 10))
         let fingerprint = "SHA256:uvGrK9oDb9pIPpBLi5bm0w0ObUIT1SY5ciQaMNuE0lU"
-        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", fingerprint)).firstMatch.exists,
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", fingerprint, fingerprint)).firstMatch.exists,
                       "The displayed key must match devtest's public ED25519 key verified over the existing SSH connection")
         trust.click()
         XCTAssertTrue(waitForCondition(timeout: 30) {

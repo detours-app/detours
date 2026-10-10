@@ -16,7 +16,7 @@ The public surface is a README, not a custom website. Use GitHub-supported Markd
 
 The local review page uses a dark GitHub-style reading surface: system font, 16 px body text, 1.5 line height, a 980 px maximum outer width and responsive article padding. Its surrounding preview label is not part of the README. Render the draft Markdown into that shell so the preview and proposed public content cannot drift.
 
-Use the deep-sea icon at 112 px and preserve its existing transparency. Keep screenshots unaltered, with descriptive alt text and proportional scaling. Primary captures use dark appearance, compact rows and stripes. Do not pair light and dark scenes in the primary sequence.
+Use the deep-sea icon at 112 px and preserve its existing transparency. Keep screenshot content unaltered, with descriptive alt text and proportional scaling. Marco approved deterministic corner masks on 10 October 2026: remove only captured desktop pixels outside the rounded window edge by changing corner alpha, preserving all RGB values and every non-corner pixel. Retain the original captures and inspect masked edges against dark and light backgrounds. Primary captures use dark appearance, compact rows and stripes. Do not pair light and dark scenes in the primary sequence.
 
 At narrow widths, text reflows, images scale within the article, and tables and code blocks scroll within their own bounds. No page-level horizontal overflow. Inspect the rendered output at desktop and narrow widths before review.
 

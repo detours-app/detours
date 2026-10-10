@@ -113,12 +113,17 @@ Use genuine captures of the installed app on Foundry. Keep the primary sequence 
 | Scene | What it should establish | Capture requirement |
 | --- | --- | --- |
 | Main workspace | Navigation depth and a useful everyday layout | Both panes populated, tabs visible, inline folders expanded, legible Git markers, no qualification identifiers |
-| Cmd-P | Reach a file without traversing folders | A meaningful query with readable matching names and paths, no stale or private results |
+| Cmd-P recent places | Return to working locations without typing | Varied local and connected-server folders, automatic frequency/recency stars and host badges; no qualification paths |
+| Cmd-P remote search | Find actual files on another machine | A visible server scope and varied matching sample files, captured through a live connection |
 | Data preview | Inspect structured content in place | Real CSV or spreadsheet content rendered as a table, no placeholder or invalid document |
 | Markdown preview | Read formatted content without an editor | A rendered sample with useful headings and text, not raw markup or a loading frame |
 | Cmd-K | Use an existing SSH target | The real Add Remote Host picker with a suitable target; capture without starting an unnecessary connection |
 
 Each screenshot must add a distinct piece of evidence. Do not add Preferences, menus or another nearly identical main window merely to increase the image count. A connected remote workspace can be added if it demonstrates more than the picker and can be captured without private data or fabricated connection state.
+
+The initial Cmd-P capture showed nearly identical invoice names and did not demonstrate history or remote locations. Marco selected two complementary scenes instead: an empty-query history view and a remote file search. Stars reflect automatic frequency/recency ranking, not manual pins; Cmd-P has no manual pinning. A local tab can include remembered places on connected servers, while live remote search follows the active remote tab.
+
+Window captures must blend into the page without opaque desktop corners. Marco approved an exact, deterministic corner-transparency mask on 10 October 2026 after native window capture failed inside the guarded runner. Change only corner alpha, preserve all colour values and interior pixels, retain the original capture, and inspect the edge on both dark and light backgrounds.
 
 Inspect every image at its actual README display size. Large blank panes, clipped paths, tiny text, loading states, UUIDs, invalid Office fixtures or mixed appearances are reasons to reject a capture. A passing UI test proves the scene appeared, not that the screenshot communicates well.
 
