@@ -181,6 +181,8 @@ Run each filter separately, after its related RAR checks pass. Required Windows 
 
 ## Build Log
 
+- **C10, T17 progress** README, guide source and generated HTML now describe extraction-only RAR4/RAR5, encryption, split naming, the 1,024-part limit and compatible free Windows 7-Zip. Reconciled the same claims in the positioning document. Inspected desktop and narrow rendered sections; all images decode and 43 local links/anchors resolve. The public guide returns 404 and the GitHub file-view link returns 503 although raw source returns 200. Keep intended publication links; T17 remains open until those public destinations resolve. No Unreleased changelog section exists, so update-docs leaves released history unchanged.
+
 - **C9, T22, A6** Linux builds include and cache the RAR accepted-operation tests; Mac/Linux T3/T9/T10 and Windows T11/T12 passed. All three RAR UI cases passed individually. Existing creation controls (`f0228ea8`) and ZIP password retry (`e59fa1ed`) passed as separate guarded Foundry cases with no skips or runtime warnings. Together with T18-T21, these confirm the existing archive formats still work and RAR remains extraction-only with no paid dependency.
 
 - **T16, A3, A5** Foundry guarded UI at `4b463dfc` passed multi-selected multipart extraction, visible progress during Keep Both, one selected result, retained occupants and undo. Both screenshots were inspected. T14 proves encrypted continuation selection; T6/T8/T9/T11 cover naming, cancellation, replacement restoration and accepted publication. The test reads visible progress while the modal dialog is open and requests internal completion state afterwards.

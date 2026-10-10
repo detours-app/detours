@@ -54,6 +54,8 @@ Create and extract **ZIP, 7Z, TAR.GZ, TAR.BZ2 and TAR.XZ** archives directly fro
 
 Password-protect ZIP and 7Z archives. **Encrypted 7Z also hides the filenames** inside, not just the contents. For stronger encryption on your Mac, choose 7Z: local ZIP uses legacy password protection, not AES-256.
 
+Extract **RAR4 and RAR5**, including solid, password-protected and split archives. Keep every part together and open any recognized part; Detours extracts the set once. RAR is extraction-only, with no paid software required. It is built in on your Mac and supported Mac/Linux hosts; Windows hosts need compatible free 7-Zip installed.
+
 Some formats require installed command-line tools. See the [archive guide](https://detours-app.github.io/detours/USER_GUIDE.html#archives-and-encryption) for encryption details and remote-host limits.
 
 ## The details that make file work easier

@@ -2,6 +2,8 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| RAR documentation render and visual checks | `9dbf5233` + docs | PASS locally. Regenerated guide and README preview, inspected desktop and narrow RAR sections, decoded all seven guide images, and confirmed no horizontal overflow. Forty-three local links/anchors resolve. Public guide URL returns 404 and GitHub file viewer returns 503; raw remote-guide source returns 200. T17 public checks remain open pending publication/service recovery. |
+| RAR documentation link validation | `9dbf5233` + docs | FAIL. Forty-three local links/anchors and five external pages resolved, but GitHub returned HTTP 503 for the remote-update documentation link. Check that target directly before accepting T17. |
 | Foundry guarded `ArchivePasswordUITests/testWrongPasswordShowsRetrySheet` | `e59fa1ed` | PASS. Wrong ZIP passwords still reopen the retry sheet. One pass, zero skips, failures or runtime warnings; guarded cleanup completed. |
 | Foundry guarded `ArchivePasswordUITests/testCreationControlsFollowSelectedFormat` | `f0228ea8` | PASS. Archive creation controls follow the selected format. One pass, zero skips, failures or runtime warnings; guarded cleanup completed. |
 | Foundry guarded `RarExtractionUITests/testSelectingSeveralPartsExtractsOnce` | `4b463dfc` | PASS. Three selected parts produced one selected vols 2 folder, preserved the existing vols contents and undid only the extraction. Viewed both screenshots: Keep Both/Replace/Stop with progress visible, then one result. One pass, zero skips or runtime warnings. |
