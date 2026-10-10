@@ -56,13 +56,19 @@ final class ReleaseQuickOpenCaptureTests: BaseUITest {
         let scope = app.staticTexts["quickNavScopeHeader"]
         let scopeText = scope.label.isEmpty ? (scope.value as? String ?? "") : scope.label
         XCTAssertTrue(scopeText.contains(target), "The remote search must name its host")
-        let matchingFile = app.windows.firstMatch.staticTexts.matching(
-            NSPredicate(format: "label MATCHES %@", "^[^/]+\\.[A-Za-z0-9]+$")
-        ).firstMatch
-        XCTAssertTrue(matchingFile.waitForExistence(timeout: 30), "The remote search must display a matching file, not just recent folders")
         XCTAssertTrue(waitForCondition(timeout: 30) { !self.app.descendants(matching: .any)["quickNavSearchSpinner"].exists },
                       "Capture completed results, not a loading state")
-        attachScreenshot("release-dark-quick-open-remote", of: app.windows.firstMatch)
+        let searchPanel = app.windows.containing(.textField, identifier: "quickNavSearchField").firstMatch
+        XCTAssertTrue(searchPanel.exists)
+        for text in searchPanel.staticTexts.allElementsBoundByIndex {
+            print("RELEASE_CAPTURE_TEXT label=\(text.label) value=\(text.value as? String ?? "")")
+        }
+        let filePattern = "^[^/]+\\.[A-Za-z0-9]+$"
+        let matchingFile = searchPanel.staticTexts.matching(
+            NSPredicate(format: "label MATCHES %@ OR value MATCHES %@", filePattern, filePattern)
+        ).firstMatch
+        XCTAssertTrue(matchingFile.exists, "The remote search must display a matching file, not just recent folders")
+        attachScreenshot("release-dark-quick-open-remote", of: searchPanel)
         pressKey(.escape)
     }
 
