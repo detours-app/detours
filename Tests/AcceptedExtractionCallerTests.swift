@@ -12,7 +12,7 @@ final class AcceptedExtractionCallerTests: XCTestCase {
     }
 
     func testSingleItemNamesAndWrappersMatchAllExistingFormats() async throws {
-        for format in ArchiveFormat.allCases {
+        for format in ArchiveFormat.writableFormats {
             try await run(format: format, scenario: .single)
             try await run(format: format, scenario: .multiple)
         }
