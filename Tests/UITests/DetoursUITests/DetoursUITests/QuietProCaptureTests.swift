@@ -66,7 +66,7 @@ final class QuietProCaptureTests: BaseUITest {
         XCTAssertFalse(app.outlines["sidebarOutlineView"].staticTexts[testFolderName].exists, "The public screenshot should not show a qualification identifier")
         attachScreenshot("release-dark-main", of: app.windows.firstMatch)
         openQuickNavForKeyboardInput()
-        app.textFields["quickNavSearchField"].typeText("INV-2025-01")
+        app.textFields["quickNavSearchField"].typeText("INV-2025")
         XCTAssertTrue(app.staticTexts["INV-2025-010.pdf"].waitForExistence(timeout: 10), "Quick Open should find the sample invoices")
         attachScreenshot("release-dark-quick-open", of: app.windows.firstMatch)
         pressKey(.escape)
