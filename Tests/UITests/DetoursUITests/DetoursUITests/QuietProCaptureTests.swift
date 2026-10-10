@@ -41,7 +41,9 @@ final class QuietProCaptureTests: BaseUITest {
         pressKey(.upArrow, modifiers: .command)
         let company = app.leftPaneOutlineView.outlineRow(withStaticText: "acme-corp").staticTexts["acme-corp"]
         XCTAssertTrue(company.waitForExistence(timeout: 5))
-        company.click(forDuration: 0.1, thenDragTo: sidebar.staticTexts["Favorites"])
+        let source = company.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        let destination = sidebar.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9))
+        source.click(forDuration: 0.5, thenDragTo: destination, withVelocity: .slow, thenHoldForDuration: 1)
         XCTAssertTrue(sidebar.staticTexts["acme-corp"].waitForExistence(timeout: 5))
         company.doubleClick()
 
