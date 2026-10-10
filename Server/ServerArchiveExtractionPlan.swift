@@ -9,6 +9,14 @@ struct ServerArchiveExtractionPlan: Sendable {
     let directories: [Data]
     let hardLinks: [UInt32: UInt32]
 
+    init(rar: RarExtractionPlan) {
+        members = rar.members
+        paths = rar.paths
+        outputs = rar.outputs
+        directories = rar.directories
+        hardLinks = rar.hardLinks
+    }
+
     init(_ members: [SevenZipArchiveReader.Member], rootName: String = "payload") throws {
         guard rootName == "payload" || rootName == "tree" else { throw SevenZipArchiveError.invalidEntry }
         self.members = members

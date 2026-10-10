@@ -19,7 +19,8 @@ extension ServerOperationService {
     func finishExtractionMembers(_ plan: ServerArchiveExtractionPlan, preparation: ServerPayloadPreparation,
                                  identity: OperationRequestIdentity, ownership: OperationJournal.Ownership) async throws {
         let intent = try journal.read(identity.id).intent
-        let strictLinks = intent?.archiveFormat == ServerArchiveFormat.sevenZ.rawValue ||
+        let strictLinks = intent?.archiveFormat == ServerArchiveFormat.rar.rawValue ||
+            intent?.archiveFormat == ServerArchiveFormat.sevenZ.rawValue ||
             intent?.archiveFormat == ServerArchiveFormat.zip.rawValue && intent?.archiveEncrypted == true
         for member in plan.members where !member.directory && member.hardLink == nil {
             guard let name = plan.paths[member.index], let output = plan.outputs[member.index] else { throw SevenZipArchiveError.invalidEntry }
@@ -42,6 +43,9 @@ extension ServerOperationService {
                 if strictLinks {
                     guard let text = String(data: target, encoding: .utf8), ArchiveToolDiagnostics.firstUnsafeMemberPath([text]) == nil else {
                         throw SevenZipArchiveError.invalidEntry
+                    }
+                    if intent?.archiveFormat == ServerArchiveFormat.rar.rawValue {
+                        try RarExtractionPlan.validateLink(text, at: name)
                     }
                 }
                 try await mutateExtraction(preparation, identity: identity, ownership: ownership) {

@@ -9,6 +9,7 @@ struct ServerArchiveExtractionReader: Sendable {
     let input: OperationEffect
     let format: SevenZipArchiveReader.Format
     let password: String?
+    var rarVolumes: RarVolumeSet?
 
     func read(measuredBefore: UInt64, output: (@Sendable (SevenZipArchiveReader.Member) throws -> FileHandle)? = nil)
         async throws -> (members: [SevenZipArchiveReader.Member], measured: UInt64) {
@@ -19,8 +20,14 @@ struct ServerArchiveExtractionReader: Sendable {
         let members = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[SevenZipArchiveReader.Member], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
-                    let result = try SevenZipArchiveReader.read(input: handle, format: format, password: password,
+                    let result: [SevenZipArchiveReader.Member]
+                    if let rarVolumes {
+                        result = try rarVolumes.read(password: password, output: output, progress: { try progress.report($0) })
+                        try rarVolumes.validate(progress: { try progress.report($0) })
+                    } else {
+                        result = try SevenZipArchiveReader.read(input: handle, format: format, password: password,
                                                                output: output, progress: { try progress.report($0) })
+                    }
                     continuation.resume(returning: result)
                 } catch { continuation.resume(throwing: error) }
             }

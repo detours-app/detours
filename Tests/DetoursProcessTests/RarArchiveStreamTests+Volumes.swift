@@ -17,6 +17,10 @@ extension RarArchiveStreamTests {
             XCTAssertFalse(set.members.isEmpty)
             let accepted = try RarVolumeSet.accepted(directory: folder, parts: set.parts, password: password, progress: { _ in })
             XCTAssertEqual(accepted.members, set.members)
+            XCTAssertThrowsError(try RarVolumeSet.accepted(directory: folder, parts: Array(set.parts.reversed()), password: password, progress: { _ in }))
+            try fixture.bytes("seektest.rar").write(to: fixture.url(folder, "extra.rar"))
+            let extra = RarVolumeSet.Part(name: "extra.rar", observation: try folder.proveFile(Data("extra.rar".utf8), progress: { _ in }))
+            XCTAssertThrowsError(try RarVolumeSet.accepted(directory: folder, parts: set.parts + [extra], password: password, progress: { _ in }))
         }
         for missing in VolumeFixture.modern {
             let folder = try fixture.copy(VolumeFixture.modern.filter { $0 != missing })

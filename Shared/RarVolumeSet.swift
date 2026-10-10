@@ -77,7 +77,14 @@ public final class RarVolumeSet: @unchecked Sendable {
         let set = RarVolumeSet(directory: directory, parts: parts, format: format, members: [],
                                baseName: Naming(first.name)?.base ?? first.name)
         try set.validate(progress: progress)
-        let members = try set.read(password: password, progress: progress)
+        let discovery = Discovery(directory: directory, names: parts.map(\.name), format: format,
+                                  password: password, progress: progress)
+        let acceptedFirst = try discovery.open(first.name)
+        defer { try? acceptedFirst.close() }
+        let members = try SevenZipArchiveReader.read(input: acceptedFirst, format: format, password: password,
+            inputName: first.name, openVolume: { try discovery.open($0) }, progress: progress)
+        guard discovery.parts == parts else { throw SevenZipArchiveError.inconsistentVolumes(first.name) }
+        try set.validate(progress: progress)
         return RarVolumeSet(directory: directory, parts: parts, format: format, members: members, baseName: set.baseName)
     }
 
