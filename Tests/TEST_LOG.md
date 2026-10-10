@@ -2,6 +2,7 @@
 
 | Check | Commit | Result |
 | --- | --- | --- |
+| Foundry guarded `QuietProCaptureTests/testCaptureQuietProScenes`, release captures | `be85e291` | PASS: 1 passed, 0 failed, 0 skipped, no runtime warnings; 110 seconds. Build and guarded cleanup passed. Inspected the main-window and Quick Open images: both contain qualification directory IDs, so these captures are unsuitable for the public page. Run `release-capture-261010`. |
 | Interrupted delivery helper checks on devtest, launched from Spectre | `7f3e75d4` | CANCELLED: background launch used C locale, producing a different cache hash for unchanged helper sources and starting Linux helper tests from the wrong orchestrator. Stopped the build; no container remained. Restore the normal `en_US.UTF-8` locale for delivery; the Foundry navigation proof remains valid. |
 | Foundry guarded `ChromePolishUITests/testPaneChromePreservesNavigation`, looked at | `9a33c1fe` | PASS: 1 passed, 0 failed, 0 skipped, no runtime warnings. Inspected all four light/dark captures: arrows at the right edge; remote host breadcrumb at the left margin with local shortcuts hidden; local shortcuts and breadcrumb aligned at the left. Matrix audit and guarded cleanup passed. |
 | Foundry guarded `ChromePolishUITests/testPaneChromePreservesNavigation` | `22f203d3` | PASS: 1 passed, 0 failed, 0 skipped. Seen in light/dark: local path arrows at the far right. Remote captures showed Home/iCloud and `/` because the simulated tab bypassed pane host setup; correct the fixture and recapture. Matrix audit and guarded cleanup passed. |

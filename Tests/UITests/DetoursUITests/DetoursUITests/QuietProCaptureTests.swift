@@ -26,6 +26,56 @@ final class QuietProCaptureTests: BaseUITest {
         try captureCopyActivity()
     }
 
+    /// Browses the persistent screenshot samples without creating or changing their files.
+    func testCaptureReleaseScenes() throws {
+        continueAfterFailure = false
+        try resizeMainWindow(width: 1280, height: 760)
+
+        let sidebar = app.outlines["sidebarOutlineView"]
+        let fixtureFavorite = sidebar.staticTexts[testFolderName]
+        XCTAssertTrue(fixtureFavorite.waitForExistence(timeout: 3))
+        fixtureFavorite.rightClick()
+        app.menuItems["Remove from Favorites"].click()
+
+        try openReleaseSample("acme-corp", pane: "left")
+        pressKey(.upArrow, modifiers: .command)
+        let company = app.leftPaneOutlineView.outlineRow(withStaticText: "acme-corp").staticTexts["acme-corp"]
+        XCTAssertTrue(company.waitForExistence(timeout: 5))
+        company.click(forDuration: 0.1, thenDragTo: sidebar.staticTexts["Favorites"])
+        XCTAssertTrue(sidebar.staticTexts["acme-corp"].waitForExistence(timeout: 5))
+        company.doubleClick()
+
+        app.rightPaneOutlineView.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
+        try openReleaseSample("taskflow", pane: "right")
+        try open("api", in: app.rightPaneOutlineView, pane: "right")
+        XCTAssertTrue(waitForCondition(timeout: 10) {
+            ((try? self.requestRemotePaneState(pane: "right"))?.gitStatuses.count ?? 0) >= 3
+        }, "The sample API should show Git status")
+        clickRow("database.py", in: app.rightPaneOutlineView)
+        clickRow("Budget-2026.xlsx", in: app.leftPaneOutlineView)
+
+        for theme in ["light", "dark"] {
+            try applyAppearanceSettings(theme: theme, fontSize: 13, density: "compact")
+            attachScreenshot("release-\(theme)-main", of: app.windows.firstMatch)
+            openQuickNavForKeyboardInput()
+            app.textFields["quickNavSearchField"].typeText("INV-2025")
+            XCTAssertTrue(app.staticTexts["INV-2025-001.pdf"].waitForExistence(timeout: 10), "Quick Open should find the sample invoices")
+            attachScreenshot("release-\(theme)-quick-open", of: app.windows.firstMatch)
+            pressKey(.escape)
+        }
+    }
+
+    private func openReleaseSample(_ name: String, pane: String) throws {
+        openQuickNavForKeyboardInput()
+        app.textFields["quickNavSearchField"].typeText(name)
+        let sample = app.staticTexts["~/Projects/\(name)"]
+        XCTAssertTrue(sample.waitForExistence(timeout: 10), "The screenshot sample \(name) should be indexed")
+        sample.click()
+        XCTAssertTrue(waitForCondition(timeout: 5) {
+            (try? self.requestRemotePaneState(pane: pane))?.displayedLocation?.hasSuffix("/Projects/\(name)") == true
+        }, "The \(pane) pane should open the screenshot sample")
+    }
+
     /// The whole screen with the File menu and its New File submenu open, in each appearance
     func testCaptureMenus() throws {
         for theme in ["light", "dark"] {

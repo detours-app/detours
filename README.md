@@ -1,133 +1,69 @@
 # Detours
 
-Dual-pane file manager with tabs, folder expansion, SSH remote browsing for macOS, Linux, and Windows hosts, Quick Open, file-operation progress, and git status. Keyboard-first, with System, Light and Dark appearances that follow the macOS accent colour.
+A native macOS file manager for working in two places at once. Browse your Mac and remote servers side by side, move files between them, and jump to the next folder without leaving the keyboard.
 
-![Detours screenshot](resources/docs/screenshot.png?v=2026-06-16)
+[Download for macOS](https://github.com/detours-app/detours/releases/latest) · [User guide](resources/docs/USER_GUIDE.md) · [Release notes](https://github.com/detours-app/detours/releases) · [Report an issue](https://github.com/detours-app/detours/issues)
 
-## Features
+Free and open source. Requires macOS 14 Sonoma or later.
 
-- **Dual-pane layout** - Two independent file browsers, side by side
-- **Tabs per pane** - Finder-style tabs within each pane
-- **Folder expansion** - Disclosure triangles to expand folders inline (like Finder list view)
-- **Quick Open** - Spotlight locally and host-aware name search on remote tabs, with frecency ranking (Cmd-P)
-- **Git status indicators** - See modified, staged, and untracked files at a glance
-- **SSH remote browsing** - Browse supported macOS, Linux, and Windows hosts directly in Detours panes
-- **Automatic remote updates** - Detect external changes, recover watches after folder replacement or reconnect, and retry transient listing failures without manual refresh
-- **Remote file workflows** - Copy, move, cut, paste, trash, restore, archive,
-  extract, create files/folders, Get Info, Quick Look, Open With, and drag files
-  within or between local and remote panes
-- **Reliable remote operations** - Each remote change is recorded before it starts and reports every item as confirmed, skipped, failed or still unknown, with its details and Undo kept in a Remote Operations window across tab closes, navigation and restarts
-- **Inline operation progress** - Status bars show progress, transfer speed, completion, and error states
-- **Fast lane operations** - Small independent operations stay responsive while large transfers run
-- **Keyboard-first** - Full keyboard navigation with customizable shortcuts
-- **Appearance** - System, Light and Dark, the macOS accent colour (Detours teal with Multicolor), optional row stripes, and a deep-sea Dock icon
-- **Sidebar** - Quick access to remote hosts, mounted volumes, network shares, and favorite folders
-- **Path bar** - Click to navigate, drag to terminal, right-click to copy path
-- **Quick Look** - Preview files with spacebar, including Detours-styled code, Markdown, and safely rendered HTML previews
-- **Drag and drop** - Move within one volume or remote host, copy across local,
-  remote, volume, or host boundaries, and exchange files with Finder, Mail, and
-  favorites
-- **Archives** - Create and extract ZIP, 7Z, and TAR archives, with optional password protection
-- **Share** - AirDrop and other system sharing services from the context menu
-- **Undo** - Per-tab undo for copy, move, rename, duplicate, delete, and new folder/file
-- **Filter-in-place** - Filter the current file list as you type without leaving the directory
-- **Duplicate folder structure** - Copy folder hierarchy without files (great for year-based templates)
-- **Delete Immediately** - Permanent deletion option bypassing Trash (Cmd-Option-Delete)
-- **Truncation tooltips** - Hover to see full filename when truncated
-- **Session restore** - Tabs, selections, and expansion states persist across restarts
-- **Status bar** - Item counts, selection size, disk space, and operation progress
-- **iCloud Drive** - Friendly folder names, automatic container navigation
-- **Native macOS** - AppKit, SF Symbol icons, system appearance
+![Detours showing two file browsers with tabs and Git status](resources/docs/screenshot.png)
 
-## Installation
+## Two panes, one workspace
 
-Download the latest DMG from [Releases](https://github.com/detours-app/detours/releases), open it, and drag Detours to Applications.
+Keep a source and destination open together, with independent tabs in each pane. Expand folders inline, filter the current list, and drag files between panes or Finder. Tabs, selections and expanded folders return when you reopen Detours.
 
-Requires macOS 14.0+ (Sonoma).
+- **Local and remote files together.** Connect over SSH to macOS, Linux and Windows hosts. Copy and move between your Mac and servers, or between servers, with progress and transfer speed visible in the status bar.
+- **Undo and recovery.** Undo file operations per tab. Remote Operations keeps the results of remote changes across navigation and restarts, including what finished and what still needs checking after a connection drops.
+- **Previews without opening another app.** Press Space for code, Markdown, HTML, images, delimited tables, Word documents and Excel workbooks. Remote files use the same preview window; PDFs open in the macOS preview.
+- **Archives and sharing.** Create and extract ZIP, 7Z and TAR archives, use password protection where supported, and share local files through AirDrop and macOS sharing services.
+- **Git status at a glance.** Distinct shapes identify modified, staged, untracked and conflicted files, including in remote repositories.
+- **Light, dark or your system appearance.** Detours follows the macOS accent colour, with teal under Multicolor, optional row stripes and an alternative deep-sea Dock icon.
 
-## Building from Source
+## Jump straight there with Cmd-P
+
+Quick Open finds files and folders as you type, with frequently and recently visited places ranked first. In a local tab it searches your Mac; in a remote tab it searches that host. Use the arrow keys to choose a result and Enter to open it.
+
+## Install
+
+Download the DMG from the [latest release](https://github.com/detours-app/detours/releases/latest), open it, and drag Detours to Applications.
+
+## A few shortcuts to start
+
+| Action | Shortcut |
+| --- | --- |
+| Quick Open | Cmd-P |
+| Switch pane | Tab |
+| New tab | Cmd-T |
+| Go up a folder | Cmd-Up |
+| Preview | Space |
+| Filter this folder | Cmd-F |
+| Copy to the other pane | F5 |
+| Move to the other pane | F6 |
+| Rename | F2 / Shift-Enter |
+| New folder | Cmd-Shift-N |
+| Move to Trash | Cmd-Delete |
+| Undo | Cmd-Z |
+| Add remote host | Cmd-K |
+
+Actions listed in Preferences > Shortcuts can be remapped. See the [full shortcut reference](resources/docs/USER_GUIDE.md#keyboard-shortcuts-reference) for the rest.
+
+## Building from source
+
+Detours uses Swift 6.2+, AppKit and SwiftUI. Building requires full Xcode for asset compilation, a code-signing identity, and the bundled remote helpers. The build script rebuilds the Linux helper through an SSH host named `devtest` with Docker available when its cache is missing or stale.
 
 ```bash
 git clone https://github.com/detours-app/detours.git
 cd detours
 
-# Build and install to /Applications
-./resources/scripts/build.sh
-
-# Or keep app bundle in build/ without installing
+# Build a signed app bundle without installing it
 ./resources/scripts/build.sh --no-install
+
+# Build, install to Applications and relaunch
+./resources/scripts/build.sh
 ```
 
-Requires Xcode Command Line Tools with Swift 6.2+.
-
-## Keyboard Shortcuts
-
-Shortcuts for the actions listed under Preferences > Shortcuts (Cmd-,) can be changed; the tab, navigation and menu shortcuts are fixed.
-
-| Action | Default |
-| ------ | -------- |
-| Open selected items | Cmd-O / Cmd-Down / Enter |
-| Quick Look | Space |
-| Quick Open | Cmd-P |
-| New Tab | Cmd-T |
-| Close Tab | Cmd-W |
-| Next / Previous Tab | Ctrl-Tab / Ctrl-Shift-Tab |
-| Select Tab 1-9 | Cmd-1 through Cmd-9 |
-| Go Up | Cmd-Up |
-| Go Back / Forward | Cmd-Left / Cmd-Right |
-| Switch Pane | Tab |
-| Copy to Other Pane | F5 |
-| Move to Other Pane | F6 |
-| New Folder | F7 / Cmd-Shift-N |
-| Move to Trash | F8 / Cmd-Delete |
-| Delete Immediately | Cmd-Option-Delete |
-| Rename | F2 / Shift-Enter |
-| Duplicate | Cmd-D |
-| Get Info | Cmd-I |
-| Copy Path | Cmd-Option-C |
-| Open in Editor | F4 |
-| Toggle Hidden Files | Cmd-Shift-. |
-| Toggle Sidebar | Cmd-0 |
-| Expand Folder | Right Arrow |
-| Collapse Folder | Left Arrow |
-| Expand All (recursive) | Option-Right |
-| Collapse All (recursive) | Option-Left |
-| Refresh | Cmd-R |
-| Filter | Cmd-F |
-| Add Remote Host | Cmd-K |
-
-See the [User Guide](resources/docs/USER_GUIDE.md) for complete documentation.
-
-## Project Structure
-
-```text
-detours/
-├── src/                  # Swift app source
-│   ├── App/              # Entry point, menus
-│   ├── Windows/          # Window management
-│   ├── Panes/            # Pane and tab logic
-│   ├── FileList/         # File list view
-│   ├── Navigation/       # Quick nav, frecency
-│   ├── Operations/       # Copy, move, delete
-│   ├── Remote/           # SSH connections, Unix helper RPC, Windows PowerShell backend
-│   ├── Services/         # File providers, git status
-│   ├── Sidebar/          # Favorites, volumes, network shares, remote hosts
-│   ├── Preferences/      # Settings UI
-│   ├── QuickLook/        # Detours-native preview generation
-│   └── Utilities/        # Helpers
-├── Server/               # Remote helper source
-├── Shared/               # Shared process and PTY support
-├── QualificationSupport/ # Qualification run-root/evidence contracts
-├── QualificationGuard/   # Qualification path-guard executable
-├── QualificationSMBMounter/ # Qualification SMB mount helper
-├── Tests/                # XCTest suite
-├── resources/
-│   ├── docs/             # User guide, changelog
-│   ├── specs/            # Feature specifications
-│   └── scripts/          # Build scripts
-└── build/                # Output (Detours.app)
-```
+The script compiles the app and remote helpers, assembles the resources and signs the bundle. Use it for builds so the installed app keeps its macOS permissions.
 
 ## License
 
-MIT
+[MIT](LICENSE)
