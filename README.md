@@ -24,6 +24,16 @@ Keep a source and destination side by side, with tabs in each pane for the place
 
 Press **Tab** to change panes, **F5** to copy or **F6** to move. Detours selects and reveals the result, so you can carry on from the file you just worked on.
 
+## Cmd-K. Bring your servers into the picture.
+
+Choose an SSH target from your existing configuration or type one in. Connect to a [supported Mac, Linux or Windows host](https://detours-app.github.io/detours/USER_GUIDE.html#supported-remote-hosts) without mounting it as a volume.
+
+<p align="center"><img src="resources/docs/add-remote-host.png" width="540" alt="The Cmd-K Add Remote Host picker finding matching hosts from the existing SSH configuration"></p>
+
+Use familiar tabs, folder expansion, previews, Git markers and file operations on the other machine. Copy between your Mac and a server, or between servers. Open remote files in an editor and send saved changes back.
+
+If a connection drops, Remote Operations keeps a record of what finished and what still needs checking, even after you close the tab. [Remote workflows and limits](https://detours-app.github.io/detours/USER_GUIDE.html#remote-hosts) are documented in the guide.
+
 ## Cmd-P. Straight to the file.
 
 Open Quick Open to return to recently and frequently visited folders, including places on connected servers. Stars mark those familiar places; host badges distinguish remote locations from folders on your Mac.
@@ -64,16 +74,6 @@ Some formats require installed command-line tools. See the [archive guide](https
 - **Git status where the files are.** Recognise modified, staged, untracked and conflicted files by distinct markers, in local and remote repositories.
 - **Repeat the structure, not the contents.** Duplicate a folder hierarchy without its files, with optional year substitution for the next project or reporting period.
 - **Keep small jobs moving.** Rename a file or create a folder elsewhere while an unrelated large local copy runs. Progress and transfer speed stay visible in the status bar.
-
-## Cmd-K. Bring your servers into the picture.
-
-Choose an SSH target from your existing configuration or type one in. Connect to a [supported Mac, Linux or Windows host](https://detours-app.github.io/detours/USER_GUIDE.html#supported-remote-hosts) without mounting it as a volume.
-
-<p align="center"><img src="resources/docs/add-remote-host.png" width="540" alt="The Cmd-K Add Remote Host picker finding matching hosts from the existing SSH configuration"></p>
-
-Use familiar tabs, folder expansion, previews, Git markers and file operations on the other machine. Copy between your Mac and a server, or between servers. Open remote files in an editor and send saved changes back.
-
-If a connection drops, Remote Operations keeps a record of what finished and what still needs checking, even after you close the tab. [Remote workflows and limits](https://detours-app.github.io/detours/USER_GUIDE.html#remote-hosts) are documented in the guide.
 
 ## At home on your Mac
 
