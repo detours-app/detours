@@ -46,7 +46,8 @@ enum RarExtractionDiagnostics {
             return FileOperationError.archiveExtractionFailed(ambiguousPassword)
         case "volumeLimitExceeded": return map(SevenZipArchiveError.volumeLimitExceeded)
         case "unsupportedMethod": return map(SevenZipArchiveError.unsupportedMethod)
-        case "corruptArchive": return map(SevenZipArchiveError.corruptArchive)
+        case "corruptArchive", "Damaged RAR archive.", "Damaged or incomplete RAR archive.":
+            return map(SevenZipArchiveError.corruptArchive)
         case "invalidEntry": return map(SevenZipArchiveError.invalidEntry)
         case "identityChanged", "Operation object changed.", "RAR part changed.": return map(OperationFilesystemError.identityChanged)
         case "cancelled", "Operation cancelled.", "Archive operation cancelled.": return FileOperationError.cancelled

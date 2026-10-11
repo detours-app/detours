@@ -159,6 +159,7 @@ extension WindowsOperationScripts {
             try { $layout = Get-WindowsArchiveLayout $path $parameters.format $parameters.password $Root $lookup.found._0 $Account }
             catch {
                 if ($_.Exception.GetBaseException().Message -eq 'RAR_PASSWORD_REQUIRED') { return @{ archivePasswordRequired = @{} } }
+                if ($parameters.format -eq 'rar') { throw $_.Exception.GetBaseException().Message }
                 throw
             }
             return @{ archiveLayout = @{ _0 = @{ found = @{ _0 = $layout } } } }

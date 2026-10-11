@@ -308,6 +308,7 @@ extension WindowsOperationScripts {
             Commit-WindowsMutation $Context $Kind
         } catch {
             $failure = $_.Exception.Message
+            if ($Context.record.intent.archiveFormat -eq 'rar') { $failure = $_.Exception.GetBaseException().Message }
             if ($Context.record.receipt.outcome -eq 'committed') { throw }
             if ($Context.record.receipt.phase -eq 'committing') {
                 Resolve-WindowsOperation $Context

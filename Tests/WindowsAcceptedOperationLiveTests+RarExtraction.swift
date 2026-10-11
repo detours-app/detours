@@ -45,9 +45,22 @@ extension WindowsAcceptedOperationLiveTests {
                 let layout = try await fixture.layout(try XCTUnwrap(parts.last), password: archive.password)
                 let identity = try await fixture.accept(layout, destination: id + "/wrong", encrypted: true)
                 let secret = "windows-rar-private-wrong-password-82917"
+                if id == "rar5-hpsw" {
+                    do {
+                        _ = try await fixture.layout(try XCTUnwrap(parts.last), password: secret)
+                        XCTFail("Wrong header password must fail before extraction")
+                    } catch {
+                        guard case PowerShellChannelError.remoteError(let message) = error else { throw error }
+                        XCTAssertEqual(message, "RAR_PASSWORD_OR_DAMAGE")
+                        XCTAssertEqual(RarExtractionDiagnostics.map(error).localizedDescription,
+                            FileOperationError.archiveExtractionFailed(RarExtractionDiagnostics.ambiguousPassword).localizedDescription)
+                    }
+                }
                 let result = try await fixture.receipt(.prepareArchive(identity: identity, password: secret))
                 XCTAssertEqual(result.outcome, .failedUnchanged)
                 XCTAssertFalse(String(describing: result).contains(secret))
+                let failure = try XCTUnwrap(result.failure)
+                XCTAssertTrue(["RAR_PASSWORD_INCORRECT", "RAR_PASSWORD_OR_DAMAGE"].contains(failure), failure)
                 try await fixture.assertMissing(id + "/wrong")
                 try await fixture.assertPrivate(secret)
             }
