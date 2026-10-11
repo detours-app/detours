@@ -2,6 +2,10 @@ import XCTest
 
 /// Operator-directed exploration. Each command is chosen after inspecting the previous screen.
 final class RarInteractiveUITests: BaseUITest {
+    private enum InteractiveError: Error {
+        case invalidCommand(String)
+    }
+
     private struct Command: Decodable {
         let action: String
         var target: String?
@@ -45,7 +49,7 @@ final class RarInteractiveUITests: BaseUITest {
             }, object: nil)
             let remaining = min(180, deadline.timeIntervalSinceNow)
             guard remaining > 0, XCTWaiter.wait(for: [arrival], timeout: remaining) == .completed else {
-                throw UITestControlError.timedOut("interactive command \(sequence)")
+                throw InteractiveError.invalidCommand("Timed out waiting for interactive command \(sequence)")
             }
             let command = try JSONDecoder().decode(Command.self, from: Data(contentsOf: commandURL))
             let detail = try execute(command)
@@ -101,7 +105,7 @@ final class RarInteractiveUITests: BaseUITest {
             return "location=\(state.displayedLocation ?? "nil") selected=\(state.selectedLocations) "
                 + "running=\(state.operationRunning) pending=\(state.operationPendingCount) "
                 + "visible=\(state.visibleLocations) connections=\(state.connectionStates)"
-        default: throw UITestControlError.timedOut("unknown interactive action: " + command.action)
+        default: throw InteractiveError.invalidCommand("Unknown interactive action: " + command.action)
         }
         return "Completed " + command.action
     }
@@ -120,13 +124,13 @@ final class RarInteractiveUITests: BaseUITest {
                 .element(boundBy: command.index ?? 0)
             return outline.outlineRow(withStaticText: try XCTUnwrap(command.target))
                 .staticTexts[try XCTUnwrap(command.target)]
-        default: throw UITestControlError.timedOut("unknown interactive element kind")
+        default: throw InteractiveError.invalidCommand("Unknown interactive element kind")
         }
         return query.matching(identifier: try XCTUnwrap(command.target)).element(boundBy: command.index ?? 0)
     }
 
-    private func modifiers(_ command: Command) -> XCUIKeyModifierFlags {
-        var flags: XCUIKeyModifierFlags = []
+    private func modifiers(_ command: Command) -> XCUIElement.KeyModifierFlags {
+        var flags: XCUIElement.KeyModifierFlags = []
         for name in command.modifiers ?? [] {
             switch name {
             case "command": flags.insert(.command)
