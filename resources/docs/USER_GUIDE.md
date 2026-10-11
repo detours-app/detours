@@ -540,9 +540,7 @@ Click a shortcut field and press your desired key combination. Click the reset b
 
 ---
 
-## Hidden Features
-
-Features that aren't immediately obvious:
+## Working with Files and Panes
 
 ### Split Pane Divider
 
