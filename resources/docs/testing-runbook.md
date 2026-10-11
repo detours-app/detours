@@ -273,6 +273,8 @@ Every Foundry GUI campaign must prove that the expected user owns an unlocked co
 
 The bridge supports visible element clicks, typing, keyboard shortcuts and menus, plus the existing guarded fixture and pane-state commands. It does not launch network clients or answer operating-system prompts. The ordinary runner sentries and cleanup stay active. Send `finish` to end the session; absence of the next command for three minutes or a session lasting 25 minutes fails the run.
 
+Before remote fixture cleanup, navigate both panes outside the owned scenario and inspect the settled listing. Windows refuses to move an ancestor of a directory with an active filesystem watcher; leaving the scenario retires that watch before the ordinary Trash cleanup.
+
 ## Failure Protocol
 
 1. Stop the first failing broad gate. Never rerun it immediately.
