@@ -6,9 +6,10 @@ extension FileOperationQueue {
     func performExtract(
         archive: URL,
         password: String?,
-        undoManager: UndoManager?
+        undoManager: UndoManager?,
+        onRarParts: (([Location]) -> Void)? = nil
     ) async throws -> URL {
-        guard let format = ArchiveFormat.detect(from: archive) else {
+        guard let format = ArchiveFormat.detect(from: archive) ?? (RarVolumeSet.isCandidate(archive.lastPathComponent) ? .rar : nil) else {
             throw FileOperationError.archiveExtractionFailed("Unsupported archive format: \(archive.pathExtension)")
         }
         if let password, !password.isEmpty {
@@ -22,6 +23,8 @@ extension FileOperationQueue {
         do {
             let result: URL
             switch format {
+            case .rar:
+                result = try await performExtractRar(archive: archive, password: password, ledger: ledger, onRarParts: onRarParts)
             case .zip:
                 result = try await performExtractZip(
                     archive: archive,
@@ -659,6 +662,8 @@ extension FileOperationQueue {
 
         do {
             switch format {
+            case .rar:
+                throw FileProviderError.unsupportedOperation("RAR extraction requires the bundled archive reader.")
             case .sevenZ:
                 try await extractSevenZip(archive: archive, destination: extractionDir)
             case .tarGz, .tarBz2, .tarXz:
@@ -736,6 +741,8 @@ extension FileOperationQueue {
         process.standardError = Pipe()
 
         switch format {
+        case .rar:
+            return []
         case .zip:
             // ZIP listing is no longer used — performExtractZip discovers filenames
             // from the filesystem after extraction. Return empty to trigger wrapper folder.
@@ -800,13 +807,13 @@ extension FileOperationQueue {
         return topLevel
     }
 
-    private enum ExtractConflictChoice {
+    enum ExtractConflictChoice {
         case replace
         case keepBoth
         case stop
     }
 
-    private func resolveExtractConflict(
+    func resolveExtractConflict(
         conflictingItems: [String],
         destination: URL
     ) async -> ExtractConflictChoice {

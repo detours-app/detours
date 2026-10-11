@@ -12,6 +12,14 @@ public enum SevenZipArchiveError: Error, Equatable {
     case nativeFailure(Int32)
     case inputFailure(Int32)
     case passwordRequired
+    case wrongPassword
+    case passwordOrCorruption
+    case corruptArchive
+    case unsupportedMethod
+    case missingVolume(String?)
+    case volumeLimitExceeded
+    case ambiguousVolumes(String)
+    case inconsistentVolumes(String)
 }
 
 public enum SevenZipArchiveWriter {

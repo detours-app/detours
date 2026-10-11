@@ -7,7 +7,16 @@ extension WindowsOperationScripts {
     \#(sevenZipInterfaces)
     \#(sevenZipStreams)
     \#(sevenZipReader)
+    \#(rarCallbacks)
+    \#(rarVolumes)
     public sealed class DetoursSevenZipLibrary : IDisposable {
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern bool GetDiskFreeSpaceExW(string path, out ulong available, out ulong total, out ulong free);
+        public static ulong AvailableBytes(string path) {
+            ulong available, total, free;
+            if (!GetDiskFreeSpaceExW(path, out available, out total, out free)) throw new Win32Exception(Marshal.GetLastWin32Error());
+            return available;
+        }
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         private static extern IntPtr LoadLibraryExW(string path, IntPtr file, uint flags);
         [DllImport("kernel32.dll", CharSet = CharSet.Ansi, SetLastError = true)]
@@ -56,6 +65,18 @@ extension WindowsOperationScripts {
             object archive;
             try { archive = Marshal.GetObjectForIUnknown(pointer); } finally { Marshal.Release(pointer); }
             return new DetoursSevenZipArchive(archive, input, cancellationPath);
+        }
+        public DetoursSevenZipArchive ReadRar(IDetoursSevenZipSeekInput input, int kind, DetoursRarOpen callback,
+            DetoursSevenZipCancellation cancellation, bool inspection) {
+            Guid format = new Guid("23170F69-40C1-278A-1000-000110" + kind.ToString("X2") + "0000");
+            Guid contract = typeof(IDetoursSevenZipReader).GUID;
+            IntPtr pointer;
+            int result = create(ref format, ref contract, out pointer);
+            if (result != 0 || pointer == IntPtr.Zero)
+                throw new IOException("RAR requires a compatible free 7-Zip installation. Download it from https://www.7-zip.org/download.html");
+            object archive;
+            try { archive = Marshal.GetObjectForIUnknown(pointer); } finally { Marshal.Release(pointer); }
+            return new DetoursSevenZipArchive(archive, input, cancellation, callback, kind, inspection);
         }
         public void Dispose() {
             if (library != IntPtr.Zero) {

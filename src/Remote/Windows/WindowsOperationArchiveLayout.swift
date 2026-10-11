@@ -2,7 +2,9 @@ import Foundation
 
 extension WindowsOperationScripts {
     static let archiveLayoutHelpers = #"""
-    function Get-WindowsArchiveLayout([string]$Path, [string]$Format, [string]$Password, [string]$Root, $Before) {
+    \#(rarHelpers)
+    function Get-WindowsArchiveLayout([string]$Path, [string]$Format, [string]$Password, [string]$Root, $Before, $Account) {
+        if ($Format -eq 'rar') { return Get-WindowsRarLayout $Path $Password $Root $Account $Before }
         if (-not [string]::IsNullOrEmpty($Password)) { throw 'Password-protected archives are not supported on Windows remote machines.' }
         if ($Before.kind -ne 'file') { throw 'Archive source is not a file.' }
         $inputStream = [DetoursOperationFiles]::OpenObservedFile($Path, $Before.identity.volume, $Before.identity.object, $Before.version)

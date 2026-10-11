@@ -8,6 +8,7 @@ final class ServerArchiveStreamTests: XCTestCase {
     func testNativeReaderListsAndExtractsOwnedStreamsAcrossFormats() throws {
         let formats: [SevenZipArchiveWriter.Format] = [.sevenZ, .zip, .tar, .gzip, .bzip2, .xz]
         for format in formats {
+            let readerFormat = try XCTUnwrap(SevenZipArchiveReader.Format(rawValue: format.rawValue))
             let passwords: [String?] = [.sevenZ, .zip].contains(format) ? [nil, "fixture password"] : [nil]
             for password in passwords {
                 let fixture = try Fixture()
@@ -22,7 +23,7 @@ final class ServerArchiveStreamTests: XCTestCase {
                 let input = try FileHandle(forReadingFrom: fixture.archive)
                 defer { try? input.close() }
                 try input.seek(toOffset: 3)
-                let listed = try SevenZipArchiveReader.read(input: input, format: format, password: password, progress: { _ in })
+                let listed = try SevenZipArchiveReader.read(input: input, format: readerFormat, password: password, progress: { _ in })
                 XCTAssertEqual(listed.count, 1)
                 XCTAssertEqual(try input.offset(), 3, "Reader must not change the borrowed input offset")
                 if [.sevenZ, .zip, .tar].contains(format) {
@@ -30,7 +31,7 @@ final class ServerArchiveStreamTests: XCTestCase {
                     XCTAssertEqual(listed.first?.size, UInt64(fixture.bytes.count))
                 }
                 let destination = fixture.root.appendingPathComponent("decoded")
-                let extracted = try SevenZipArchiveReader.read(input: input, format: format, password: password, output: { member in
+                let extracted = try SevenZipArchiveReader.read(input: input, format: readerFormat, password: password, output: { member in
                     XCTAssertEqual(member.index, 0)
                     return try SafeFileWriter.createHandle(at: destination)
                 }, progress: { _ in })
@@ -39,7 +40,7 @@ final class ServerArchiveStreamTests: XCTestCase {
                 XCTAssertEqual(try Data(contentsOf: fixture.source), fixture.bytes)
                 if password != nil {
                     let wrong = fixture.root.appendingPathComponent("wrong-password")
-                    XCTAssertThrowsError(try SevenZipArchiveReader.read(input: input, format: format, password: "wrong", output: { _ in
+                    XCTAssertThrowsError(try SevenZipArchiveReader.read(input: input, format: readerFormat, password: "wrong", output: { _ in
                         try SafeFileWriter.createHandle(at: wrong)
                     }, progress: { _ in }))
                 }

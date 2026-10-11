@@ -13,8 +13,10 @@ mkdir -p resources/Servers
 # tests that exercise the real helper run on an Apple Silicon machine, and an
 # Intel-only binary meant they were skipped there rather than run under
 # emulation, which hid real faults in the helper for as long as they were.
-swift build -c release --arch x86_64 --arch arm64 --product detours-server
-cp ".build/apple/Products/Release/detours-server" "$SERVER_BINARY"
+BUILD_ARGS=(-c release --arch x86_64 --arch arm64 --product detours-server)
+swift build "${BUILD_ARGS[@]}"
+BUILT_DIRECTORY=$(swift build "${BUILD_ARGS[@]}" --show-bin-path)
+cp "$BUILT_DIRECTORY/detours-server" "$SERVER_BINARY"
 /usr/bin/lipo -info "$SERVER_BINARY"
 chmod 0755 "$SERVER_BINARY"
 echo "$HASH" > "$SERVER_HASH_FILE"

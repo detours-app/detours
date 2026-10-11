@@ -69,6 +69,13 @@ final class RemoteHostSessionTests: XCTestCase {
     }
 
     func testIncompatibleHandshakeStopsWithoutRecovery() async throws {
+        for error in [RPCProtocolError.unexpectedMessageTag(24) as Error,
+                      RemoteFileProviderError.invalidResponse("unexpectedMessageTag(24)")] {
+            let reason = RemoteHostSession.reason(for: error)
+            XCTAssertFalse(SSHReconnectPolicy.isRetryable(reason))
+            XCTAssertEqual(reason.displayMessage,
+                "Detours and this computer's file service use incompatible versions. Update Detours, then reconnect.")
+        }
         let transport = ControlledHostTransport()
         let states = SessionStateRecorder()
         let session = RemoteHostSession(transport: transport, publish: { await states.append($0, generation: $1) })

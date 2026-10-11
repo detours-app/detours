@@ -71,6 +71,9 @@ extension FileOperationQueue {
     }
 
     func performArchive(items: [URL], format: ArchiveFormat, archiveName: String, password: String?) async throws -> URL {
+        guard format.supportsCreation else {
+            throw FileProviderError.unsupportedOperation("RAR archives can only be extracted.")
+        }
         if let password, !password.isEmpty {
             guard format.supportsPassword else {
                 throw FileOperationError.archivePasswordInvalid("\(format.displayName) does not support passwords")
@@ -114,6 +117,8 @@ extension FileOperationQueue {
             try await runTar(items: items, destination: archiveURL, flag: "j", sourceSize: sourceSize)
         case .tarXz:
             try await runTar(items: items, destination: archiveURL, flag: "J", sourceSize: sourceSize)
+        case .rar:
+            throw FileProviderError.unsupportedOperation("RAR archives can only be extracted.")
         }
 
         updateProgress(operation: operation, currentItem: archiveURL, completed: items.count, total: items.count)

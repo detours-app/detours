@@ -17,7 +17,7 @@ final class AcceptedArchiveCallerTests: XCTestCase {
     }
 
     func testPublicArchiveCreationPreservesAllFormatsAndSelectedContents() async throws {
-        for format in ArchiveFormat.allCases { try await run(format: format) }
+        for format in ArchiveFormat.writableFormats { try await run(format: format) }
     }
 
     func testPublicEncryptedArchiveKeepsPasswordOutOfSavedIntent() async throws {

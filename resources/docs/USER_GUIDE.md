@@ -231,7 +231,7 @@ Excel **.xlsx** previews show the first non-hidden worksheet, or the first sheet
 
 ### Archives
 
-Create, extract and password-protect archives directly from the file list, without switching to a separate archive app. Detours supports **ZIP, 7Z, TAR.GZ, TAR.BZ2 and TAR.XZ**. RAR is not currently supported.
+Create and extract **ZIP, 7Z, TAR.GZ, TAR.BZ2 and TAR.XZ** directly from the file list. Detours also extracts **RAR4 and RAR5**, including solid, password-protected and split archives. RAR is extraction-only; it is not offered in the Archive dialog.
 
 | Action | Shortcut |
 | ------ | -------- |
@@ -250,19 +250,31 @@ Create, extract and password-protect archives directly from the file list, witho
 **Extracting archives:**
 
 - Select an archive, then File > Extract Here (or right-click > Extract Here, or double-click)
-- ZIP and 7Z archives ask for a password when needed. An incorrect password opens another prompt and leaves no partial extracted items.
+- ZIP, 7Z and RAR archives ask for a password when needed. A confirmed incorrect password opens another prompt and leaves no partial extracted items.
 - ZIP passwords longer than 80 UTF-8 bytes remain in the prompt with a validation message and do not start extraction.
 - Conflict dialog when extracting over existing items (Skip/Replace/Keep Both)
 
-Archive and Extract Here work locally and on supported remote hosts. Password-protected ZIP and 7Z work locally and through the bundled helper on supported macOS and Linux hosts. Windows remote hosts support unencrypted archives only and can always create and extract unencrypted ZIP archives through the built-in PowerShell backend. Available formats otherwise depend on the tools installed on the Mac or remote host.
+Archive and Extract Here work locally and on supported remote hosts. Password-protected ZIP and 7Z work locally and through the bundled helper on supported macOS and Linux hosts. Windows remote hosts support password-protected RAR extraction, but not password-protected ZIP or 7Z. Windows can always create and extract unencrypted ZIP through its built-in PowerShell backend. Other formats depend on installed tools, except RAR extraction on the Mac and macOS/Linux helper hosts, which is built in.
+
+### Extracting RAR archives
+
+Open a RAR file by double-clicking it or choosing **Extract Here**. RAR4 and RAR5 support includes ordinary and solid archives, encrypted contents and concealed filenames. Enter the password when asked. RAR passwords do not have the ZIP password length limit.
+
+For split archives, keep every part in the same folder. Detours recognizes numbered names such as `photos.part1.rar`, `photos.part2.rar`, and the older `photos.rar`, `photos.r00`, `photos.r01` scheme. Open any recognized part to extract the complete set. Selecting several parts and choosing Extract Here still extracts the set only once. The limit is **1,024 parts per archive**.
+
+If a part is missing, the message names it when possible and asks you to put every part together. A damaged archive is reported separately from a confirmed wrong password. When encrypted data cannot distinguish a wrong password from damage, the message explains both possibilities; check the password and obtain a complete archive before trying again.
+
+Extraction uses the usual progress, conflict handling and result selection. **Cmd-Z** undoes the extraction. Missing, changed or unsafe parts do not publish a partial result.
+
+No separate RAR tool is needed on your Mac or supported remote macOS/Linux hosts. On a Windows host, install compatible **free [7-Zip](https://www.7-zip.org/download.html)** with its included `7z.dll`; no paid RAR software is needed. If Detours reports that the installation cannot read RAR or safely identify Unix file types, update 7-Zip on that Windows host and try again. The Windows RAR checks passed with 7-Zip 26.02.
 
 ### Encryption: which format to choose
 
 **Choose 7Z for stronger encryption on your Mac.** It uses AES-256 and encrypts the archive headers, hiding filenames as well as file contents. Local 7Z operations require an installed 7-Zip command-line tool.
 
-**Local ZIP password protection is not AES-256.** It uses the legacy encryption supplied by macOS's `zip` tool. Do not treat it as equivalent to encrypted 7Z. ZIP archives created by the helper on supported remote macOS and Linux hosts use AES-256 instead; ZIP filenames remain visible. Windows remote hosts do not support password-protected archives.
+**Local ZIP password protection is not AES-256.** It uses the legacy encryption supplied by macOS's `zip` tool. Do not treat it as equivalent to encrypted 7Z. ZIP archives created by the helper on supported remote macOS and Linux hosts use AES-256 instead; ZIP filenames remain visible. Windows remote hosts support password-protected RAR extraction only.
 
-Local command-line archive tools receive passwords through their terminal prompts, not command-line arguments. Remote helper archives receive passwords through the SSH request and use the bundled archive library. The password is not included in archive progress text.
+Local command-line archive tools receive passwords through their terminal prompts, not command-line arguments. Remote helper archives receive passwords through the SSH request and use the bundled archive library. RAR extraction passes passwords directly to the reader, including the installed Windows reader. Passwords are not saved in operation records or included in progress text or diagnostics.
 
 ### Share
 
@@ -362,7 +374,7 @@ Current remote exceptions:
 - Reveal in Finder and Share are local-only because Finder and macOS sharing services need local files. Use drag-out or Open With when you need a local materialized copy.
 - Delete Immediately permanently removes remote items after the same explicit,
   non-recoverable confirmation used for local items.
-- Windows remote hosts do not support password-protected archives. Supported macOS and Linux helper hosts support password-protected ZIP and 7Z without placing passwords in process arguments.
+- Windows remote hosts support password-protected RAR extraction with compatible free 7-Zip installed; password-protected ZIP and 7Z remain unsupported there. Supported macOS and Linux helper hosts support password-protected ZIP, 7Z and RAR without placing passwords in process arguments.
 - Helper deployment accepts only x86_64 Linux and Intel macOS. Apple Silicon macOS, ARM Linux, BSD, and embedded sshd remotes are unsupported.
 
 Large transfers use a second SSH channel so listings, git status, Quick Open search, and watch events can continue on the metadata channel. A transfer the host refuses fails with the host's own message and leaves nothing at the destination. Remote git status runs after the directory listing completes; a slow repository should not block the list refresh.
@@ -528,9 +540,7 @@ Click a shortcut field and press your desired key combination. Click the reset b
 
 ---
 
-## Hidden Features
-
-Features that aren't immediately obvious:
+## Working with Files and Panes
 
 ### Split Pane Divider
 

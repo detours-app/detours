@@ -1,0 +1,136 @@
+"""Test seeking on files.
+"""
+
+import io
+
+import pytest
+
+import rarfile
+
+ARC = "test/files/seektest.rar"
+
+_WHENCE = 0
+
+
+def do_seek(f: rarfile.FileLike, pos: int, lim: int, size: int | None = None) -> None:
+    global _WHENCE
+    ofs = pos * 4
+    fsize = lim * 4
+
+    if ofs < 0:
+        exp = 0
+    elif ofs > fsize:
+        exp = fsize
+    else:
+        exp = ofs
+
+    if size:
+        cur = f.tell()
+        if _WHENCE == 0:
+            f.seek(ofs, _WHENCE)
+        elif _WHENCE == 1:
+            f.seek(ofs - cur, _WHENCE)
+        else:
+            assert _WHENCE == 2
+            f.seek(ofs - size, _WHENCE)
+        _WHENCE = (_WHENCE + 1) % 3
+    else:
+        f.seek(ofs)
+
+    got = f.tell()
+
+    assert got == exp
+    ln = f.read(4)
+    if got == fsize and ln:
+        raise ValueError("unexpected read")
+    if not ln and got < fsize:
+        raise ValueError("unexpected read failure")
+    if ln:
+        spos = int(ln)
+        assert spos * 4 == got
+
+
+def run_seek(rf: rarfile.RarFile, fn: str) -> None:
+    inf = rf.getinfo(fn)
+    assert inf.file_size is not None
+    cnt = int(inf.file_size / 4)
+    f = rf.open(fn)
+
+    with pytest.raises(ValueError):
+        f.seek(0, -1)
+    with pytest.raises(ValueError):
+        f.seek(0, 3)
+
+    do_seek(f, int(cnt / 2), cnt)
+    do_seek(f, 0, cnt)
+
+    for i in range(int(cnt / 2)):
+        do_seek(f, i * 2, cnt, inf.file_size)
+
+    for i in range(cnt):
+        do_seek(f, i * 2 - int(cnt / 2), cnt, inf.file_size)
+
+    for i in range(cnt + 10):
+        do_seek(f, cnt - i - 5, cnt, inf.file_size)
+
+    f.close()
+
+
+def run_arc(arc: str | rarfile.FileLike, desc: str) -> None:
+    files = ["stest1.txt", "stest2.txt"]
+    rf = rarfile.RarFile(arc)
+    for fn in files:
+        run_seek(rf, fn)
+
+
+def test_seek_filename() -> None:
+    run_arc(ARC, "fn")
+
+
+def test_seek_bytesio() -> None:
+    # filelike: io.BytesIO, io.open()
+    with open(ARC, "rb") as f:
+        data = f.read()
+    run_arc(io.BytesIO(data), "io.BytesIO")
+
+
+def test_seek_open() -> None:
+    # filelike: file()
+    with open(ARC, "rb") as f:
+        run_arc(f, "open")
+
+
+def test_seek_ioopen() -> None:
+    # filelike: io.open()
+    with io.open(ARC, "rb") as f:
+        run_arc(f, "io.open")
+
+
+def run_seek_middle(fn: str, entry: str) -> None:
+    rar = rarfile.RarFile(fn)
+    file = rar.open(entry)
+    assert file.read(1) == b"0"
+    assert file.read(1) == b"0"
+    assert file.read(1) == b"0"
+    assert file.read(1) == b"\n"
+    file.read()
+
+    file.seek(0)
+    assert file.read(1) == b"0"
+    assert file.read(1) == b"0"
+    assert file.read(1) == b"0"
+    assert file.read(1) == b"\n"
+    file.read()
+
+    file.seek(2)
+    assert file.read(1) == b"0"
+    assert file.read(1) == b"\n"
+    file.read()
+
+
+def test_seek_middle1() -> None:
+    run_seek_middle("test/files/seektest.rar", "stest1.txt")
+
+
+def test_seek_middle2() -> None:
+    run_seek_middle("test/files/seektest.rar", "stest2.txt")

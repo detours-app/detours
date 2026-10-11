@@ -10,24 +10,27 @@ extension ServerOperationService {
         let accepted = try journal.read(identity.id)
         if let receipt = accepted.receipt, [.readyToCommit, .committed, .terminal].contains(receipt.phase) { return receipt }
         guard accepted.receipt == nil, let intent = accepted.intent, intent.action == .archiveExtract,
-              intent.sources.count == 1, intent.sourceObservations.count == 1, let destination = intent.destination else {
+              !intent.sources.isEmpty, intent.sources.count == intent.sourceObservations.count,
+              intent.archiveFormat == "rar" || intent.sources.count == 1, let destination = intent.destination else {
             throw OperationContractError.invalidReceipt
         }
         var preparation: ServerPayloadPreparation?
         do {
-            let format: SevenZipArchiveWriter.Format
+            let format: SevenZipArchiveReader.Format
             switch intent.archiveFormat {
             case ServerArchiveFormat.sevenZ.rawValue: format = .sevenZ
             case ServerArchiveFormat.zip.rawValue: format = .zip
             case ServerArchiveFormat.tarGz.rawValue: format = .gzip
             case ServerArchiveFormat.tarBz2.rawValue: format = .bzip2
             case ServerArchiveFormat.tarXz.rawValue: format = .xz
+            case "rar": format = .rar
             default: throw OperationFilesystemError.unsupported
             }
             guard let encrypted = intent.archiveEncrypted, encrypted == (password?.isEmpty == false), password?.contains("\0") != true else {
                 throw OperationContractError.intentMismatch
             }
             try requirePreparationDestination(intent)
+            let rarVolumes = try acceptedRarVolumes(intent, identity: identity, ownership: ownership, password: password)
             let source = try await treeCopyManifest(intent.sources[0], identity: identity, ownership: ownership, measuredBefore: 0)
             guard let observed = source.entries.first?.observation, observed.kind == .file,
                   observed.identity == intent.sourceObservations[0].identity, observed.version == intent.sourceObservations[0].version,
@@ -38,7 +41,8 @@ extension ServerOperationService {
             let allocated = try await allocatePreparation(identity, target: resolve(destination).directory, ownership: ownership)
             preparation = allocated
             var reader = ServerArchiveExtractionReader(service: self, identity: identity, ownership: ownership,
-                                                       input: .init(location: intent.sources[0], observation: observed), format: format, password: password)
+                                                       input: .init(location: intent.sources[0], observation: observed), format: format,
+                                                       password: password, rarVolumes: rarVolumes)
             var measured = source.proof.byteCount
             var intermediate: OperationManifest?
             if [.gzip, .bzip2, .xz].contains(format) {
@@ -50,7 +54,10 @@ extension ServerOperationService {
             }
             let listed = try await reader.read(measuredBefore: measured)
             measured = listed.measured
-            let plan = try ServerArchiveExtractionPlan(listed.members)
+            let plan: ServerArchiveExtractionPlan
+            if rarVolumes != nil {
+                plan = try await rarExtractionPlan(listed.members, preparation: allocated, identity: identity, ownership: ownership)
+            } else { plan = try ServerArchiveExtractionPlan(listed.members) }
             try await allocateExtractionMembers(plan, preparation: allocated, identity: identity, ownership: ownership)
             let extracted = try await reader.read(measuredBefore: measured, output: { member in
                 guard plan.members.indices.contains(Int(member.index)), plan.members[Int(member.index)] == member,
@@ -69,6 +76,11 @@ extension ServerOperationService {
                 measured = try extractionMeasured(measured, adding: current.proof.byteCount)
             }
             let finalSource = try await treeCopyManifest(intent.sources[0], identity: identity, ownership: ownership, measuredBefore: measured)
+            if let rarVolumes {
+                let progress = ServerArchiveProgress(service: self, identity: identity, ownership: ownership, measuredBefore: measured)
+                try rarVolumes.validate(progress: { try progress.report($0) })
+                measured = progress.measured
+            }
             guard finalSource == source, let root = payload.entries.first?.observation,
                   intent.payloadProof == nil || intent.payloadProof == payload.proof else { throw OperationFilesystemError.identityChanged }
             measured = try extractionMeasured(measured, adding: finalSource.proof.byteCount)
@@ -100,5 +112,41 @@ extension ServerOperationService {
         let (total, overflow) = before.addingReportingOverflow(bytes)
         guard !overflow else { throw OperationFilesystemError.unsupported }
         return total
+    }
+
+    private func acceptedRarVolumes(_ intent: OperationIntent, identity: OperationRequestIdentity,
+                                    ownership: OperationJournal.Ownership, password: String?) throws -> RarVolumeSet? {
+        guard intent.archiveFormat == "rar" else { return nil }
+        try intent.validateRarSources()
+        let first = try resolve(intent.sources[0])
+        let parts = try zip(intent.sources, intent.sourceObservations).map { location, observation in
+            let source = try resolve(location)
+            guard source.directory.identity == first.directory.identity,
+                  let name = String(data: source.name, encoding: .utf8) else { throw OperationFilesystemError.invalidPath }
+            return RarVolumeSet.Part(name: name, observation: observation)
+        }
+        let progress = ServerArchiveProgress(service: self, identity: identity, ownership: ownership, measuredBefore: 0)
+        return try RarVolumeSet.accepted(directory: first.directory, parts: parts, password: password,
+                                         progress: { try progress.report($0) })
+    }
+
+    private func rarExtractionPlan(_ members: [SevenZipArchiveReader.Member], preparation: ServerPayloadPreparation,
+                                   identity: OperationRequestIdentity, ownership: OperationJournal.Ownership) async throws -> ServerArchiveExtractionPlan {
+        try await createArchiveOutput(preparation, name: Data("archive-case-check".utf8), identity: identity, ownership: ownership).close()
+        let caseSensitive: Bool
+        switch try preparation.workspace.directory.lookup(Data("ARCHIVE-CASE-CHECK".utf8)) {
+        case .missing: caseSensitive = true
+        case .found: caseSensitive = false
+        case .denied, .disconnected, .unsupported: throw OperationFilesystemError.unsupported
+        }
+        let plan = try RarExtractionPlan(members, caseSensitive: caseSensitive)
+        guard let path = String(data: preparation.workspace.directory.path, encoding: .utf8) else {
+            throw OperationFilesystemError.invalidPath
+        }
+        let attributes = try FileManager.default.attributesOfFileSystem(forPath: path)
+        if let available = attributes[.systemFreeSize] as? NSNumber, plan.byteCount > available.uint64Value {
+            throw POSIXError(.ENOSPC)
+        }
+        return ServerArchiveExtractionPlan(rar: plan)
     }
 }

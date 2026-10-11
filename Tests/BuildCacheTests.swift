@@ -27,6 +27,12 @@ final class BuildCacheTests: XCTestCase {
         XCTAssertTrue(script.contains("BUILT_DIRECTORY=$(swift build \"${BUILD_ARGS[@]}\" --show-bin-path)"))
         XCTAssertTrue(script.contains("BUILT_BINARY=\"$BUILT_DIRECTORY/Detours\""))
         XCTAssertFalse(script.contains("BUILT_BINARY=\".build/"))
+        let helper = try String(contentsOfFile: "resources/scripts/build-server-darwin.sh", encoding: .utf8)
+        XCTAssertTrue(helper.contains("BUILT_DIRECTORY=$(swift build \"${BUILD_ARGS[@]}\" --show-bin-path)"))
+        XCTAssertTrue(helper.contains("cp \"$BUILT_DIRECTORY/detours-server\" \"$SERVER_BINARY\""))
+        XCTAssertFalse(helper.contains(".build/apple/Products/Release"))
+        let cache = try String(contentsOfFile: "resources/scripts/server-cache-hash.sh", encoding: .utf8)
+        XCTAssertTrue(cache.contains("shasum -a 256 resources/scripts/build-server-darwin.sh"))
     }
 
     func testHashTriggersRebuildWhenSourceChanges() throws {

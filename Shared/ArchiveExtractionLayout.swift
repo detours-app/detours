@@ -6,7 +6,7 @@ import Glibc
 #endif
 
 public enum ArchiveExtractionLayout {
-    public static func singleRoot(input: FileHandle, format: SevenZipArchiveWriter.Format, password: String?,
+    public static func singleRoot(input: FileHandle, format: SevenZipArchiveReader.Format, password: String?,
                                   progress: @escaping @Sendable (UInt64) throws -> Void) throws -> String? {
         let members: [SevenZipArchiveReader.Member]
         if [.gzip, .bzip2, .xz].contains(format) {
@@ -31,6 +31,10 @@ public enum ArchiveExtractionLayout {
         } else {
             members = try SevenZipArchiveReader.read(input: input, format: format, password: password, progress: progress)
         }
+        return try singleRoot(members: members, password: password)
+    }
+
+    public static func singleRoot(members: [SevenZipArchiveReader.Member], password: String?) throws -> String? {
         var roots: Set<String> = []
         if members.contains(where: \.encrypted), password?.isEmpty != false { throw SevenZipArchiveError.passwordRequired }
         for member in members {

@@ -267,6 +267,14 @@ Blocking GUI work receives an absolute layer deadline. The runner removes the sc
 
 Every Foundry GUI campaign must prove that the expected user owns an unlocked console before reset, build, fixture creation, or XCUI launch. The campaign holds display-idle and user-active assertions for its process lifetime so a long in-process layer cannot leave the subsequent XCUI layer behind a lock screen. A locked console is an environment-preflight failure, never an XCUI retry.
 
+## Operator-directed RAR exploration
+
+`RarInteractiveUITests/testInteractiveSession` is an opt-in interactive bridge, selected through guarded `installed-smoke archive` with a run ID beginning `rar-manual-`. It accepts one numbered `manual-N.json` command at a time in the runner's existing control directory. Each action saves a screenshot, accessibility tree and completion record there, with screenshots also retained in XCResult. The operator inspects each result before choosing the next UI action. This is exploratory evidence, not an automated RAR correctness assertion.
+
+The bridge supports visible element clicks, typing, keyboard shortcuts and menus, plus the existing guarded fixture and pane-state commands. It does not launch network clients or answer operating-system prompts. The ordinary runner sentries and cleanup stay active. Send `finish` to end the session; absence of the next command for three minutes or a session lasting 25 minutes fails the run.
+
+Before remote fixture cleanup, navigate both panes outside the owned scenario and inspect the settled listing. Windows refuses to move an ancestor of a directory with an active filesystem watcher. Leaving the scenario retires the current watch, but an interrupted installed-app session can leave an older watcher alive. Identify its Detours command and exact process start time before retiring a task-owned orphan; never kill unrelated PowerShell processes. Then retry ordinary Trash cleanup and compare the home listing with its baseline.
+
 ## Failure Protocol
 
 1. Stop the first failing broad gate. Never rerun it immediately.

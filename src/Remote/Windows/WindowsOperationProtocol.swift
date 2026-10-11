@@ -136,7 +136,7 @@ extension WindowsOperationScripts {
         if ($kind -eq 'handshake') {
             if ($parameters.version -ne 2) { return @{ incompatible = @{ _0 = @{ protocolVersion = @{ expected = 2; actual = $parameters.version } } } } }
             if ($parameters.schemaVersion -ne 1) { return @{ incompatible = @{ _0 = @{ journalSchema = @{ expected = 1; actual = $parameters.schemaVersion } } } } }
-            $capabilities = @('receipts', 'status', 'cancellation', 'ownedTemporaryObjects', 'nonReplacingCommit', 'sourceProof', 'sourceManifest', 'treeImport', 'archiveLayout')
+            $capabilities = @('receipts', 'status', 'cancellation', 'ownedTemporaryObjects', 'nonReplacingCommit', 'sourceProof', 'sourceManifest', 'treeImport', 'archiveLayout', 'rarExtraction')
             $missing = @($parameters.requiredCapabilities | Where-Object { $_ -notin $capabilities })
             if ($missing.Count -gt 0) { return @{ incompatible = @{ _0 = @{ missingCapabilities = @{ _0 = $missing } } } } }
             return @{ handshake = @{ _0 = @{ version = 2; schemaVersion = 1; capabilities = $capabilities; account = $Account; epoch = $epoch } } }
@@ -156,7 +156,12 @@ extension WindowsOperationScripts {
             $path = Get-OperationPath $parameters.location $Account
             $lookup = Get-WindowsOperationLookup $path $true
             if (-not $lookup.ContainsKey('found')) { return @{ archiveLayout = @{ _0 = $lookup } } }
-            $layout = Get-WindowsArchiveLayout $path $parameters.format $parameters.password $Root $lookup.found._0
+            try { $layout = Get-WindowsArchiveLayout $path $parameters.format $parameters.password $Root $lookup.found._0 $Account }
+            catch {
+                if ($_.Exception.GetBaseException().Message -eq 'RAR_PASSWORD_REQUIRED') { return @{ archivePasswordRequired = @{} } }
+                if ($parameters.format -eq 'rar') { throw $_.Exception.GetBaseException().Message }
+                throw
+            }
             return @{ archiveLayout = @{ _0 = @{ found = @{ _0 = $layout } } } }
         }
         $identity = if ($null -ne $parameters.identity) { $parameters.identity } else { $parameters._0 }
@@ -193,6 +198,10 @@ extension WindowsOperationScripts {
                 finally { $hash.Dispose() }
                 if ($digest -cne $identity.intentDigest) { throw 'Operation intent digest mismatch.' }
                 $intent = [System.Text.Encoding]::UTF8.GetString($bytes) | ConvertFrom-Json
+                if ($intent.action -eq 'archiveCreate' -and $intent.archiveFormat -in @('rar', 'rar5')) {
+                    throw 'RAR archives can only be extracted.'
+                }
+                Assert-WindowsRarSources $intent $Account
                 if ((Get-OperationKey $intent.id) -cne $key) { throw 'Operation item identity mismatch.' }
                 if ($intent.action -notin @('copy', 'editorUpload', 'rename', 'move', 'createFolder', 'trash', 'restore', 'archiveCreate', 'archiveExtract', 'permanentDelete')) {
                     throw 'This Windows operation action is not implemented.'

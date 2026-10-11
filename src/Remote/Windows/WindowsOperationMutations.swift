@@ -50,7 +50,7 @@ extension WindowsOperationScripts {
     }
     function New-WindowsWorkspace($Context, [string]$Destination) {
         Assert-WindowsOperationActive $Context
-        $name = '.detours-partial-' + (Get-OperationKey $Context.identity.id) + '-' + [guid]::NewGuid().ToString('D')
+        $name = '.detours-partial-' + [guid]::NewGuid().ToString('N')
         $path = Join-Path ([System.IO.Path]::GetDirectoryName($Destination)) $name
         $location = Get-WindowsOperationLocation $path $Context.account
         $receipt = New-WindowsReceipt $Context 'preparing' 'running'
@@ -226,11 +226,13 @@ extension WindowsOperationScripts {
             Assert-WindowsObservation $observed $intent.sourceObservations[0]
             $payload = @{ location = $intent.sources[0]; observation = $observed }
         } elseif ($intent.action -ne 'createFolder' -or @($intent.sources).Count -ne 0) { throw 'Unsupported accepted native operation.' }
+        Assert-WindowsRarSources $intent $Context.account
         $commit = Lock-OperationFile (Join-Path $Context.root 'commit.lock') (Join-Path $Context.root ((Get-OperationKey $Context.identity.id) + '.cancel'))
         try {
             Assert-WindowsOperationActive $Context
             if (-not $Replacing) { $destination = Assert-WindowsDestination $Context }
             elseif (-not (Get-WindowsOperationLookup $destination).ContainsKey('missing')) { throw 'Replacement destination was occupied.' }
+            Assert-WindowsRarSources $intent $Context.account -MetadataOnly
             $receipt = New-WindowsReceipt $Context 'committing' 'running'
             $receipt.preparedPayload = $payload
             $receipt.plannedPaths = @($intent.destination)
@@ -306,6 +308,7 @@ extension WindowsOperationScripts {
             Commit-WindowsMutation $Context $Kind
         } catch {
             $failure = $_.Exception.Message
+            if ($Context.record.intent.archiveFormat -eq 'rar') { $failure = $_.Exception.GetBaseException().Message }
             if ($Context.record.receipt.outcome -eq 'committed') { throw }
             if ($Context.record.receipt.phase -eq 'committing') {
                 Resolve-WindowsOperation $Context

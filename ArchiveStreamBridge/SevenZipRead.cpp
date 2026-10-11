@@ -10,6 +10,8 @@
 #include <cstring>
 #include <limits>
 #include <mutex>
+#include <set>
+#include <string>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -22,6 +24,11 @@ struct ReaderState {
     detours_archive_progress callback;
     void *context;
     const char *password;
+    const char *inputName;
+    detours_archive_volume volume;
+    bool rar;
+    int32_t failure = 0;
+    std::set<std::string> volumeNames;
     uint64_t bytes = 0;
     std::atomic<bool> passwordRequested{false};
     std::atomic<bool> passwordRejected{false};
@@ -36,8 +43,10 @@ struct ReaderState {
         passwordRequested = true;
         *value = nullptr;
         if (!password) { passwordRejected = true; return E_ABORT; }
-        UString decoded;
-        if (!ConvertUTF8ToUnicode(AString(password), decoded)) return E_INVALIDARG;
+        AString_Wipe encoded;
+        encoded += password;
+        UString_Wipe decoded;
+        if (!ConvertUTF8ToUnicode(encoded, decoded)) return E_INVALIDARG;
         *value = SysAllocString(decoded);
         return *value ? S_OK : E_OUTOFMEMORY;
     }
@@ -54,8 +63,11 @@ class Input final : public IInStream, public CMyUnknownImp {
     uint64_t length;
     uint64_t offset = 0;
     ReaderState &state;
+    std::string volumeName;
 public:
     Input(int file, uint64_t size, ReaderState &reader): descriptor(file), length(size), state(reader) {}
+    Input(std::string name, uint64_t size, ReaderState &reader):
+        descriptor(-1), length(size), state(reader), volumeName(std::move(name)) {}
 };
 Z7_COM7F_IMF(Input::Read(void *data, UInt32 size, UInt32 *processed)) {
     if (processed) *processed = 0;
@@ -63,8 +75,17 @@ Z7_COM7F_IMF(Input::Read(void *data, UInt32 size, UInt32 *processed)) {
     if (offset >= length) return S_OK;
     size = static_cast<UInt32>(std::min<uint64_t>(std::min<UInt32>(size, 65536), length - offset));
     if (!size) return S_OK;
+    int source = descriptor;
+    if (!volumeName.empty()) {
+        source = state.volume(state.context, volumeName.c_str());
+        if (source < 0) return E_ABORT;
+        struct stat info;
+        if (fstat(source, &info) != 0 || !S_ISREG(info.st_mode) || info.st_size < 0 ||
+            static_cast<uint64_t>(info.st_size) != length) { close(source); return E_FAIL; }
+    }
     ssize_t count;
-    do { count = pread(descriptor, data, size, static_cast<off_t>(offset)); } while (count < 0 && errno == EINTR);
+    do { count = pread(source, data, size, static_cast<off_t>(offset)); } while (count < 0 && errno == EINTR);
+    if (!volumeName.empty()) close(source);
     if (count <= 0) return E_FAIL;
     offset += static_cast<uint64_t>(count);
     if (processed) *processed = static_cast<UInt32>(count);
@@ -88,13 +109,16 @@ Z7_COM7F_IMF(Input::Seek(Int64 distance, UInt32 origin, UInt64 *position)) {
     return state.report();
 }
 
-class Open final : public IArchiveOpenCallback, public ICryptoGetTextPassword, public CMyUnknownImp {
+class Open final : public IArchiveOpenCallback, public ICryptoGetTextPassword,
+                   public IArchiveOpenVolumeCallback, public CMyUnknownImp {
     Z7_COM_QI_BEGIN2(IArchiveOpenCallback)
     Z7_COM_QI_ENTRY(ICryptoGetTextPassword)
+    Z7_COM_QI_ENTRY(IArchiveOpenVolumeCallback)
     Z7_COM_QI_END
     Z7_COM_ADDREF_RELEASE
     Z7_IFACE_COM7_IMP(IArchiveOpenCallback)
     Z7_IFACE_COM7_IMP(ICryptoGetTextPassword)
+    Z7_IFACE_COM7_IMP(IArchiveOpenVolumeCallback)
     ReaderState &state;
 public:
     explicit Open(ReaderState &reader): state(reader) {}
@@ -102,6 +126,36 @@ public:
 Z7_COM7F_IMF(Open::SetTotal(const UInt64 *, const UInt64 *)) { return state.report(); }
 Z7_COM7F_IMF(Open::SetCompleted(const UInt64 *, const UInt64 *)) { return state.report(); }
 Z7_COM7F_IMF(Open::CryptoGetTextPassword(BSTR *value)) { return state.secret(value); }
+Z7_COM7F_IMF(Open::GetProperty(PROPID property, PROPVARIANT *value)) {
+    NWindows::NCOM::CPropVariant result;
+    if (property == kpidName && state.inputName) {
+        UString name;
+        if (!ConvertUTF8ToUnicode(AString(state.inputName), name)) return E_INVALIDARG;
+        result = name;
+    }
+    result.Detach(value);
+    return S_OK;
+}
+Z7_COM7F_IMF(Open::GetStream(const wchar_t *name, IInStream **stream)) {
+    *stream = nullptr;
+    RINOK(state.report())
+    if (!state.rar || !name || !*name || wcschr(name, L'/') || wcschr(name, L'\\') ||
+        wcschr(name, L':') || wcscmp(name, L".") == 0 || wcscmp(name, L"..") == 0) return E_INVALIDARG;
+    AString encoded;
+    ConvertUnicodeToUTF8(UString(name), encoded);
+    state.volumeNames.insert(encoded.Ptr());
+    if (state.volumeNames.size() > 1024) { state.failure = -1007; return E_ABORT; }
+    if (!state.volume) { state.failure = -1006; return S_FALSE; }
+    const int descriptor = state.volume(state.context, encoded.Ptr());
+    if (descriptor < 0) { state.failure = -1006; return E_ABORT; }
+    struct stat info;
+    const bool valid = fstat(descriptor, &info) == 0 && S_ISREG(info.st_mode) && info.st_size >= 0;
+    close(descriptor);
+    if (!valid) return E_INVALIDARG;
+    CMyComPtr<IInStream> input = new Input(encoded.Ptr(), static_cast<uint64_t>(info.st_size), state);
+    *stream = input.Detach();
+    return S_OK;
+}
 
 class Output final : public ISequentialOutStream, public CMyUnknownImp {
     Z7_COM_QI_BEGIN2(ISequentialOutStream)
@@ -110,14 +164,21 @@ class Output final : public ISequentialOutStream, public CMyUnknownImp {
     Z7_IFACE_COM7_IMP(ISequentialOutStream)
     int descriptor;
     uint64_t offset = 0;
+    uint64_t length;
+    bool bounded;
     ReaderState &state;
 public:
-    Output(int file, ReaderState &reader): descriptor(file), state(reader) {}
+    Output(int file, ReaderState &reader, uint64_t size, bool hasSize):
+        descriptor(file), length(size), bounded(hasSize), state(reader) {}
     ~Output() { close(descriptor); }
-    HRESULT flush() { return fsync(descriptor) == 0 ? S_OK : E_FAIL; }
+    HRESULT flush() {
+        if (bounded && offset != length) return E_FAIL;
+        return fsync(descriptor) == 0 ? S_OK : E_FAIL;
+    }
 };
 Z7_COM7F_IMF(Output::Write(const void *data, UInt32 size, UInt32 *processed)) {
     if (processed) *processed = 0;
+    if (bounded && (offset > length || size > length - offset)) return E_FAIL;
     UInt32 total = 0;
     while (total < size) {
         RINOK(state.report())
@@ -159,6 +220,12 @@ Z7_COM7F_IMF(Extract::SetCompleted(const UInt64 *)) { return state.report(); }
 Z7_COM7F_IMF(Extract::PrepareOperation(Int32)) { return state.report(); }
 Z7_COM7F_IMF(Extract::CryptoGetTextPassword(BSTR *value)) { return state.secret(value); }
 Z7_COM7F_IMF(Extract::SetOperationResult(Int32 result)) {
+    if (state.rar && result != NArchive::NExtract::NOperationResult::kOK) {
+        if (result == NArchive::NExtract::NOperationResult::kWrongPassword) state.failure = -1002;
+        else if (result == NArchive::NExtract::NOperationResult::kUnsupportedMethod) state.failure = -1005;
+        else state.failure = state.passwordRequested ? -1003 : -1004;
+        return E_FAIL;
+    }
     if (state.passwordRequested && (result == NArchive::NExtract::NOperationResult::kWrongPassword ||
         result == NArchive::NExtract::NOperationResult::kDataError || result == NArchive::NExtract::NOperationResult::kCRCError)) {
         state.passwordRejected = true;
@@ -178,6 +245,12 @@ Z7_COM7F_IMF(Extract::GetStream(UInt32 index, ISequentialOutStream **stream, Int
     NWindows::NCOM::CPropVariant directory;
     RINOK(archive->GetProperty(index, kpidIsDir, &directory))
     if (directory.vt == VT_BOOL && directory.boolVal != VARIANT_FALSE) return S_OK;
+    if (state.rar) {
+        NWindows::NCOM::CPropVariant hardLink;
+        RINOK(archive->GetProperty(index, kpidHardLink, &hardLink))
+        // Hard links have no decoded stream; the validated plan links their verified target.
+        if (hardLink.vt == VT_BSTR && SysStringLen(hardLink.bstrVal) != 0) return S_OK;
+    }
     const int descriptor = output(state.context, index);
     if (descriptor < 0) return E_ABORT;
     struct stat information;
@@ -186,7 +259,13 @@ Z7_COM7F_IMF(Extract::GetStream(UInt32 index, ISequentialOutStream **stream, Int
         close(descriptor);
         return E_INVALIDARG;
     }
-    currentOutput = new Output(descriptor, state);
+    NWindows::NCOM::CPropVariant size;
+    const HRESULT readSize = archive->GetProperty(index, kpidSize, &size);
+    if (readSize != S_OK || (size.vt == VT_UI8 && size.uhVal.QuadPart > static_cast<uint64_t>(std::numeric_limits<off_t>::max()))) {
+        close(descriptor);
+        return E_INVALIDARG;
+    }
+    currentOutput = new Output(descriptor, state, size.vt == VT_UI8 ? size.uhVal.QuadPart : 0, state.rar && size.vt == VT_UI8);
     current = currentOutput;
     *stream = current;
     (*stream)->AddRef();
@@ -219,6 +298,12 @@ HRESULT visitMember(IInArchive *archive, UInt32 index, detours_archive_visit vis
     RINOK(archive->GetProperty(index, kpidEncrypted, &value))
     member.is_encrypted = value.vt == VT_BOOL && value.boolVal != VARIANT_FALSE;
     value.Clear();
+    RINOK(archive->GetProperty(index, kpidSplitBefore, &value))
+    member.split_before = value.vt == VT_BOOL && value.boolVal != VARIANT_FALSE;
+    value.Clear();
+    RINOK(archive->GetProperty(index, kpidSplitAfter, &value))
+    member.split_after = value.vt == VT_BOOL && value.boolVal != VARIANT_FALSE;
+    value.Clear();
     RINOK(archive->GetProperty(index, kpidSize, &value))
     if (value.vt == VT_UI8) { member.size = value.uhVal.QuadPart; member.has_size = 1; }
     value.Clear();
@@ -239,8 +324,8 @@ HRESULT visitMember(IInArchive *archive, UInt32 index, detours_archive_visit vis
 }
 
 HRESULT openFormat(int32_t format, CMyComPtr<IInArchive> &archive) {
-    const wchar_t *names[] = {L"7z", L"zip", L"tar", L"gzip", L"bzip2", L"xz"};
-    if (format < 0 || format >= 6) return E_INVALIDARG;
+    const wchar_t *names[] = {L"7z", L"zip", L"tar", L"gzip", L"bzip2", L"xz", L"Rar", L"Rar5"};
+    if (format < 0 || format >= 8) return E_INVALIDARG;
     UINT32 count = 0;
     RINOK(GetNumberOfFormats(&count))
     for (UINT32 index = 0; index < count; ++index) {
@@ -258,20 +343,95 @@ HRESULT openFormat(int32_t format, CMyComPtr<IInArchive> &archive) {
     }
     return CLASS_E_CLASSNOTAVAILABLE;
 }
+
+HRESULT checkRarIntegrity(IInArchive *archive, ReaderState &state) {
+    if (state.failure) return state.failure;
+    NWindows::NCOM::CPropVariant flags, error;
+    RINOK(archive->GetArchiveProperty(kpidErrorFlags, &flags))
+    RINOK(archive->GetArchiveProperty(kpidError, &error))
+    if (error.vt == VT_BSTR && SysStringLen(error.bstrVal)) return -1006;
+    if (flags.vt != VT_EMPTY && flags.vt != VT_UI4) return -1004;
+    if (flags.vt == VT_UI4 && flags.ulVal) {
+        if (flags.ulVal & (kpv_ErrorFlags_UnsupportedMethod | kpv_ErrorFlags_UnsupportedFeature)) return -1005;
+        if (flags.ulVal & kpv_ErrorFlags_EncryptedHeadersError) return -1003;
+        return -1004;
+    }
+    return S_OK;
+}
 }
 
-extern "C" int32_t detours_archive_read(int32_t format, int input, const char *password,
-                                        detours_archive_visit visit, detours_archive_input output,
-                                        detours_archive_progress progress, void *context) {
+extern "C" int32_t detours_rar_inspect(int32_t format, int input, const char *password,
+                                       detours_rar_volume_info *info, detours_archive_visit visit,
+                                       detours_archive_progress progress, void *context) {
     try {
         struct stat information;
-        if (!visit || fstat(input, &information) != 0 || !S_ISREG(information.st_mode) || information.st_size < 0) return E_INVALIDARG;
-        ReaderState state{progress, context, password};
+        if ((format != 6 && format != 7) || !info || !visit || fstat(input, &information) != 0 ||
+            !S_ISREG(information.st_mode) || information.st_size < 0) return E_INVALIDARG;
+        ReaderState state{progress, context, password, nullptr, nullptr, true};
         CMyComPtr<IInArchive> archive;
         RINOK(openFormat(format, archive))
         CMyComPtr<IInStream> stream = new Input(input, static_cast<uint64_t>(information.st_size), state);
         CMyComPtr<IArchiveOpenCallback> opener = new Open(state);
         const HRESULT opened = archive->Open(stream, nullptr, opener);
+        if (state.passwordRejected) return -1001;
+        if (opened != S_OK) return state.passwordRequested ? -1003 : -1004;
+        NWindows::NCOM::CPropVariant flags, volume, index;
+        RINOK(archive->GetArchiveProperty(kpidErrorFlags, &flags))
+        RINOK(archive->GetArchiveProperty(kpidIsVolume, &volume))
+        RINOK(archive->GetArchiveProperty(kpidVolumeIndex, &index))
+        *info = {};
+        info->is_volume = volume.vt == VT_BOOL && volume.boolVal != VARIANT_FALSE;
+        info->has_index = index.vt == VT_UI4;
+        if (info->has_index) info->index = index.ulVal;
+        if (index.vt == VT_UI8) {
+            if (index.uhVal.QuadPart >= 1024) return -1007;
+            info->has_index = 1;
+            info->index = static_cast<UInt32>(index.uhVal.QuadPart);
+        }
+        UInt32 count = 0;
+        RINOK(archive->GetNumberOfItems(&count))
+        UInt32 allowedFlags = 0;
+        if (format == 7 && info->is_volume && info->has_index && info->index > 0 && count) {
+            NWindows::NCOM::CPropVariant split;
+            RINOK(archive->GetProperty(0, kpidSplitBefore, &split))
+            // RAR5 reports a split-header error when a continuation is opened alone.
+            // The complete-set read must still pass every integrity check.
+            if (split.vt == VT_BOOL && split.boolVal != VARIANT_FALSE) allowedFlags = kpv_ErrorFlags_HeadersError;
+        }
+        if (flags.vt != VT_EMPTY && flags.vt != VT_UI4) return -1004;
+        if (flags.vt == VT_UI4 && (flags.ulVal & ~allowedFlags)) {
+            if (flags.ulVal & (kpv_ErrorFlags_UnsupportedMethod | kpv_ErrorFlags_UnsupportedFeature)) return -1005;
+            if (flags.ulVal & kpv_ErrorFlags_EncryptedHeadersError) return -1003;
+            return -1004;
+        }
+        for (UInt32 item = 0; item < count; ++item) {
+            RINOK(state.report())
+            RINOK(visitMember(archive, item, visit, context))
+        }
+        return archive->Close();
+    } catch (...) { return E_FAIL; }
+}
+
+extern "C" int32_t detours_archive_read(int32_t format, int input, const char *password,
+                                        const char *input_name, detours_archive_volume open_volume,
+                                        detours_archive_visit visit, detours_archive_input output,
+                                        detours_archive_progress progress, void *context) {
+    try {
+        struct stat information;
+        if (!visit || fstat(input, &information) != 0 || !S_ISREG(information.st_mode) || information.st_size < 0) return E_INVALIDARG;
+        ReaderState state{progress, context, password, input_name, open_volume, format == 6 || format == 7};
+        if (input_name) state.volumeNames.insert(input_name);
+        CMyComPtr<IInArchive> archive;
+        RINOK(openFormat(format, archive))
+        CMyComPtr<IInStream> stream = new Input(input, static_cast<uint64_t>(information.st_size), state);
+        CMyComPtr<IArchiveOpenCallback> opener = new Open(state);
+        const HRESULT opened = archive->Open(stream, nullptr, opener);
+        if (state.rar) {
+            if (state.failure) return state.failure;
+            if (state.passwordRejected) return -1001;
+            if (opened != S_OK) return state.passwordRequested ? -1003 : -1004;
+            RINOK(checkRarIntegrity(archive, state))
+        }
         if (opened != S_OK) return state.passwordRejected || (state.passwordRequested && opened == S_FALSE) ? -1001 : opened;
         UInt32 count = 0;
         RINOK(archive->GetNumberOfItems(&count))
@@ -282,6 +442,12 @@ extern "C" int32_t detours_archive_read(int32_t format, int input, const char *p
         if (output) {
             CMyComPtr<IArchiveExtractCallback> extractor = new Extract(archive, output, information, state);
             const HRESULT extracted = archive->Extract(nullptr, static_cast<UInt32>(-1), 0, extractor);
+            if (state.rar) {
+                if (state.failure) return state.failure;
+                if (state.passwordRejected) return -1001;
+                if (extracted != S_OK) return state.passwordRequested ? -1003 : -1004;
+                RINOK(checkRarIntegrity(archive, state))
+            }
             if (extracted != S_OK) return state.passwordRejected ? -1001 : extracted;
         }
         return archive->Close();

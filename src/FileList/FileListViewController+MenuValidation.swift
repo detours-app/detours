@@ -39,8 +39,7 @@ extension FileListViewController: NSMenuItemValidation {
                 && items[0].isNavigableFolder
                 && !isSharedTopLevelView
         case #selector(extractArchive(_:)):
-            let locations = selectedLocations
-            return locations.count == 1 && Self.isExtractableArchiveLocation(locations[0])
+            return Self.isExtractableSelection(selectedLocations)
         case #selector(paste(_:)):
             return ClipboardManager.shared.hasValidLocations
                 && (currentDirectory != nil || currentRemoteLocation != nil)

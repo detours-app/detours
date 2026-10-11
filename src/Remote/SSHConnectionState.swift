@@ -12,18 +12,18 @@ enum SSHConnectionFailureReason: Equatable, Sendable {
 extension SSHConnectionFailureReason {
     var displayMessage: String {
         switch self {
-        case .authentication(let message):
-            return message.isEmpty ? "Authentication failed" : message
+        case .authentication:
+            return "SSH could not sign in. Check your SSH key or password, then reconnect."
         case .hostKeyChanged:
-            return "Host key changed"
-        case .processExited(let status):
-            return "SSH process exited with status \(status)"
+            return "This computer's identity has changed. Verify its SSH host key before reconnecting."
+        case .processExited:
+            return "The file service closed the connection. Reconnect to try again."
         case .timedOut:
-            return "Connection timed out"
-        case .compatibility(let message):
-            return "Remote protocol compatibility error: \(message)"
-        case .transport(let message):
-            return message.isEmpty ? "Transport error" : message
+            return "The computer did not respond in time. Check its network connection, then reconnect."
+        case .compatibility:
+            return "Detours and this computer's file service use incompatible versions. Update Detours, then reconnect."
+        case .transport:
+            return "The connection was interrupted. Check that SSH can reach this computer, then reconnect."
         }
     }
 }

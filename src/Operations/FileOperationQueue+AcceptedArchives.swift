@@ -3,7 +3,8 @@ import Foundation
 import RemoteOperationSupport
 
 extension FileOperationQueue {
-    func performAcceptedExtraction(_ archive: Location, format: ArchiveFormat, password: String?, undoManager: UndoManager? = nil) async throws -> Location {
+    func performAcceptedExtraction(_ archive: Location, format: ArchiveFormat, password: String?, undoManager: UndoManager? = nil,
+                                   onRarParts: (([Location]) -> Void)? = nil) async throws -> Location {
         let hostID = Self.operationHostID(archive)
         let provider = try remoteProvider(for: hostID)
         let coordinator = try operationCoordinator()
@@ -13,7 +14,9 @@ extension FileOperationQueue {
             throw FileProviderError.unsupportedOperation("The archive layout could not be verified.")
         }
         let base: String
-        if let single = layout.singleRoot { base = single } else {
+        if let single = layout.singleRoot { base = single } else if format == .rar, let name = layout.rarBaseName {
+            base = name
+        } else {
             let filename = archive.lastPathComponent
             let suffixes = [".tar.gz", ".tar.bz2", ".tar.xz", ".tgz", ".tbz2", ".txz", ".zip", ".7z"]
             guard let suffix = suffixes.first(where: { filename.lowercased().hasSuffix($0) }) else {
@@ -41,19 +44,44 @@ extension FileOperationQueue {
             break
         }
         let operation = try await coordinator.create()
+        let sources: [OperationLocation]
+        let observations: [OperationObservation]
+        var rarParts: [Location] = []
+        if format == .rar {
+            guard let boundSources = layout.rarSources, let boundObservations = layout.rarObservations,
+                  !boundSources.isEmpty, boundSources.count == boundObservations.count else {
+                throw OperationCompatibilityError.missingCapabilities([.rarExtraction])
+            }
+            sources = boundSources
+            observations = boundObservations
+            if onRarParts != nil {
+                for source in sources { rarParts.append(try await provider.displayLocation(source.path)) }
+            }
+        } else {
+            sources = [inspected.location]
+            observations = [layout.source]
+        }
         let intent = OperationIntent(id: .init(operation: operation, item: UUID()), action: .archiveExtract,
-            sources: [inspected.location], destination: target, sourceObservations: [layout.source], conflict: .createNew,
+            sources: sources, destination: target, sourceObservations: observations, conflict: .createNew,
             archiveFormat: format.rawValue, archiveEncrypted: password?.isEmpty == false)
         let result = try await performAcceptedMutation(.init(intent: intent, hostID: hostID, work: .archive(password: password)))
         if let item = result.items.first, item.outcome == .failedUnchanged, item.result.receipt?.failure == "passwordRequired" {
             throw FileOperationError.archivePasswordRequired
         }
-        try requireSuccessfulBatch(result)
+        if format == .rar, let item = result.items.first, item.outcome == .failedUnchanged,
+           let failure = item.result.receipt?.failure {
+            throw RarExtractionDiagnostics.remote(failure)
+        }
+        if format != .rar || !result.items.allSatisfy({ $0.outcome == .committed }) { try requireSuccessfulBatch(result) }
         try await registerAcceptedUndo(result, with: undoManager, name: "Extract Archive")
+        if format == .rar { onRarParts?(rarParts) }
         return try await provider.displayLocation(target.path)
     }
 
     func performAcceptedArchive(items: [Location], format: ArchiveFormat, name: String, password: String?, undoManager: UndoManager? = nil) async throws -> Location {
+        guard format.supportsCreation else {
+            throw FileProviderError.unsupportedOperation("RAR archives can only be extracted.")
+        }
         guard let first = items.first, let groups = remoteGroups(from: items), groups.count == 1,
               let hostID = groups.keys.first else {
             throw FileProviderError.unsupportedOperation("Remote archive creation requires items on one host.")

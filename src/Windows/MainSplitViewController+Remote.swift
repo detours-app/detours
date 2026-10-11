@@ -183,9 +183,10 @@ extension MainSplitViewController {
     }
 
     private func showRemoteConnectionError(_ error: Error, host: RemoteHost) {
+        logger.error("Remote connection failed for \(host.displayName, privacy: .public): \(String(describing: error), privacy: .public)")
         let alert = NSAlert()
         alert.messageText = "Could not connect to \"\(host.displayName)\""
-        alert.informativeText = error.localizedDescription
+        alert.informativeText = RemoteHostSession.reason(for: error).displayMessage
         alert.alertStyle = .warning
         alert.addButton(withTitle: "OK")
         alert.runModal()

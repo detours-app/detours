@@ -10,6 +10,9 @@ public enum OperationCapability: String, Codable, CaseIterable, Hashable, Sendab
     case sourceManifest
     case treeImport
     case archiveLayout
+    case rarExtraction
+
+    public static var baseline: Set<Self> { Set(allCases).subtracting([.rarExtraction]) }
 }
 
 public enum OperationCompatibilityError: Error, Codable, Equatable, Sendable {
@@ -45,7 +48,7 @@ public struct OperationHandshake: Codable, Equatable, Sendable {
         guard schemaVersion == Self.journalSchema else {
             throw OperationCompatibilityError.journalSchema(expected: Self.journalSchema, actual: schemaVersion)
         }
-        let missing = Set(OperationCapability.allCases).subtracting(capabilities)
+        let missing = OperationCapability.baseline.subtracting(capabilities)
         guard missing.isEmpty else { throw OperationCompatibilityError.missingCapabilities(missing) }
         if let expectedAccount, account != expectedAccount { throw OperationCompatibilityError.accountMismatch }
         if let expectedEpoch, epoch != expectedEpoch { throw OperationCompatibilityError.epochChanged }
@@ -85,7 +88,7 @@ public enum OperationRequest: Codable, Equatable, Sendable {
 
     public static var handshake: Self {
         .handshake(version: OperationHandshake.protocolVersion, schemaVersion: OperationHandshake.journalSchema,
-                   requiredCapabilities: Set(OperationCapability.allCases))
+                   requiredCapabilities: OperationCapability.baseline)
     }
 
     public func encoded() throws -> Data {
@@ -120,10 +123,17 @@ public enum OperationReply: Codable, Equatable, Sendable {
 public struct OperationArchiveLayout: Codable, Equatable, Sendable {
     public let source: OperationObservation
     public let singleRoot: String?
+    public let rarSources: [OperationLocation]?
+    public let rarObservations: [OperationObservation]?
+    public let rarBaseName: String?
 
-    public init(source: OperationObservation, singleRoot: String?) {
+    public init(source: OperationObservation, singleRoot: String?, rarSources: [OperationLocation]? = nil,
+                rarObservations: [OperationObservation]? = nil, rarBaseName: String? = nil) {
         self.source = source
         self.singleRoot = singleRoot
+        self.rarSources = rarSources
+        self.rarObservations = rarObservations
+        self.rarBaseName = rarBaseName
     }
 }
 

@@ -65,7 +65,7 @@ extension FileListViewController {
         }
         let selectionCount = selectedLocations.count
         let canMutate = !isSharedTopLevelView
-        let selectedArchive = selectedLocations.first.map(Self.isExtractableArchiveLocation) ?? false
+        let selectedArchive = Self.isExtractableSelection(selectedLocations)
         let enabledMenus: [String: Bool] = [
             "open": selectionCount > 0,
             "copy": selectionCount > 0,
@@ -74,7 +74,7 @@ extension FileListViewController {
             "rename": selectionCount == 1 && canMutate,
             "duplicate": !selectedURLs.isEmpty && canMutate,
             "archive": selectionCount > 0 && canMutate,
-            "extract": selectionCount == 1 && selectedArchive,
+            "extract": selectedArchive,
             "trash": selectionCount > 0 && canMutate,
             "deleteImmediately": selectionCount > 0 && canMutate,
             "getInfo": selectionCount > 0,
@@ -460,6 +460,10 @@ extension FileListViewController {
     }
 
     func open(items: [FileItem], focusedItem: FileItem?) {
+        if items.count > 1, items.allSatisfy({ !$0.isNavigableFolder && ArchiveFormat.detect(from: $0.url) == .rar }) {
+            extractArchives(items.map(\.location))
+            return
+        }
         let dispatcher = FileItemOpeningDispatcher(
             confirmsOpening: { [weak self] fileCount in
                 guard let self else { return false }

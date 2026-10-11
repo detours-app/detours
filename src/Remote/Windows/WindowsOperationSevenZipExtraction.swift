@@ -4,28 +4,48 @@ extension WindowsOperationScripts {
     static let sevenZipExtractionHelpers = #"""
     function Prepare-WindowsSevenZipExtraction($Context, $Parameters) {
         $intent = $Context.record.intent
-        if ($intent.archiveFormat -ne 'sevenZ' -or @($intent.sources).Count -ne 1 -or @($intent.sourceObservations).Count -ne 1) {
+        $rar = $intent.archiveFormat -eq 'rar'
+        if ($intent.archiveFormat -notin @('sevenZ', 'rar') -or @($intent.sources).Count -lt 1 -or
+            @($intent.sources).Count -ne @($intent.sourceObservations).Count -or (-not $rar -and @($intent.sources).Count -ne 1)) {
             throw 'Invalid accepted 7z extraction.'
         }
-        if ($intent.archiveEncrypted -ne $false -or -not [string]::IsNullOrEmpty($Parameters.password)) {
+        if (-not $rar -and ($intent.archiveEncrypted -ne $false -or -not [string]::IsNullOrEmpty($Parameters.password))) {
             throw 'Password-protected archives are not supported on Windows remote machines.'
         }
-        $tool = Resolve-ArchiveTool @('7z.exe', '7z')
-        $libraryPath = Join-Path ([System.IO.Path]::GetDirectoryName($tool)) '7z.dll'
         $destination = Assert-WindowsDestination $Context
         $source = Get-OperationPath $intent.sources[0] $Context.account
+        if ($rar) { Assert-WindowsRarSources $intent $Context.account }
         $before = Get-WindowsContentProof $source
         Assert-WindowsObservation $before $intent.sourceObservations[0]
         $Context.record | Add-Member -NotePropertyName windowsArchiveSource -NotePropertyValue $before -Force
         Save-WindowsWorkspace $Context
-        $inputStream = [DetoursOperationFiles]::OpenObservedFile($source, $before.identity.volume, $before.identity.object, $before.version)
+        $inputStream = $null; $volumes = $null
         try {
-            $library = [DetoursSevenZipLibrary]::new($libraryPath)
+            if ($rar) { $library = Open-WindowsRarLibrary $source }
+            else {
+                $tool = Resolve-ArchiveTool @('7z.exe', '7z')
+                $library = [DetoursSevenZipLibrary]::new((Join-Path ([System.IO.Path]::GetDirectoryName($tool)) '7z.dll'))
+            }
             try {
                 $cancel = Join-Path $Context.root ((Get-OperationKey $Context.identity.id) + '.cancel')
-                $archive = $library.OpenArchive($inputStream, $cancel)
+                if ($rar) {
+                    $names = [string[]]@($intent.sources | ForEach-Object { [System.IO.Path]::GetFileName((Get-OperationPath $_ $Context.account)) })
+                    $volumes = [DetoursRarVolumeSet]::new([DetoursOperationFiles], $library, $source, $Parameters.password, $cancel, $names)
+                    $archive = $volumes.OpenArchive()
+                } else {
+                    $inputStream = [DetoursOperationFiles]::OpenObservedFile($source, $before.identity.volume, $before.identity.object, $before.version)
+                    $archive = $library.OpenArchive($inputStream, $cancel)
+                }
                 try {
-                    $plan = @(New-WindowsTarPlan $archive)
+                    $plan = if ($rar) { @(New-WindowsRarPlan $archive) } else { @(New-WindowsTarPlan $archive) }
+                    if ($rar) {
+                        Assert-WindowsRarSources $intent $Context.account
+                        [long]$expanded = 0
+                        foreach ($entry in $archive.Entries) { if ($entry.Kind -eq 'file') { $expanded += $entry.Length } }
+                        if ([uint64]$expanded -gt [DetoursSevenZipLibrary]::AvailableBytes([System.IO.Path]::GetDirectoryName($destination))) {
+                            throw 'Not enough free space to extract this RAR archive.'
+                        }
+                    }
                     New-WindowsWorkspace $Context $destination | Out-Null
                     $workspace = $Context.record.workspace
                     $pin = [DetoursOperationFiles]::PinDirectory($Context.record.windowsWorkspacePath, $workspace.root.identity.volume, $workspace.root.identity.object)
@@ -56,6 +76,7 @@ extension WindowsOperationScripts {
                         $manifest = Get-WindowsTreeProof $payload
                         Assert-WindowsExtractedManifest $plan $manifest
                         Assert-WindowsObservation (Get-WindowsContentProof $source) $before
+                        if ($rar) { $volumes.Validate(); Assert-WindowsRarSources $intent $Context.account }
                         $Context.record | Add-Member -NotePropertyName payloadManifest -NotePropertyValue $manifest -Force
                         $Context.record | Add-Member -NotePropertyName windowsArchiveSource -NotePropertyValue $before -Force
                         Save-WindowsWorkspace $Context
@@ -70,8 +91,11 @@ extension WindowsOperationScripts {
                         $pin.Dispose()
                     }
                 } finally { $archive.Dispose() }
-            } finally { $library.Dispose() }
-        } finally { $inputStream.Dispose() }
+            } finally {
+                if ($null -ne $volumes) { $volumes.Dispose() }
+                $library.Dispose()
+            }
+        } finally { if ($null -ne $inputStream) { $inputStream.Dispose() } }
     }
     function Write-WindowsSevenZipEntry($Context, $Archive, $Member, [string]$Target, [string]$Name) {
         $output = [DetoursOperationFiles]::CreateNewFile($Target)

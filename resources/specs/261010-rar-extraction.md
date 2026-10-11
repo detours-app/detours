@@ -30,13 +30,13 @@ Add RAR extraction alongside the existing archive formats, including password-pr
 
 ### Acceptance Criteria
 
-- [ ] **A1** Ordinary and solid RAR4 and RAR5 archives extract correctly on the Mac and supported macOS, Linux and Windows remote hosts.
-- [ ] **A2** Password-protected contents and concealed filenames open with the correct password, and a confirmed wrong password can be corrected without partial results.
-- [ ] **A3** Split archives, including password-protected split archives, extract once when any recognized part is selected and all required parts are together.
-- [ ] **A4** Missing, damaged, changed or unsafe archive contents leave original archives and existing destination files intact and explain why extraction stopped.
-- [ ] **A5** Progress, cancellation, destination naming, conflict handling, selection and undo follow the existing archive workflow.
-- [ ] **A6** No RAR creation option or paid dependency is introduced, and existing ZIP, 7Z and TAR features continue to work.
-- [ ] **A7** Passwords are absent from saved operation records and diagnostic output.
+- [x] **A1** Ordinary and solid RAR4 and RAR5 archives extract correctly on the Mac and supported macOS, Linux and Windows remote hosts.
+- [x] **A2** Password-protected contents and concealed filenames open with the correct password, and a confirmed wrong password can be corrected without partial results.
+- [x] **A3** Split archives, including password-protected split archives, extract once when any recognized part is selected and all required parts are together.
+- [x] **A4** Missing, damaged, changed or unsafe archive contents leave original archives and existing destination files intact and explain why extraction stopped.
+- [x] **A5** Progress, cancellation, destination naming, conflict handling, selection and undo follow the existing archive workflow.
+- [x] **A6** No RAR creation option or paid dependency is introduced, and existing ZIP, 7Z and TAR features continue to work.
+- [x] **A7** Passwords are absent from saved operation records and diagnostic output.
 - [ ] **A8** The GitHub page and formatted HTML user guide accurately describe RAR extraction, passwords, split archives and the Windows requirement.
 
 ### Out of scope
@@ -120,15 +120,15 @@ Create missing-part and deterministic damaged copies only within test-owned Foun
 
 ### Implementation Plan
 
-- [ ] **C1** Separate extraction and creation capabilities in src/Utilities/CompressionTools.swift, Shared/SevenZipArchiveReader.swift and ArchiveDialog; add RAR recognition and explicit app/helper/Windows creation rejection.
-- [ ] **C2** Extend SevenZip/ and ArchiveStreamBridge/ with pinned RAR/RAR5 handlers, codecs, complete-open error inspection, password/volume callbacks and retained licence notices.
-- [ ] **C3** Add the fixture corpus and manifest under resources/fixtures/rar/ with independent expected contents, pinned provenance, public fixture-password metadata and qualification of the encrypted multipart reference set.
-- [ ] **C4** Add shared RAR volume discovery and extend archive inspection, accepted source observations and commit validation to bind the complete ordered volume set.
-- [ ] **C5** Add local RAR extraction through the shared reader in src/Operations/, preserving owned-output validation, existing conflict publication, cancellation and undo.
-- [ ] **C6** Extend Server/ServerArchiveExtractionReader.swift, ServerArchiveExtractionPlan and ServerOperationService extraction handling for encrypted multipart RAR and all-volume source proofs.
-- [ ] **C7** Extend src/Remote/Windows/WindowsOperationArchiveLayout.swift and WindowsOperationSevenZipInterfaces/Reader/Runtime/Extraction.swift for RAR/RAR5, password and volume callback interfaces, controlled volumes and safe link properties.
-- [ ] **C8** Update file opening, Extract Here availability, multi-selection deduplication and FileOperationQueue error mapping; reuse the existing password sheet and add precise volume/tool/integrity messages.
-- [ ] **C9** In resources/scripts/build-server-linux.sh, copy resources/fixtures/rar/ and Tests/ServerRarExtractionTests.swift to devtest and add the test file to the ServerArchiveOperationsTests sources, as ServerArchiveStreamTests is today; add both to resources/scripts/server-cache-hash.sh. RarExtractionUITests run through the guarded installed-smoke runner's --test-filter without joining a default workflow group.
+- [x] **C1** Separate extraction and creation capabilities in src/Utilities/CompressionTools.swift, Shared/SevenZipArchiveReader.swift and ArchiveDialog; add RAR recognition and explicit app/helper/Windows creation rejection.
+- [x] **C2** Extend SevenZip/ and ArchiveStreamBridge/ with pinned RAR/RAR5 handlers, codecs, complete-open error inspection, password/volume callbacks and retained licence notices.
+- [x] **C3** Add the fixture corpus and manifest under resources/fixtures/rar/ with independent expected contents, pinned provenance, public fixture-password metadata and qualification of the encrypted multipart reference set. Copy these fixtures to devtest and include them in the helper cache hash so paired reader tests run during the required Linux build.
+- [x] **C4** Add shared RAR volume discovery and extend archive inspection, accepted source observations and commit validation to bind the complete ordered volume set.
+- [x] **C5** Add local RAR extraction through the shared reader in src/Operations/, preserving owned-output validation, existing conflict publication, cancellation and undo.
+- [x] **C6** Extend Server/ServerArchiveExtractionReader.swift, ServerArchiveExtractionPlan and ServerOperationService extraction handling for encrypted multipart RAR and all-volume source proofs.
+- [x] **C7** Extend src/Remote/Windows/WindowsOperationArchiveLayout.swift and WindowsOperationSevenZipInterfaces/Reader/Runtime/Extraction.swift for RAR/RAR5, password and volume callback interfaces, controlled volumes and safe link properties.
+- [x] **C8** Update file opening, Extract Here availability, multi-selection deduplication and FileOperationQueue error mapping; reuse the existing password sheet and add precise volume/tool/integrity messages.
+- [x] **C9** In resources/scripts/build-server-linux.sh, copy Tests/ServerRarExtractionTests.swift to devtest and add the test file to the ServerArchiveOperationsTests sources, as ServerArchiveStreamTests is today; add it to resources/scripts/server-cache-hash.sh. Fixture copying and cache tracking are prerequisites completed under C3. RarExtractionUITests run through the guarded installed-smoke runner's --test-filter without joining a default workflow group.
 - [ ] **C10** Update README.md and resources/docs/USER_GUIDE.md, regenerate resources/docs/USER_GUIDE.html with resources/scripts/render-user-guide.mjs, and document RAR extraction-only support, passwords, multipart limits and Windows prerequisites.
 
 ---
@@ -143,40 +143,84 @@ Shared reader tests live in Tests/DetoursProcessTests/RarArchiveStreamTests.swif
 
 ### Reader and local tests
 
-- [ ] **T1** (C3) RarFixtureTests/testPinnedInputsMatchIndependentReferences checks fixture hashes and licences, decodes the six-part encrypted reference with full free 7-Zip on Foundry and compares every output byte to upstream originals.
-- [ ] **T2** (C1, C4) RarArchiveOperationTests/testRecognizesRarSetsWithoutOfferingRarCreation covers case variants, later-part entry, false numbered-file matches, unchanged creation choices and direct RAR-creation rejection.
-- [ ] **T3** (C2, C3, C9) RarArchiveStreamTests/testReadsAllRarFixtureFamilies compares ordinary, solid, Unicode, empty, encrypted-content and encrypted-header RAR4/RAR5 output against the independent manifest on macOS and Linux.
-- [ ] **T4** (C2, C3, C4) RarArchiveStreamTests/testVolumeCallbacksRefuseUnacceptedPaths covers missing first/middle/final parts, mixed sets, the 1,024-part limit, ambiguous names, source-link substitutions, forbidden path requests and descriptor cleanup.
-- [ ] **T5** (C2, C3) RarArchiveStreamTests/testSeparatesPasswordIntegrityAndCancellation covers absent/wrong/correct passwords, ambiguous encrypted corruption, checksum failure, declared-size mismatch, cancellation and closed owned handles.
-- [ ] **T6** (C3, C4, C5) RarArchiveOperationTests/testMultipartExtractionUsesEveryObservedPart covers both naming schemes, encrypted multipart input, selected continuation, changed parts, final source-proof rejection and absence of the password from operation records and diagnostics.
-- [ ] **T7** (C3, C5) RarArchiveOperationTests/testUnsafeOrDamagedRarCannotPublish covers traversal, duplicate normalized names, link escapes, truncation, disk-full failure and no changes to existing occupants.
-- [ ] **T8** (C3, C5) RarArchiveOperationTests/testRarConflictCancellationAndUndoPreserveFiles covers Keep Both, Replace, Stop, destination races, pre-publication cancellation, commit-race reporting and restoration of displaced files.
+- [x] **T1** (C3) RarFixtureTests/testPinnedInputsMatchIndependentReferences checks fixture hashes and licences, decodes the six-part encrypted reference with full free 7-Zip on Foundry and compares every output byte to upstream originals.
+- [x] **T2** (C1, C4) RarArchiveOperationTests/testRecognizesRarSetsWithoutOfferingRarCreation covers case variants, later-part entry, false numbered-file matches, unchanged creation choices and direct RAR-creation rejection.
+- [x] **T3** (C2, C3, C9) RarArchiveStreamTests/testReadsAllRarFixtureFamilies compares ordinary, solid, Unicode, empty, encrypted-content and encrypted-header RAR4/RAR5 output against the independent manifest on macOS and Linux.
+- [x] **T4** (C2, C3, C4) RarArchiveStreamTests/testVolumeCallbacksRefuseUnacceptedPaths covers missing first/middle/final parts, mixed sets, the 1,024-part limit, ambiguous names, source-link substitutions, forbidden path requests and descriptor cleanup.
+- [x] **T5** (C2, C3) RarArchiveStreamTests/testSeparatesPasswordIntegrityAndCancellation covers absent/wrong/correct passwords, ambiguous encrypted corruption, checksum failure, declared-size mismatch, cancellation and closed owned handles.
+- [x] **T6** (C3, C4, C5) RarArchiveOperationTests/testMultipartExtractionUsesEveryObservedPart covers both naming schemes, encrypted multipart input, selected continuation, changed parts, final source-proof rejection and absence of the password from operation records and diagnostics.
+- [x] **T7** (C3, C5) RarArchiveOperationTests/testUnsafeOrDamagedRarCannotPublish covers traversal, duplicate normalized names, link escapes, truncation, disk-full failure and no changes to existing occupants.
+- [x] **T8** (C3, C5) RarArchiveOperationTests/testRarConflictCancellationAndUndoPreserveFiles covers Keep Both, Replace, Stop, destination races, pre-publication cancellation, commit-race reporting and restoration of displaced files.
 
 ### Helper and Windows tests
 
-- [ ] **T9** (C3, C4, C6, C9) ServerRarExtractionTests/testAcceptedRarVerifiesAllPartsAndCommitsOnce runs on macOS and Linux, checking every fixture family, unpublished preparation, changed volumes, source proofs and idempotent commit.
-- [ ] **T10** (C3, C4, C6, C9) ServerRarExtractionTests/testRarFailurePreservesFilesAndPasswordPrivacy covers missing parts, wrong passwords, corruption, unsafe links, cancellation and absence of passwords from records and diagnostics.
-- [ ] **T11** (C3, C4, C7, C9) WindowsAcceptedOperationLiveTests/testAcceptedRarMatchesFixtureManifest exercises real RAR4/RAR5 ordinary, solid, both encryption modes and encrypted multipart extraction through the installed free DLL.
-- [ ] **T12** (C3, C4, C7, C9) WindowsAcceptedOperationLiveTests/testRarVolumesAndFailuresCannotEscape covers continuation selection, replaced/missing parts, idempotent commit, drive/UNC/ADS paths, unsafe links/reparse points, cancellation and password privacy.
-- [ ] **T13** (C7) WindowsArchiveScriptTests/testRarCapabilitiesDoNotChangeOtherFormats covers missing/incompatible DLL errors, no archive-folder DLL lookup and unchanged Windows ZIP/7Z password restrictions.
+- [x] **T9** (C3, C4, C6, C9) ServerRarExtractionTests/testAcceptedRarVerifiesAllPartsAndCommitsOnce runs on macOS and Linux, checking every fixture family, unpublished preparation, changed volumes, source proofs and idempotent commit.
+- [x] **T10** (C3, C4, C6, C9) ServerRarExtractionTests/testRarFailurePreservesFilesAndPasswordPrivacy covers missing parts, wrong passwords, corruption, unsafe links, cancellation and absence of passwords from records and diagnostics.
+- [x] **T11** (C3, C4, C7, C9) WindowsAcceptedOperationLiveTests/testAcceptedRarMatchesFixtureManifest exercises real RAR4/RAR5 ordinary, solid, both encryption modes and encrypted multipart extraction through the installed free DLL.
+- [x] **T12** (C3, C4, C7, C9) WindowsAcceptedOperationLiveTests/testRarVolumesAndFailuresCannotEscape covers continuation selection, replaced/missing parts, idempotent commit, drive/UNC/ADS paths, unsafe links/reparse points, cancellation and password privacy.
+- [x] **T13** (C7) WindowsArchiveScriptTests/testRarCapabilitiesDoNotChangeOtherFormats covers missing/incompatible DLL errors, no archive-folder DLL lookup and unchanged Windows ZIP/7Z password restrictions.
 
 ### Installed-app and documentation tests
 
-- [ ] **T14** (C3, C5, C8, C9) RarExtractionUITests/testEncryptedMultipartRarRetriesAndUndoes uses the guarded installed-smoke runner to open a later part, reject a password, extract with the correct one, select the result and undo.
-- [ ] **T15** (C3, C5, C8, C9) RarExtractionUITests/testMissingVolumeExplainsFailure uses the guarded runner to confirm actionable missing-part text, no partial result and no incorrect-password prompt.
-- [ ] **T16** (C3, C5, C8, C9) RarExtractionUITests/testSelectingSeveralPartsExtractsOnce confirms one operation/result for a multi-selected set and inspects the actual progress and result UI.
+- [x] **T14** (C3, C5, C8, C9) RarExtractionUITests/testEncryptedMultipartRarRetriesAndUndoes uses the guarded installed-smoke runner to open a later part, reject a password, extract with the correct one, select the result and undo.
+- [x] **T15** (C3, C5, C8, C9) RarExtractionUITests/testMissingVolumeExplainsFailure uses the guarded runner to confirm actionable missing-part text, no partial result and no incorrect-password prompt.
+- [x] **T16** (C3, C5, C8, C9) RarExtractionUITests/testSelectingSeveralPartsExtractsOnce confirms one operation/result for a multi-selected set and inspects the actual progress and result UI.
 - [ ] **T17** (C10) Regenerate USER_GUIDE.html, render README.md to a scratch HTML file with the bundled markdown-it, open both with /agent-browser, confirm every link resolves and compare the archive descriptions with the platforms T3, T9 and T11 proved.
 
 ### Focused regressions
 
 Run each filter separately, after its related RAR checks pass. Required Windows tests use the existing DETOURS_7ZIP_FIXTURE prerequisite containing official free Windows 7z.exe and 7z.dll. Fixture setup and installed-app checks follow resources/docs/testing-runbook.md, including the independent consent-prompt sentry.
 
-- [ ] **T18** (C1, C2, C5) Pass ArchiveOperationTests/testCreateAndExtractEncryptedZipRoundTrips, testEncryptedZipWrongPasswordRetriesWithoutPartialOutput, testCreateListAndExtractEncrypted7zRoundTrips, testEncrypted7zWrongPasswordDiffersFromCorruption and testEncryptedAESZipPromptsAndRoundTripsThroughSevenZip individually.
-- [ ] **T19** (C4, C5, C6) Pass AcceptedExtractionCallerTests/testSingleItemNamesAndWrappersMatchAllExistingFormats, testEncryptedExtractionRequestsPasswordAndRetainsRetry and testChangedArchiveAfterInspectionCannotBeExtracted individually.
-- [ ] **T20** (C2, C6) Pass ServerArchiveStreamTests/testNativeReaderListsAndExtractsOwnedStreamsAcrossFormats, testNativeReaderRefusesNonemptyOutputAndPropagatesCancellation and testExternalLinkArchiveRetainsExistingExtractionRefusal individually.
-- [ ] **T21** (C7) Pass WindowsAcceptedOperationLiveTests/testAcceptedSevenZipCreationAndExtractionMatchExistingLayout and WindowsArchiveScriptTests/testArchiveExtractRejectsEscapingEntries individually.
-- [ ] **T22** (C1, C8, C9) Pass ArchivePasswordUITests/testCreationControlsFollowSelectedFormat and testWrongPasswordShowsRetrySheet individually through the guarded installed-smoke runner.
+- [x] **T18** (C1, C2, C5) Pass ArchiveOperationTests/testCreateAndExtractEncryptedZipRoundTrips, testEncryptedZipWrongPasswordRetriesWithoutPartialOutput, testCreateListAndExtractEncrypted7zRoundTrips, testEncrypted7zWrongPasswordDiffersFromCorruption and testEncryptedAESZipPromptsAndRoundTripsThroughSevenZip individually.
+- [x] **T19** (C4, C5, C6) Pass AcceptedExtractionCallerTests/testSingleItemNamesAndWrappersMatchAllExistingFormats, testEncryptedExtractionRequestsPasswordAndRetainsRetry and testChangedArchiveAfterInspectionCannotBeExtracted individually.
+- [x] **T20** (C2, C6) Pass ServerArchiveStreamTests/testNativeReaderListsAndExtractsOwnedStreamsAcrossFormats, testNativeReaderRefusesNonemptyOutputAndPropagatesCancellation and testExternalLinkArchiveRetainsExistingExtractionRefusal individually.
+- [x] **T21** (C7) Pass WindowsAcceptedOperationLiveTests/testAcceptedSevenZipCreationAndExtractionMatchExistingLayout and WindowsArchiveScriptTests/testArchiveExtractRejectsEscapingEntries individually.
+- [x] **T22** (C1, C8, C9) Pass ArchivePasswordUITests/testCreationControlsFollowSelectedFormat and testWrongPasswordShowsRetrySheet individually through the guarded installed-smoke runner.
 
 ---
 
 ## Build Log
+
+- **C10, T17 progress** README, guide source and generated HTML now describe extraction-only RAR4/RAR5, encryption, split naming, the 1,024-part limit and compatible free Windows 7-Zip. Reconciled the same claims in the positioning document. Inspected desktop and narrow rendered sections; all images decode and 43 local links/anchors resolve. The public guide returns 404 and the GitHub file-view link returns 503 although raw source returns 200. Keep intended publication links; T17 remains open until those public destinations resolve. No Unreleased changelog section exists, so update-docs leaves released history unchanged.
+
+- **C9, T22, A6** Linux builds include and cache the RAR accepted-operation tests; Mac/Linux T3/T9/T10 and Windows T11/T12 passed. All three RAR UI cases passed individually. Existing creation controls (`f0228ea8`) and ZIP password retry (`e59fa1ed`) passed as separate guarded Foundry cases with no skips or runtime warnings. Together with T18-T21, these confirm the existing archive formats still work and RAR remains extraction-only with no paid dependency.
+
+- **T16, A3, A5** Foundry guarded UI at `4b463dfc` passed multi-selected multipart extraction, visible progress during Keep Both, one selected result, retained occupants and undo. Both screenshots were inspected. T14 proves encrypted continuation selection; T6/T8/T9/T11 cover naming, cancellation, replacement restoration and accepted publication. The test reads visible progress while the modal dialog is open and requests internal completion state afterwards.
+
+- **T15, A4** Foundry guarded UI at `dc595a71` passed missing-middle-part refusal and retained both existing parts byte for byte. The inspected screenshot names the missing part and explains recovery, with no password prompt. Together with T7/T8/T10/T12 this covers missing, damaged, changed and unsafe input without publishing partial output or losing occupants.
+
+- **T14, A2** Foundry guarded UI at `1e0f7103` passed confirmed password retry, empty validation, ambiguous encrypted multipart failure, correct extraction from part six, independent output bytes, selection and undo. All three screenshots were opened and inspected; messages are readable and the result is selected. Native and Windows fixture tests separately cover concealed filenames. Fixed the test query to read native accessibility values as well as labels.
+
+- **T12** Foundry passed the complete Windows refusal journey with both 7-Zip 23.01 (`cb91191b`, 150.669s) and 26.02 (`f6def964`, 149.769s). Missing/replaced parts, junctions, drive/UNC/ADS paths, unsafe links, corruption, wrong passwords, cancellation and cleanup all passed. The fixture header mutations now preserve filename byte lengths. T11 independently covers continuation selection and repeat commits.
+
+- **T11, A1** Foundry at `f6def964` passed all 20 positive Windows families with official 7-Zip 26.02 in 301.848 seconds. Together with Mac/Linux T3/T9 and local T6, this confirms ordinary and solid RAR4/RAR5 extraction across the supported paths. Older DLLs that omit RAR4 Unix file types now receive a specific update message before output allocation.
+
+- **A7** Native helper T10 and local T6 passed their password-privacy assertions; Windows T12 at `cb91191b` passed receipt and journal scans with a distinct wrong password across content-encrypted, header-encrypted and encrypted multipart archives.
+
+- **C8** Recognized continuation selections and enabled Extract Here for multiple RAR parts. Successful extraction reports its verified source set so remaining selected parts are skipped. Reused the password sheet with distinct password, ambiguous integrity, missing-part and tool messages. Foundry at `4737757a` passed the signed build and strengthened T2, T6 and T13 individually. Installed-app behavior remains paired with C9.
+
+- **C5, T8, T18** Added a RAR-only local staging adapter using the shared decoder and pinned, owned filesystem handles. Complete output planning precedes allocation; final source/output proofs precede exclusive publication through the existing replacement ledger and undo. Foundry at `a1ad9672` passed conflict choices, displaced-file restoration, dangling-link name conflicts, destination races and cancellation on both sides of publication. All five named encrypted ZIP/7Z regressions passed individually. The signed app build and SwiftLint passed; no unrelated extraction implementation moved.
+
+- **T6** Foundry at `a1ad9672` passed local modern, legacy and encrypted multipart extraction from a continuation, compared output to independent bytes/checksums, retained hidden members, rejected source mutations after discovery and immediately before publication, and confirmed errors and operation descriptions omit a supplied secret. Signed app build passed without warnings.
+
+- **T7** Foundry at `0210b48e` passed the unsafe/damaged local RAR check with traversal, duplicate and equivalent names, escaping links, truncation, space shortage and injected output-boundary disk-full errors. Existing occupants and archive inputs remain intact; private staging is removed. Both helpers and the signed app built successfully.
+
+- **C4, T2, T4** Bound discovery and accepted requests to ordered, observed sibling volumes with all-part commit proofs and an explicit helper capability. Continuations are inspected without joining siblings, then the complete set receives strict integrity checks. Foundry at `d834b705` passed T2 and T4; Linux passed T4 among 20 process checks plus 125 helper checks. Both helpers and the signed app built successfully. Tests cover encrypted modern and legacy sets, missing/mixed/ambiguous parts, substituted links, forbidden paths, the 1,024-part limit and closed handles.
+
+- **C3 ordering** Marco approved moving fixture copying and cache tracking from C9 into C3 because C3's paired shared-reader test is automatically included in the required Linux helper build. The remaining C9 work stays in sequence.
+
+- **C1** Added reader-specific formats and an explicit writable-format list, retained serialized creation values, recognized `.rar` case-insensitively, and rejected RAR creation before output allocation in app/helper/Windows paths. Creation-based round trips enumerate writable formats. SwiftLint passed. Foundry `resources/scripts/build.sh --no-install` at `bedd0349` built both helpers and the signed app; embedded Linux checks passed 18 process and 125 helper tests. Continuation/signature recognition and its paired T2 remain with C4; RAR decoding remains unavailable until C2/C5.
+- **C2** Imported the RAR/RAR5 handlers and dependencies from the same verified 26.02 source archive, retaining licence notices. The bridge exposes controlled sibling-volume callbacks, limits distinct parts to 1,024, opens additional part handles only while reading, checks archive error properties before member output, enforces declared lengths and separates password/integrity/volume outcomes. An unnecessary disk-image implementation caused an initial Linux link failure and was removed. Foundry build at `afe6a720` passed for both helpers and the signed app; embedded Linux checks passed 18 process and 125 helper tests. RAR fixture qualification follows in C3 and its paired tests.
+
+- **C3** Added pinned SharpCompress and ISC rarfile corpora, independent expectations and licences. Full official 7-Zip qualified the six-part encrypted reference against upstream originals, including the upstream text checkout convention. Foundry at `02e63cb5` passed T1 and T5; Linux passed T5 among 19 process checks and 125 helper checks. Both helpers and the signed app built successfully.
+
+- **C6** Native helpers prepare RAR through accepted, ordered sibling volume proofs and the shared validated extraction plan. Destination case behavior and known free space are checked before member output; every part is revalidated before readiness and commit. Foundry signed build and both helper builds passed at `a829813f`; strengthened T4 passed on macOS and Linux.
+- **T19** All three named accepted-extraction regressions passed individually on Foundry at `a829813f`: naming/layout, password retry and changed-source refusal.
+- **T20** All three named native helper reader regressions passed individually on Foundry at `a829813f`: existing formats, owned output/cancellation and external-link refusal.
+- **T13** Live Windows capability checks passed at `0aba96f9` after correcting the test's SSH socket path. The native callback assembly compiled, missing/incompatible DLLs and archive-folder lookup produced the official-download message, and ZIP/7Z password restrictions remained unchanged.
+- **C7** Extended the selected free Windows DLL reader with RAR4/RAR5 handlers, private password callbacks, pinned sibling discovery, ordered accepted volume proofs, bounded streams and link properties. RAR preparation validates names, links, sizes and free space before owned output; readiness and publication revalidate every accepted part. Signed Foundry build and paired Windows checks passed at `0aba96f9`; fixture-family extraction coverage remains paired with C9.
+- **T21** Existing Windows 7Z creation/extraction and escaping-entry regressions passed individually at `0aba96f9`, including actual DLL extraction, layout, links and cancellation.
+
+- **T3, T9, T10** Foundry and Linux at `024d193b` passed every positive fixture family and accepted extraction failure checks. Independent plaintext SHA-256 takes precedence over keyed encrypted-header checksums. Mac cases passed individually; Linux passed 21 process and 127 helper checks, including complete source proofs, private preparation, repeat commit, corruption, cancellation and password privacy.
+
+- **T11** Foundry against Windows at `b40087be` passed all 20 positive fixture families through the official free DLL in 298.676 seconds, including the six-part encrypted archive, independent output comparisons and repeat commits. Fixed the PowerShell unsigned type, compacted generated workspace names, and moved full part hashing before the publication lock while retaining identity/version/size checks inside it.

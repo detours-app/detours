@@ -4,13 +4,15 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 {
-    for DETOURS_PATH in Server Shared RemoteOperationSupport FilesystemPrimitives SevenZip ArchiveStreamBridge LinuxStaticFoundationGuard Tests/DetoursProcessTests; do
+    for DETOURS_PATH in Server Shared RemoteOperationSupport FilesystemPrimitives SevenZip ArchiveStreamBridge LinuxStaticFoundationGuard Tests/DetoursProcessTests resources/fixtures/rar; do
         if [ -d "$DETOURS_PATH" ]; then
             find "$DETOURS_PATH" -type f -print0 | sort -z | xargs -0 shasum -a 256
         fi
     done
     shasum -a 256 Tests/ServerArchiveOperationsTests.swift
     shasum -a 256 Tests/ServerArchiveStreamTests.swift
+    shasum -a 256 Tests/ServerRarExtractionTests.swift
+    shasum -a 256 Tests/RarTestCorpus.swift
     shasum -a 256 Tests/ServerOperationArchiveTests.swift
     shasum -a 256 Tests/ServerOperationExtractionTests.swift
     shasum -a 256 Tests/ServerLegacyMutationTests.swift
@@ -26,5 +28,6 @@ cd "$(dirname "$0")/../.."
     shasum -a 256 Tests/ServerOperationTrashTests.swift
     shasum -a 256 Tests/ServerOperationBackupTests.swift
     shasum -a 256 resources/scripts/build-server-linux.sh
+    shasum -a 256 resources/scripts/build-server-darwin.sh
     grep -nE 'detours-server|DetoursProcess|path: "(Server|Shared|Tests/DetoursProcessTests)"|products:|targets:' Package.swift
 } | shasum -a 256 | awk '{print $1}'

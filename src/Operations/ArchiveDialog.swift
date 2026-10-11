@@ -15,6 +15,7 @@ final class ArchiveModel {
     }
 
     var validationError: String? {
+        guard format.supportsCreation else { return "RAR archives can only be extracted." }
         let trimmed = archiveName.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
             return "Archive name cannot be empty"
@@ -62,7 +63,7 @@ final class ArchiveModel {
 
         // Restore last-used format
         if let savedFormat = UserDefaults.standard.string(forKey: "Detours.LastArchiveFormat"),
-           let restored = ArchiveFormat(rawValue: savedFormat) {
+           let restored = ArchiveFormat(rawValue: savedFormat), restored.supportsCreation {
             self.format = restored
         } else {
             self.format = .zip
@@ -141,7 +142,7 @@ struct ArchiveDialog: View {
                     .font(labelFont)
                     .foregroundStyle(Color(ThemeManager.shared.currentTheme.textSecondary))
                 Picker("", selection: $model.format) {
-                    ForEach(ArchiveFormat.allCases, id: \.self) { format in
+                    ForEach(ArchiveFormat.writableFormats, id: \.self) { format in
                         if CompressionTools.isFormatAvailable(format) {
                             Text(format.displayName)
                                 .tag(format)
