@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.16.0 - 2026-10-11
+
+### Features
+
+- **Extract RAR archives locally and on remote hosts** - Open RAR4 and RAR5 archives, including solid archives, encrypted contents and concealed filenames. Extraction is built in on your Mac and supported macOS and Linux hosts; Windows hosts need compatible free 7-Zip. RAR creation is not offered.
+- **Open split RAR archives from any recognized part** - Keep every part in one folder and open a numbered or legacy continuation part to extract the set. Selecting several parts extracts the archive once, with a limit of 1,024 parts. Existing conflict choices and Undo apply to the extracted result.
+
+### Fixes
+
+- **Mac hosts connect with the current file service** - The app now bundles the helper produced by the current build instead of an older cached executable. Incompatible services stop retrying and show a readable explanation; connection failures include recovery guidance instead of raw protocol errors.
+- **RAR failures explain what needs attention** - Missing parts, changed archives, damaged data and password failures show readable guidance. Windows errors no longer expose PowerShell exception wrappers.
+
+### Changes
+
+- **Refreshed screenshots and user guide** - The GitHub introduction and formatted guide show the current interface and describe RAR passwords, split archives and Windows prerequisites.
+
 ## 1.15.0 - 2026-10-03
 
 ### Features
