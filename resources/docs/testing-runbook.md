@@ -273,7 +273,7 @@ Every Foundry GUI campaign must prove that the expected user owns an unlocked co
 
 The bridge supports visible element clicks, typing, keyboard shortcuts and menus, plus the existing guarded fixture and pane-state commands. It does not launch network clients or answer operating-system prompts. The ordinary runner sentries and cleanup stay active. Send `finish` to end the session; absence of the next command for three minutes or a session lasting 25 minutes fails the run.
 
-Before remote fixture cleanup, navigate both panes outside the owned scenario and inspect the settled listing. Windows refuses to move an ancestor of a directory with an active filesystem watcher; leaving the scenario retires that watch before the ordinary Trash cleanup.
+Before remote fixture cleanup, navigate both panes outside the owned scenario and inspect the settled listing. Windows refuses to move an ancestor of a directory with an active filesystem watcher. Leaving the scenario retires the current watch, but an interrupted installed-app session can leave an older watcher alive. Identify its Detours command and exact process start time before retiring a task-owned orphan; never kill unrelated PowerShell processes. Then retry ordinary Trash cleanup and compare the home listing with its baseline.
 
 ## Failure Protocol
 
